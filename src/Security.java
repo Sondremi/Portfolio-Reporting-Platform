@@ -97,7 +97,7 @@ public class Security {
 
     public String getRealizedReturnPctAsText() {
         if (Math.abs(realizedCostBasis) < EPSILON) {
-            return "0.00";
+            return String.format("%.2f", 0.0);
         }
         double percent = (realizedGain / realizedCostBasis) * 100.0;
         return String.format("%.2f", percent);
