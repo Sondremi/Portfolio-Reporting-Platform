@@ -9,8 +9,15 @@ A Java program that analyzes your investment transactions and calculates compreh
 - Generates a Numbers-ready CSV with automatic stock price lookups
 
 ## How to Use
-1. Export your transaction history from your broker as CSV
-2. Save the file as `transactions.csv` in the same folder as the program
+1. Export transaction history from one or more banks as CSV files
+2. Place all transaction CSV files inside `transaction_files/`
+3. Run `PortfolioTracker` to generate `portfolio.csv` with a combined overview
+
+Example run:
+```bash
+javac src/*.java
+java -cp src PortfolioTracker
+```
 
 ## Example on portfolio
 ![](portfolio_example.png)

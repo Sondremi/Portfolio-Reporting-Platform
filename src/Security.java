@@ -13,13 +13,20 @@ import java.net.URLEncoder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Verdipapir {
+public class Security {
     private static final DateTimeFormatter CSV_DATE_OUTPUT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final double EPSILON = 0.0000001;
+
+    public enum AssetType {
+        STOCK,
+        FUND,
+        UNKNOWN
+    }
 
     private final String name;
     private final String isin;
     private String ticker = "";
+    private AssetType assetType = AssetType.UNKNOWN;
 
     private final ArrayDeque<BuyLot> buyLots = new ArrayDeque<>();
     private final ArrayList<SaleTrade> saleTrades = new ArrayList<>();
@@ -70,7 +77,7 @@ public class Verdipapir {
         public double getReturnPct() { return returnPct; }
     }
 
-    public Verdipapir(String n, String i) {
+    public Security(String n, String i) {
         name = n;
         isin = i;
         setTicker();
@@ -79,6 +86,7 @@ public class Verdipapir {
     public String getName() { return name; }
     public String getTicker() { return ticker; }
     public String getIsin() { return isin; }
+    public AssetType getAssetType() { return assetType; }
 
     public String getAverageCostAsText() { return String.format("%.2f", getAverageCost()); }
     public String getUnitsOwnedAsText() { return String.format("%.2f", unitsOwned); }
@@ -143,7 +151,36 @@ public class Verdipapir {
         if (isBuy) {
             registerBuy(units, amount, price, totalFees);
         } else {
-            registerSale(tradeDate, units, amount, price, totalFees);
+            registerSale(tradeDate, units, amount, price, totalFees, reportedResult);
+        }
+    }
+
+    public void updateAssetTypeFromHint(String securityTypeHint, String securityNameHint) {
+        String fromType = securityTypeHint == null ? "" : securityTypeHint.trim().toUpperCase();
+        String fromName = securityNameHint == null ? "" : securityNameHint.trim().toUpperCase();
+
+        if (fromType.contains("FOND") || fromType.contains("MUTUAL")) {
+            assetType = AssetType.FUND;
+            return;
+        }
+
+        if (fromType.contains("AKSJE") || fromType.contains("STOCK") || fromType.contains("ETF") || fromType.contains("EQUITY")) {
+            assetType = AssetType.STOCK;
+            return;
+        }
+
+        if (assetType != AssetType.UNKNOWN) {
+            return;
+        }
+
+        if (fromName.contains("FUND")
+                || fromName.contains("FOND")
+                || fromName.contains("INDEKS")
+                || fromName.contains("INDEX")
+                || fromName.contains("HEIMDAL")
+                || fromName.contains("ALFRED BERG")
+                || fromName.contains("DNB ")) {
+            assetType = AssetType.FUND;
         }
     }
 
@@ -170,7 +207,7 @@ public class Verdipapir {
         unitsOwned += units;
     }
 
-    private void registerSale(LocalDate tradeDate, double units, double amount, double price, double totalFees) {
+    private void registerSale(LocalDate tradeDate, double units, double amount, double price, double totalFees, double reportedResult) {
         double saleValue = Math.abs(amount);
         if (saleValue < EPSILON && price > 0) {
             saleValue = units * price - Math.max(totalFees, 0.0);
@@ -178,6 +215,24 @@ public class Verdipapir {
 
         double costBasis = consumeLotsUsingFifo(units);
         double gainLoss = saleValue - costBasis;
+
+        // Broker-provided sale result is usually the most accurate source across partial histories.
+        if (Math.abs(reportedResult) > EPSILON) {
+            gainLoss = reportedResult;
+            costBasis = saleValue - gainLoss;
+        }
+
+        // If we cannot resolve cost basis from FIFO and broker did not provide result,
+        // keep gain/loss neutral instead of treating full sale value as profit.
+        if (Math.abs(reportedResult) <= EPSILON && costBasis <= EPSILON && saleValue > EPSILON) {
+            costBasis = saleValue;
+            gainLoss = 0.0;
+        }
+
+        if (costBasis < 0) {
+            costBasis = 0.0;
+        }
+
         double returnPct = costBasis > EPSILON ? (gainLoss / costBasis) * 100.0 : 0.0;
 
         saleTrades.add(new SaleTrade(tradeDate, units, price, saleValue, costBasis, gainLoss, returnPct));
@@ -255,11 +310,20 @@ public class Verdipapir {
             if (symbol != null && !symbol.isEmpty()) {
                 if ("ETF".equals(quoteType) || "MUTUALFUND".equals(quoteType)) {
                     ticker = symbol;
+                    if (assetType == AssetType.UNKNOWN) {
+                        assetType = AssetType.FUND;
+                    }
                 } else if (exchange != null && !exchange.isEmpty()) {
                     String exchangeSuffix = getExchangeSuffix(exchange);
                     ticker = symbol + (exchangeSuffix.isEmpty() ? "" : "." + exchangeSuffix);
+                    if (assetType == AssetType.UNKNOWN) {
+                        assetType = AssetType.STOCK;
+                    }
                 } else {
                     ticker = symbol;
+                    if (assetType == AssetType.UNKNOWN) {
+                        assetType = AssetType.STOCK;
+                    }
                 }
             } else {
                 ticker = "";
@@ -313,19 +377,5 @@ public class Verdipapir {
             }
         }
         return response.toString();
-    }
-
-
-    // Backward-compatible wrappers used by existing code.
-    public String hentNavn() { return getName(); }
-    public String hentTicker() { return getTicker(); }
-    public String hentGav() { return getAverageCostAsText(); }
-    public String hentAntall() { return getUnitsOwnedAsText(); }
-    public String hentUtbytte() { return getDividendsAsText(); }
-    public String hentRealisertAvkastning() { return getRealizedGainAsText(); }
-    public String hentRealisertAvkastningProsent() { return getRealizedReturnPctAsText(); }
-    public void leggTilUtbytte(double belop) { addDividend(belop); }
-    public void leggTilTransaksjon(double verdi, double oppdatertAntall, double kurs, double resultat, double totaleAvgifter) {
-        addTransaction("", verdi < 0 ? "KJØPT" : "SALG", verdi, oppdatertAntall, kurs, resultat, totaleAvgifter);
     }
 }
