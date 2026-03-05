@@ -2,7 +2,7 @@
 
 A Java program that reads investment transactions from CSV files and generates a browser-based portfolio report.
 
-Useful when you want to combine transactions from multiple banks or brokers in one overview.
+Useful when you want to combine portfolios from multiple banks or brokers in one overview.
 
 ## Key Features
 - Reads all supported `.csv` files from `transaction_files/`
