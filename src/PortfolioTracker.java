@@ -500,9 +500,11 @@ public class PortfolioTracker {
                 "Type",
                 "Units",
                 "Avg Cost",
-            "Last Price",
-            "Market Value",
+                "Last Price",
+                "Market Value",
                 "Cost Basis",
+                "Unrealized Return",
+                "Unrealized Return (%)",
                 "Realized Return (%)",
                 "Realized Return",
                 "Dividends",
@@ -512,6 +514,8 @@ public class PortfolioTracker {
 
         double totalCostBasis = 0.0;
         double totalMarketValue = 0.0;
+        double totalUnrealized = 0.0;
+        double totalCostBasisWithPrice = 0.0;
         double totalRealized = 0.0;
         double totalDividends = 0.0;
         for (Security security : getSortedSecuritiesForOverview()) {
@@ -521,7 +525,10 @@ public class PortfolioTracker {
             double averageCost = security.getAverageCost();
             double latestPrice = security.getLatestPrice();
             double positionCostBasis = units * averageCost;
-            double marketValue = latestPrice > 0.0 ? units * latestPrice : 0.0;
+            boolean hasPrice = latestPrice > 0.0;
+            double marketValue = hasPrice ? units * latestPrice : 0.0;
+            double unrealized = hasPrice ? (marketValue - positionCostBasis) : 0.0;
+            double unrealizedPct = hasPrice && positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100.0 : 0.0;
             double realized = parseDoubleOrZero(security.getRealizedGainAsText());
             double dividends = parseDoubleOrZero(security.getDividendsAsText());
             double totalReturn = realized + dividends;
@@ -529,6 +536,10 @@ public class PortfolioTracker {
 
             totalCostBasis += positionCostBasis;
             totalMarketValue += marketValue;
+            if (hasPrice) {
+                totalUnrealized += unrealized;
+                totalCostBasisWithPrice += positionCostBasis;
+            }
             totalRealized += realized;
             totalDividends += dividends;
 
@@ -543,6 +554,8 @@ public class PortfolioTracker {
                 security.getLatestPriceAsText(),
                 latestPrice > 0.0 ? formatNumber(marketValue, 2) : "-",
                 formatNumber(positionCostBasis, 2),
+                hasPrice ? formatNumber(unrealized, 2) : "-",
+                hasPrice ? formatNumber(unrealizedPct, 2) : "-",
                 security.getRealizedReturnPctAsText(),
                 security.getRealizedGainAsText(),
                 security.getDividendsAsText(),
@@ -552,13 +565,16 @@ public class PortfolioTracker {
         }
 
         double totalReturn = totalRealized + totalDividends;
+        double totalUnrealizedPct = totalCostBasisWithPrice > 0 ? (totalUnrealized / totalCostBasisWithPrice) * 100.0 : 0.0;
         double totalRealizedPct = totalCostBasis > 0 ? (totalRealized / totalCostBasis) * 100.0 : 0.0;
         double totalReturnPct = totalCostBasis > 0 ? (totalReturn / totalCostBasis) * 100.0 : 0.0;
         writer.write("<tr class=\"total-row\">"
-            + "<td></td><td>TOTAL</td><td></td><td></td><td></td><td></td>"
+                + "<td></td><td>TOTAL</td><td></td><td></td><td></td><td></td>"
                 + "<td>" + escapeHtml(formatNumber(totalMarketValue, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalCostBasis, 2)) + "</td>"
-            + "<td>" + escapeHtml(formatNumber(totalRealizedPct, 2)) + "</td>"
+                + "<td>" + escapeHtml(formatNumber(totalUnrealized, 2)) + "</td>"
+                + "<td>" + escapeHtml(formatNumber(totalUnrealizedPct, 2)) + "</td>"
+                + "<td>" + escapeHtml(formatNumber(totalRealizedPct, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalRealized, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalDividends, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalReturn, 2)) + "</td>"
