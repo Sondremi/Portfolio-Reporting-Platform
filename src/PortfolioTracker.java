@@ -484,11 +484,12 @@ public class PortfolioTracker {
         }
 
         double totalReturn = totalRealized + totalDividends;
+        double totalRealizedPct = totalCostBasis > 0 ? (totalRealized / totalCostBasis) * 100.0 : 0.0;
         double totalReturnPct = totalCostBasis > 0 ? (totalReturn / totalCostBasis) * 100.0 : 0.0;
         writer.write("<tr class=\"total-row\">"
                 + "<td></td><td>TOTALT</td><td></td><td></td><td></td>"
                 + "<td>" + escapeHtml(formatNumber(totalCostBasis, 2)) + "</td>"
-                + "<td></td>"
+            + "<td>" + escapeHtml(formatNumber(totalRealizedPct, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalRealized, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalDividends, 2)) + "</td>"
                 + "<td>" + escapeHtml(formatNumber(totalReturn, 2)) + "</td>"
