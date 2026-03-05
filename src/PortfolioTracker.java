@@ -18,6 +18,9 @@ import java.util.Map;
 public class PortfolioTracker {
     private static final String INPUT_DIRECTORY = "transaction_files";
     private static final String OUTPUT_FILE = "portfolio-report.html";
+        private static final Map<String, String> RENAMED_SECURITY_ISIN = Map.of(
+            "NO0010782519", "NO0012948878"
+        );
 
     private static final ArrayList<Security> securities = new ArrayList<>();
     private static final Map<String, Security> securitiesByKey = new LinkedHashMap<>();
@@ -285,7 +288,7 @@ public class PortfolioTracker {
     private static ArrayList<Security> getSortedSecuritiesForOverview() {
         ArrayList<Security> sorted = new ArrayList<>();
         for (Security security : securities) {
-            if (security.getUnitsOwned() > 0.0000001) {
+            if (security.getUnitsOwned() > 0.0000001 && !isReplacedSecurity(security)) {
                 sorted.add(security);
             }
         }
@@ -295,6 +298,16 @@ public class PortfolioTracker {
                         .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER)
         );
         return sorted;
+    }
+
+    private static boolean isReplacedSecurity(Security security) {
+        String replacementIsin = RENAMED_SECURITY_ISIN.get(security.getIsin());
+        if (replacementIsin == null || replacementIsin.isBlank()) {
+            return false;
+        }
+
+        Security replacement = securitiesByKey.get(replacementIsin);
+        return replacement != null && replacement.getUnitsOwned() > 0.0000001;
     }
 
     private static ArrayList<Security> getSortedSoldSecurities() {
