@@ -483,8 +483,10 @@ public class PortfolioTracker {
         writer.write("    h1 { margin: 0 0 20px 0; font-size: 26px; }\n");
         writer.write("    h2 { margin: 28px 0 8px 0; font-size: 18px; }\n");
         writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
-        writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; }\n");
+        writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
         writer.write("    th { background: #f3f3f3; font-weight: 600; }\n");
+        writer.write("    td.num { text-align: right; font-variant-numeric: tabular-nums; }\n");
+        writer.write("    td.text { text-align: left; }\n");
         writer.write("    tr.total-row td { font-weight: 700; background: #fafafa; }\n");
         writer.write("    .muted { color: #666; font-size: 12px; margin-top: -8px; }\n");
         writer.write("  </style>\n");
@@ -509,13 +511,31 @@ public class PortfolioTracker {
                 .replace("'", "&#39;");
     }
 
+    private static boolean isNumericCellValue(String value) {
+        if (value == null) {
+            return false;
+        }
+
+        String text = value.trim();
+        if (text.isEmpty() || "-".equals(text)) {
+            return false;
+        }
+
+        return text.matches("-?[0-9][0-9 ]*(\\.[0-9]+)?");
+    }
+
+    private static String toDataCell(String value) {
+        String cellClass = isNumericCellValue(value) ? "num" : "text";
+        return "<td class=\"" + cellClass + "\">" + escapeHtml(value) + "</td>";
+    }
+
     private static void writeHtmlRow(FileWriter writer, boolean header, String... fields) throws IOException {
         writer.write("<tr>");
         for (int i = 0; i < fields.length; i++) {
             if (header) {
                 writer.write("<th>" + escapeHtml(fields[i]) + "</th>");
             } else {
-                writer.write("<td>" + escapeHtml(fields[i]) + "</td>");
+                writer.write(toDataCell(fields[i]));
             }
         }
         writer.write("</tr>\n");
@@ -579,7 +599,7 @@ public class PortfolioTracker {
                 tickerText,
                 security.getDisplayName(),
                 security.getAssetType().name(),
-                formatNumber(units, 4),
+                formatUnits(units),
                 formatNumber(averageCost, 2),
                 security.getLatestPriceAsText(),
                 latestPrice > 0.0 ? formatNumber(marketValue, 2) : "-",
@@ -599,17 +619,22 @@ public class PortfolioTracker {
         double totalRealizedPct = totalCostBasis > 0 ? (totalRealized / totalCostBasis) * 100.0 : 0.0;
         double totalReturnPct = totalCostBasis > 0 ? (totalReturn / totalCostBasis) * 100.0 : 0.0;
         writer.write("<tr class=\"total-row\">"
-                + "<td></td><td>TOTAL</td><td></td><td></td><td></td><td></td>"
-                + "<td>" + escapeHtml(formatNumber(totalMarketValue, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalCostBasis, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalUnrealized, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalUnrealizedPct, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalRealizedPct, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalRealized, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalDividends, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalReturn, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalReturnPct, 2)) + "</td>"
-                + "</tr>\n"
+            + toDataCell("")
+            + toDataCell("TOTAL")
+            + toDataCell("")
+            + toDataCell("")
+            + toDataCell("")
+            + toDataCell("")
+            + toDataCell(formatNumber(totalMarketValue, 2))
+            + toDataCell(formatNumber(totalCostBasis, 2))
+            + toDataCell(formatNumber(totalUnrealized, 2))
+            + toDataCell(formatNumber(totalUnrealizedPct, 2))
+            + toDataCell(formatNumber(totalRealizedPct, 2))
+            + toDataCell(formatNumber(totalRealized, 2))
+            + toDataCell(formatNumber(totalDividends, 2))
+            + toDataCell(formatNumber(totalReturn, 2))
+            + toDataCell(formatNumber(totalReturnPct, 2))
+            + "</tr>\n"
         );
 
         writer.write("</table>\n\n");
@@ -653,13 +678,13 @@ public class PortfolioTracker {
 
         double totalReturnPct = totalCostBasis > 0 ? (totalRealizedGain / totalCostBasis) * 100.0 : (totalRealizedGain > 0 ? 100.0 : 0.0);
         writer.write("<tr class=\"total-row\">"
-            + "<td>TOTAL</td>"
-                + "<td>" + escapeHtml(formatNumber(totalSalesValue, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalCostBasis, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalRealizedGain, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalRealizedDividends, 2)) + "</td>"
-                + "<td>" + escapeHtml(formatNumber(totalReturnPct, 2)) + "</td>"
-                + "</tr>\n"
+            + toDataCell("TOTAL")
+            + toDataCell(formatNumber(totalSalesValue, 2))
+            + toDataCell(formatNumber(totalCostBasis, 2))
+            + toDataCell(formatNumber(totalRealizedGain, 2))
+            + toDataCell(formatNumber(totalRealizedDividends, 2))
+            + toDataCell(formatNumber(totalReturnPct, 2))
+            + "</tr>\n"
         );
 
         writer.write("</table>\n\n");
@@ -688,7 +713,7 @@ public class PortfolioTracker {
                     writer,
                     false,
                     trade.getTradeDateAsCsv(),
-                    formatNumber(trade.getUnits(), 4),
+                    formatUnits(trade.getUnits()),
                     formatNumber(trade.getUnitPrice(), 2),
                     formatNumber(trade.getSaleValue(), 2),
                     formatNumber(trade.getCostBasis(), 2),
@@ -698,16 +723,16 @@ public class PortfolioTracker {
             }
 
             double totalReturnPct = totalCostBasis > 0 ? (totalGain / totalCostBasis) * 100.0 : (totalGain > 0 ? 100.0 : 0.0);
-            writer.write("<tr class=\"total-row\">"
-                    + "<td>TOTAL</td>"
-                    + "<td>" + escapeHtml(formatNumber(totalUnits, 4)) + "</td>"
-                    + "<td></td>"
-                    + "<td>" + escapeHtml(formatNumber(totalSalesValue, 2)) + "</td>"
-                    + "<td>" + escapeHtml(formatNumber(totalCostBasis, 2)) + "</td>"
-                    + "<td>" + escapeHtml(formatNumber(totalGain, 2)) + "</td>"
-                    + "<td>" + escapeHtml(formatNumber(totalReturnPct, 2)) + "</td>"
+                writer.write("<tr class=\"total-row\">"
+                    + toDataCell("TOTAL")
+                    + toDataCell(formatUnits(totalUnits))
+                    + toDataCell("")
+                    + toDataCell(formatNumber(totalSalesValue, 2))
+                    + toDataCell(formatNumber(totalCostBasis, 2))
+                    + toDataCell(formatNumber(totalGain, 2))
+                    + toDataCell(formatNumber(totalReturnPct, 2))
                     + "</tr>\n"
-            );
+                );
 
             writer.write("</table>\n\n");
         }
@@ -716,5 +741,23 @@ public class PortfolioTracker {
     private static String formatNumber(double value, int decimals) {
         String pattern = "%,." + decimals + "f";
         return String.format(Locale.US, pattern, value).replace(',', ' ');
+    }
+
+    private static String formatUnits(double value) {
+        String text = formatNumber(value, 4);
+        int decimalPoint = text.indexOf('.');
+        if (decimalPoint < 0) {
+            return text;
+        }
+
+        int end = text.length();
+        while (end > decimalPoint + 1 && text.charAt(end - 1) == '0') {
+            end--;
+        }
+        if (end == decimalPoint + 1) {
+            end = decimalPoint;
+        }
+
+        return text.substring(0, end);
     }
 }
