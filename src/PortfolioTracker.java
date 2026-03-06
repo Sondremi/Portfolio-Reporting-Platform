@@ -581,7 +581,7 @@ public class PortfolioTracker {
             double unrealizedPct = hasPrice && positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100.0 : 0.0;
             double realized = parseDoubleOrZero(security.getRealizedGainAsText());
             double dividends = parseDoubleOrZero(security.getDividendsAsText());
-            double totalReturn = realized + dividends;
+            double totalReturn = unrealized + realized + dividends;
             double totalReturnPct = positionCostBasis > 0 ? (totalReturn / positionCostBasis) * 100.0 : 0.0;
 
             totalCostBasis += positionCostBasis;
@@ -614,7 +614,7 @@ public class PortfolioTracker {
             );
         }
 
-        double totalReturn = totalRealized + totalDividends;
+        double totalReturn = totalUnrealized + totalRealized + totalDividends;
         double totalUnrealizedPct = totalCostBasisWithPrice > 0 ? (totalUnrealized / totalCostBasisWithPrice) * 100.0 : 0.0;
         double totalRealizedPct = totalCostBasis > 0 ? (totalRealized / totalCostBasis) * 100.0 : 0.0;
         double totalReturnPct = totalCostBasis > 0 ? (totalReturn / totalCostBasis) * 100.0 : 0.0;

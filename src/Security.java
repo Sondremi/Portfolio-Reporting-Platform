@@ -220,7 +220,6 @@ public class Security {
 
     public void updateAssetTypeFromHint(String securityTypeHint, String securityNameHint) {
         String fromType = securityTypeHint == null ? "" : securityTypeHint.trim().toUpperCase();
-        String fromName = securityNameHint == null ? "" : securityNameHint.trim().toUpperCase();
 
         if (fromType.contains("FOND") || fromType.contains("MUTUAL")) {
             assetType = AssetType.FUND;
@@ -234,16 +233,6 @@ public class Security {
 
         if (assetType != AssetType.UNKNOWN) {
             return;
-        }
-
-        if (fromName.contains("FUND")
-                || fromName.contains("FOND")
-                || fromName.contains("INDEKS")
-                || fromName.contains("INDEX")
-                || fromName.contains("HEIMDAL")
-                || fromName.contains("ALFRED BERG")
-                || fromName.contains("DNB ")) {
-            assetType = AssetType.FUND;
         }
     }
 
@@ -386,6 +375,7 @@ public class Security {
 
                 ticker = candidateTicker;
                 updateAssetTypeFromQuoteType(candidate.quoteType);
+                updateAssetTypeFromTicker(ticker);
                 updateResolvedName(candidate);
                 latestPrice = candidate.regularMarketPrice > EPSILON
                         ? candidate.regularMarketPrice
@@ -532,6 +522,20 @@ public class Security {
                 assetType = AssetType.STOCK;
             }
         }
+    }
+
+    private void updateAssetTypeFromTicker(String tickerValue) {
+        if (tickerValue == null || tickerValue.isBlank() || assetType != AssetType.UNKNOWN) {
+            return;
+        }
+
+        String normalized = tickerValue.toUpperCase(Locale.ROOT);
+        if (normalized.endsWith(".IR") || normalized.startsWith("0P")) {
+            assetType = AssetType.FUND;
+            return;
+        }
+
+        assetType = AssetType.STOCK;
     }
 
     private ArrayList<SearchCandidate> extractSearchCandidates(String response) {
