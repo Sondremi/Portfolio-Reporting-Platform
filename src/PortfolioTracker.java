@@ -301,6 +301,16 @@ public class PortfolioTracker {
         }
     }
 
+    private static final class AllocationBucket {
+        private final String label;
+        private final double value;
+
+        private AllocationBucket(String label, double value) {
+            this.label = label;
+            this.value = value;
+        }
+    }
+
     private static final class HeaderSummary {
         private final String generatedDate;
         private final int fileCount;
@@ -921,10 +931,12 @@ public class PortfolioTracker {
         writer.write("    .chart-svg { width: 100%; height: 350px; display: block; }\n");
         writer.write("    .overview-chart.total-return-chart .chart-svg { height: 430px; }\n");
         writer.write("    .overview-chart.allocation-card { grid-column: 1 / -1; }\n");
-        writer.write("    .overview-chart.allocation-card .chart-svg { height: 240px; }\n");
-        writer.write("    .overview-chart.allocation-card .chart-svg.market-value-bar-chart { height: 350px; }\n");
-        writer.write("    .allocation-visuals { display: grid; grid-template-columns: 0.75fr 2.2fr 0.75fr; gap: 12px; }\n");
+        writer.write("    .overview-chart.allocation-card .chart-svg { height: 230px; }\n");
+        writer.write("    .overview-chart.allocation-card .chart-svg.market-value-bar-chart { height: 300px; }\n");
+        writer.write("    .allocation-visuals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }\n");
         writer.write("    .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
+        writer.write("    .allocation-panel-title { margin: 0 0 6px 0; font-size: 12px; color: #2b2b2b; font-weight: 600; }\n");
+        writer.write("    .allocation-panel.market-value-bar-panel { grid-column: 1 / -1; }\n");
         writer.write("    .allocation-legend { margin: 8px 0 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; row-gap: 4px; }\n");
         writer.write("    .allocation-legend li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #333; }\n");
         writer.write("    .allocation-legend .name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }\n");
@@ -934,6 +946,7 @@ public class PortfolioTracker {
         writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }\n");
         writer.write("    @media (max-width: 620px) { .hero-kpi-grid { grid-template-columns: 1fr; } }\n");
         writer.write("    @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
+        writer.write("    @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n");
         writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } }\n");
         writer.write("    @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
         writer.write("  </style>\n");
@@ -1127,13 +1140,24 @@ public class PortfolioTracker {
         writer.write("<h3>Market Value Allocation</h3>\n");
         writer.write("<div class=\"allocation-visuals\">\n");
         writer.write("<div class=\"allocation-panel\">\n");
+        writer.write("<h4 class=\"allocation-panel-title\">By Security</h4>\n");
         writer.write(buildMarketValueAllocationSvg(rows));
         writer.write("</div>\n");
         writer.write("<div class=\"allocation-panel\">\n");
-        writer.write(buildMarketValueBarChartSvg(rows));
+        writer.write("<h4 class=\"allocation-panel-title\">By Asset Type</h4>\n");
+        writer.write(buildAssetTypeAllocationSvg(rows));
         writer.write("</div>\n");
         writer.write("<div class=\"allocation-panel\">\n");
-        writer.write(buildAssetTypeAllocationSvg(rows));
+        writer.write("<h4 class=\"allocation-panel-title\">By Sector</h4>\n");
+        writer.write(buildSectorAllocationSvg(rows));
+        writer.write("</div>\n");
+        writer.write("<div class=\"allocation-panel\">\n");
+        writer.write("<h4 class=\"allocation-panel-title\">By Region</h4>\n");
+        writer.write(buildRegionAllocationSvg(rows));
+        writer.write("</div>\n");
+        writer.write("<div class=\"allocation-panel market-value-bar-panel\">\n");
+        writer.write("<h4 class=\"allocation-panel-title\">By Security (Bar)</h4>\n");
+        writer.write(buildMarketValueBarChartSvg(rows));
         writer.write("</div>\n");
         writer.write("</div>\n");
 
@@ -1586,6 +1610,234 @@ public class PortfolioTracker {
         svg.append("</svg>\n");
         return svg.toString();
         }
+
+    private static String buildSectorAllocationSvg(ArrayList<OverviewRow> rows) {
+        return buildCategoricalAllocationSvg(rows, true, "Sector Mix", "No sector data");
+    }
+
+    private static String buildRegionAllocationSvg(ArrayList<OverviewRow> rows) {
+        return buildCategoricalAllocationSvg(rows, false, "Region Mix", "No region data");
+    }
+
+    private static String buildCategoricalAllocationSvg(ArrayList<OverviewRow> rows, boolean sectorChart,
+                                                        String centerTitle, String emptyMessage) {
+        final double width = 440.0;
+        final double height = 330.0;
+        final double centerX = width / 2.0;
+        final double centerY = 126.0;
+        final double radius = 98.0;
+        final double innerRadius = 62.0;
+
+        LinkedHashMap<String, Double> valueByCategory = new LinkedHashMap<>();
+        double totalMarketValue = 0.0;
+        for (OverviewRow row : rows) {
+            if (row.marketValue <= 0.0) {
+                continue;
+            }
+
+            String category = sectorChart ? classifySector(row) : classifyRegion(row);
+            valueByCategory.merge(category, row.marketValue, Double::sum);
+            totalMarketValue += row.marketValue;
+        }
+
+        ArrayList<AllocationBucket> buckets = compactAllocationBuckets(valueByCategory, 6);
+
+        StringBuilder svg = new StringBuilder();
+        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+            .append(svgNumber(width))
+            .append(" ")
+            .append(svgNumber(height))
+            .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
+
+        if (buckets.isEmpty() || totalMarketValue <= 0.0) {
+            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY))
+                .append("\" text-anchor=\"middle\" font-size=\"13\" fill=\"#666\">")
+                .append(escapeHtml(emptyMessage))
+                .append("</text>\n");
+            svg.append("</svg>\n");
+            return svg.toString();
+        }
+
+        double currentAngle = -Math.PI / 2.0;
+        for (int i = 0; i < buckets.size(); i++) {
+            AllocationBucket bucket = buckets.get(i);
+            double fraction = bucket.value / totalMarketValue;
+            double sliceAngle = fraction * Math.PI * 2.0;
+            double endAngle = currentAngle + sliceAngle;
+            String color = getAllocationColor(i);
+
+            double x1 = centerX + radius * Math.cos(currentAngle);
+            double y1 = centerY + radius * Math.sin(currentAngle);
+            double x2 = centerX + radius * Math.cos(endAngle);
+            double y2 = centerY + radius * Math.sin(endAngle);
+            int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
+
+            svg.append("<path d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
+                .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
+                .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
+                .append(" Z\" fill=\"").append(color).append("\">\n")
+                .append("<title>")
+                .append(escapeHtml(bucket.label
+                    + ": " + formatNumber(bucket.value, 2) + " kr (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                .append("</title></path>\n");
+
+            currentAngle = endAngle;
+        }
+
+        svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
+            .append("\" r=\"").append(svgNumber(innerRadius)).append("\" fill=\"#fff\"/>\n");
+
+        AllocationBucket topBucket = buckets.get(0);
+        double topPct = (topBucket.value / totalMarketValue) * 100.0;
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY - 8.0))
+            .append("\" text-anchor=\"middle\" font-size=\"10\" fill=\"#666\">")
+            .append(escapeHtml(centerTitle))
+            .append("</text>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY + 8.0))
+            .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
+            .append(escapeHtml(topBucket.label + " " + formatNumber(topPct, 1) + "%"))
+            .append("</text>\n");
+
+        double legendYStart = 238.0;
+        for (int i = 0; i < buckets.size(); i++) {
+            AllocationBucket bucket = buckets.get(i);
+            double pct = (bucket.value / totalMarketValue) * 100.0;
+            double y = legendYStart + (i * 14.0);
+            String color = getAllocationColor(i);
+
+            svg.append("<circle cx=\"22\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
+                .append(color).append("\"/>\n");
+            svg.append("<text x=\"31\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"10\" fill=\"#2f2f2f\">")
+                .append(escapeHtml(bucket.label))
+                .append("</text>\n");
+            svg.append("<text x=\"").append(svgNumber(width - 16.0)).append("\" y=\"").append(svgNumber(y))
+                .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#4a4a4a\">")
+                .append(escapeHtml(formatNumber(pct, 1) + "%"))
+                .append("</text>\n");
+        }
+
+        svg.append("</svg>\n");
+        return svg.toString();
+    }
+
+    private static ArrayList<AllocationBucket> compactAllocationBuckets(Map<String, Double> rawBuckets, int maxBuckets) {
+        ArrayList<AllocationBucket> sorted = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : rawBuckets.entrySet()) {
+            if (entry.getValue() <= 0.0) {
+                continue;
+            }
+            sorted.add(new AllocationBucket(entry.getKey(), entry.getValue()));
+        }
+        sorted.sort((a, b) -> Double.compare(b.value, a.value));
+
+        if (sorted.size() <= maxBuckets) {
+            return sorted;
+        }
+
+        int directBuckets = Math.max(1, maxBuckets - 1);
+        ArrayList<AllocationBucket> compacted = new ArrayList<>();
+        double otherValue = 0.0;
+        for (int i = 0; i < sorted.size(); i++) {
+            AllocationBucket bucket = sorted.get(i);
+            if (i < directBuckets) {
+                compacted.add(bucket);
+            } else {
+                otherValue += bucket.value;
+            }
+        }
+
+        if (otherValue > 0.0) {
+            compacted.add(new AllocationBucket("Other", otherValue));
+        }
+        return compacted;
+    }
+
+    private static String classifySector(OverviewRow row) {
+        String probe = buildCategoryProbeText(row);
+        String ticker = row.tickerText == null ? "" : row.tickerText.trim().toUpperCase(Locale.ROOT);
+
+        if (containsAny(probe, "apple", "microsoft", "technology", "software", "semiconductor", "nasdaq")
+                || "AAPL".equals(ticker) || "MSFT".equals(ticker)) {
+            return "Technology";
+        }
+
+        if (containsAny(probe, "equinor", "frontline", "oil", "petroleum", "gas", "energy", "hydrogen", "nel")
+                || "EQNR.OL".equals(ticker) || "EQNR".equals(ticker) || "FRO".equals(ticker) || "NEL.OL".equals(ticker)) {
+            return "Energy";
+        }
+
+        if (containsAny(probe, "tesla", "automotive", "consumer") || "TSLA".equals(ticker)) {
+            return "Consumer";
+        }
+
+        if (containsAny(probe, "bank", "financial", "finance", "insurance")) {
+            return "Financials";
+        }
+
+        if (containsAny(probe, "health", "pharma", "biotech", "medical")) {
+            return "Healthcare";
+        }
+
+        if ("FUND".equals(row.assetType)
+                || containsAny(probe, "fund", "etf", "index", "global", "norden", "vanguard", "skagen", "klp")) {
+            return "Diversified";
+        }
+
+        if ("STOCK".equals(row.assetType)) {
+            return "Industrials";
+        }
+
+        return "Other";
+    }
+
+    private static String classifyRegion(OverviewRow row) {
+        String probe = buildCategoryProbeText(row);
+        String ticker = row.tickerText == null ? "" : row.tickerText.trim().toUpperCase(Locale.ROOT);
+
+        if (containsAny(probe, "norden", "nordic", "sweden", "danmark", "denmark", "finland")) {
+            return "Nordics";
+        }
+
+        if (containsAny(probe, "norge", "norway", "oslo", "equinor", "nel")
+                || ticker.endsWith(".OL") || "EQNR".equals(ticker) || "NEL".equals(ticker)) {
+            return "Norway";
+        }
+
+        if (containsAny(probe, "apple", "microsoft", "tesla", "s&p 500", "nasdaq", "nyse", "u.s.", "usa")
+                || "AAPL".equals(ticker) || "MSFT".equals(ticker) || "TSLA".equals(ticker) || "FRO".equals(ticker)) {
+            return "United States";
+        }
+
+        if (containsAny(probe, "global", "world", "international")) {
+            return "Global";
+        }
+
+        if (containsAny(probe, "europe", "eu")) {
+            return "Europe";
+        }
+
+        if (containsAny(probe, "asia", "china", "japan", "india")) {
+            return "Asia-Pacific";
+        }
+
+        return "Other";
+    }
+
+    private static String buildCategoryProbeText(OverviewRow row) {
+        String label = getOverviewRowLabel(row);
+        String tickerText = row.tickerText == null ? "" : row.tickerText;
+        return (label + " " + tickerText).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean containsAny(String text, String... candidates) {
+        for (String candidate : candidates) {
+            if (text.contains(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
         private static String getAllocationColor(int index) {
         String[] palette = new String[] {
