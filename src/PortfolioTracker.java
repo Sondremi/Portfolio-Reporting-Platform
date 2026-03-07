@@ -196,6 +196,69 @@ public class PortfolioTracker {
         }
     }
 
+    private static final class OverviewRow {
+        private final String tickerText;
+        private final String securityDisplayName;
+        private final String assetType;
+        private final String latestPriceText;
+        private final String realizedReturnPctText;
+        private final String realizedGainText;
+        private final String dividendsText;
+        private final double units;
+        private final double averageCost;
+        private final double latestPrice;
+        private final double positionCostBasis;
+        private final double marketValue;
+        private final double unrealized;
+        private final double unrealizedPct;
+        private final double realized;
+        private final double dividends;
+        private final double totalReturn;
+        private final double totalReturnPct;
+        private final boolean hasPrice;
+
+        private OverviewRow(
+                String tickerText,
+                String securityDisplayName,
+                String assetType,
+                String latestPriceText,
+                String realizedReturnPctText,
+                String realizedGainText,
+                String dividendsText,
+                double units,
+                double averageCost,
+                double latestPrice,
+                double positionCostBasis,
+                double marketValue,
+                double unrealized,
+                double unrealizedPct,
+                double realized,
+                double dividends,
+                double totalReturn,
+                double totalReturnPct,
+                boolean hasPrice) {
+            this.tickerText = tickerText;
+            this.securityDisplayName = securityDisplayName;
+            this.assetType = assetType;
+            this.latestPriceText = latestPriceText;
+            this.realizedReturnPctText = realizedReturnPctText;
+            this.realizedGainText = realizedGainText;
+            this.dividendsText = dividendsText;
+            this.units = units;
+            this.averageCost = averageCost;
+            this.latestPrice = latestPrice;
+            this.positionCostBasis = positionCostBasis;
+            this.marketValue = marketValue;
+            this.unrealized = unrealized;
+            this.unrealizedPct = unrealizedPct;
+            this.realized = realized;
+            this.dividends = dividends;
+            this.totalReturn = totalReturn;
+            this.totalReturnPct = totalReturnPct;
+            this.hasPrice = hasPrice;
+        }
+    }
+
     private static HeaderIndexes findHeaderIndexes(ArrayList<String> headerColumns) {
         HeaderIndexes indexes = new HeaderIndexes();
 
@@ -489,6 +552,11 @@ public class PortfolioTracker {
         writer.write("    td.text { text-align: left; }\n");
         writer.write("    tr.total-row td { font-weight: 700; background: #fafafa; }\n");
         writer.write("    .muted { color: #666; font-size: 12px; margin-top: -8px; }\n");
+        writer.write("    .overview-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 8px 0 14px 0; }\n");
+        writer.write("    .overview-chart { border: 1px solid #d0d0d0; border-radius: 6px; background: #fff; padding: 10px; }\n");
+        writer.write("    .overview-chart h3 { margin: 0 0 8px 0; font-size: 14px; font-weight: 600; }\n");
+        writer.write("    .chart-svg { width: 100%; height: 330px; display: block; }\n");
+        writer.write("    @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
         writer.write("  </style>\n");
         writer.write("</head>\n");
         writer.write("<body>\n");
@@ -541,8 +609,194 @@ public class PortfolioTracker {
         writer.write("</tr>\n");
     }
 
+    private static OverviewRow buildOverviewRow(Security security) {
+        String ticker = security.getTicker();
+        String tickerText = (ticker == null || ticker.isBlank()) ? "-" : ticker;
+        double units = security.getUnitsOwned();
+        double averageCost = security.getAverageCost();
+        double latestPrice = security.getLatestPrice();
+        double positionCostBasis = units * averageCost;
+        boolean hasPrice = latestPrice > 0.0;
+        double marketValue = hasPrice ? units * latestPrice : 0.0;
+        double unrealized = hasPrice ? (marketValue - positionCostBasis) : 0.0;
+        double unrealizedPct = hasPrice && positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100.0 : 0.0;
+        double realized = parseDoubleOrZero(security.getRealizedGainAsText());
+        double dividends = parseDoubleOrZero(security.getDividendsAsText());
+        double totalReturn = unrealized + realized + dividends;
+        double totalReturnPct = positionCostBasis > 0 ? (totalReturn / positionCostBasis) * 100.0 : 0.0;
+
+        return new OverviewRow(
+                tickerText,
+                security.getDisplayName(),
+                security.getAssetType().name(),
+                security.getLatestPriceAsText(),
+                security.getRealizedReturnPctAsText(),
+                security.getRealizedGainAsText(),
+                security.getDividendsAsText(),
+                units,
+                averageCost,
+                latestPrice,
+                positionCostBasis,
+                marketValue,
+                unrealized,
+                unrealizedPct,
+                realized,
+                dividends,
+                totalReturn,
+                totalReturnPct,
+                hasPrice
+        );
+    }
+
+    private static void writeOverviewChartsHtml(FileWriter writer, ArrayList<OverviewRow> rows) throws IOException {
+        if (rows.isEmpty()) {
+            return;
+        }
+
+        writer.write("<div class=\"overview-charts\">\n");
+        writeOverviewChartCard(writer, "Total Return (NOK)", rows, false);
+        writeOverviewChartCard(writer, "Total Return (%)", rows, true);
+        writer.write("</div>\n");
+    }
+
+    private static void writeOverviewChartCard(FileWriter writer, String title, ArrayList<OverviewRow> rows, boolean percentChart) throws IOException {
+        writer.write("<section class=\"overview-chart\">\n");
+        writer.write("<h3>" + escapeHtml(title) + "</h3>\n");
+        writer.write(buildOverviewBarChartSvg(rows, percentChart));
+        writer.write("</section>\n");
+    }
+
+    private static String buildOverviewBarChartSvg(ArrayList<OverviewRow> rows, boolean percentChart) {
+        final double width = 1100.0;
+        final double height = 360.0;
+        final double left = 68.0;
+        final double right = 22.0;
+        final double top = 18.0;
+        final double bottom = 122.0;
+        final double plotWidth = width - left - right;
+        final double plotHeight = height - top - bottom;
+
+        double minValue = 0.0;
+        double maxValue = 0.0;
+        for (OverviewRow row : rows) {
+            double value = percentChart ? row.totalReturnPct : row.totalReturn;
+            minValue = Math.min(minValue, value);
+            maxValue = Math.max(maxValue, value);
+        }
+
+        if (Math.abs(maxValue - minValue) < 1e-9) {
+            maxValue += 1.0;
+            minValue -= 1.0;
+        }
+
+        double valueRange = maxValue - minValue;
+        double zeroY = mapValueToY(0.0, minValue, maxValue, top, plotHeight);
+        double chartZeroY = Math.max(top, Math.min(top + plotHeight, zeroY));
+
+        StringBuilder svg = new StringBuilder();
+        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+                .append(svgNumber(width))
+                .append(" ")
+                .append(svgNumber(height))
+                .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
+
+        int tickCount = 5;
+        for (int i = 0; i <= tickCount; i++) {
+            double tickValue = maxValue - ((valueRange / tickCount) * i);
+            double y = mapValueToY(tickValue, minValue, maxValue, top, plotHeight);
+
+            svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(y))
+                    .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(y))
+                    .append("\" stroke=\"#ececec\" stroke-width=\"1\"/>\n");
+
+            svg.append("<text x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
+                    .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#666\">")
+                    .append(escapeHtml(formatChartValue(tickValue, percentChart, true)))
+                    .append("</text>\n");
+        }
+
+        double slotWidth = rows.isEmpty() ? plotWidth : plotWidth / rows.size();
+        double barWidth = Math.max(6.0, slotWidth * 0.62);
+
+        for (int i = 0; i < rows.size(); i++) {
+            OverviewRow row = rows.get(i);
+            double value = percentChart ? row.totalReturnPct : row.totalReturn;
+            double x = left + (i * slotWidth) + ((slotWidth - barWidth) / 2.0);
+            double yValue = mapValueToY(value, minValue, maxValue, top, plotHeight);
+            double barY = Math.min(yValue, chartZeroY);
+            double barHeight = Math.abs(chartZeroY - yValue);
+            if (barHeight < 1.0) {
+                barHeight = 1.0;
+            }
+
+            String barColor = value >= 0.0 ? "#2f9e44" : "#d94841";
+            String label = "-".equals(row.tickerText) ? row.securityDisplayName : row.tickerText;
+
+            svg.append("<rect x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(barY))
+                    .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
+                    .append("\" fill=\"").append(barColor).append("\" rx=\"2\">\n")
+                    .append("<title>")
+                    .append(escapeHtml(label + ": " + formatChartValue(value, percentChart, false)))
+                    .append("</title></rect>\n");
+
+            double labelAnchorX = x + (barWidth / 2.0);
+            double labelAnchorY = height - bottom + 64.0;
+            svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
+                    .append("\" transform=\"rotate(-45 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
+                    .append(")\" text-anchor=\"end\" font-size=\"10\" fill=\"#444\">")
+                    .append(escapeHtml(label))
+                    .append("</text>\n");
+        }
+
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(chartZeroY))
+                .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(chartZeroY))
+                .append("\" stroke=\"#7a7a7a\" stroke-width=\"1.1\"/>\n");
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
+                .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(top + plotHeight))
+                .append("\" stroke=\"#7a7a7a\" stroke-width=\"1.1\"/>\n");
+
+        svg.append("<text x=\"").append(svgNumber((left + plotWidth) / 2.0)).append("\" y=\"").append(svgNumber(height - 14.0))
+                .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#555\">Securities held now</text>\n");
+
+        String yLabel = percentChart ? "Total return (%)" : "Total return (NOK)";
+        svg.append("<text x=\"18\" y=\"").append(svgNumber((top + plotHeight) / 2.0))
+                .append("\" transform=\"rotate(-90 18 ").append(svgNumber((top + plotHeight) / 2.0))
+                .append(")\" text-anchor=\"middle\" font-size=\"11\" fill=\"#555\">")
+                .append(escapeHtml(yLabel))
+                .append("</text>\n");
+
+        svg.append("</svg>\n");
+        return svg.toString();
+    }
+
+    private static double mapValueToY(double value, double minValue, double maxValue, double chartTop, double chartHeight) {
+        if (Math.abs(maxValue - minValue) < 1e-12) {
+            return chartTop + (chartHeight / 2.0);
+        }
+        return chartTop + ((maxValue - value) / (maxValue - minValue)) * chartHeight;
+    }
+
+    private static String svgNumber(double value) {
+        return String.format(Locale.US, "%.2f", value);
+    }
+
+    private static String formatChartValue(double value, boolean percentChart, boolean compact) {
+        if (percentChart) {
+            return formatNumber(value, 2) + "%";
+        }
+        int decimals = compact ? 0 : 2;
+        return formatNumber(value, decimals) + " kr";
+    }
+
     private static void writeOverviewTableHtml(FileWriter writer) throws IOException {
         writer.write("<h2>PORTFOLIO OVERVIEW - CURRENT HOLDINGS</h2>\n");
+        ArrayList<OverviewRow> overviewRows = new ArrayList<>();
+        for (Security security : getSortedSecuritiesForOverview()) {
+            overviewRows.add(buildOverviewRow(security));
+        }
+
+        writeOverviewChartsHtml(writer, overviewRows);
+
         writer.write("<table>\n");
         writeHtmlRow(writer, true,
                 "Ticker",
@@ -568,49 +822,34 @@ public class PortfolioTracker {
         double totalCostBasisWithPrice = 0.0;
         double totalRealized = 0.0;
         double totalDividends = 0.0;
-        for (Security security : getSortedSecuritiesForOverview()) {
-            String ticker = security.getTicker();
-            String tickerText = (ticker == null || ticker.isBlank()) ? "-" : ticker;
-            double units = security.getUnitsOwned();
-            double averageCost = security.getAverageCost();
-            double latestPrice = security.getLatestPrice();
-            double positionCostBasis = units * averageCost;
-            boolean hasPrice = latestPrice > 0.0;
-            double marketValue = hasPrice ? units * latestPrice : 0.0;
-            double unrealized = hasPrice ? (marketValue - positionCostBasis) : 0.0;
-            double unrealizedPct = hasPrice && positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100.0 : 0.0;
-            double realized = parseDoubleOrZero(security.getRealizedGainAsText());
-            double dividends = parseDoubleOrZero(security.getDividendsAsText());
-            double totalReturn = unrealized + realized + dividends;
-            double totalReturnPct = positionCostBasis > 0 ? (totalReturn / positionCostBasis) * 100.0 : 0.0;
-
-            totalCostBasis += positionCostBasis;
-            totalMarketValue += marketValue;
-            if (hasPrice) {
-                totalUnrealized += unrealized;
-                totalCostBasisWithPrice += positionCostBasis;
+        for (OverviewRow row : overviewRows) {
+            totalCostBasis += row.positionCostBasis;
+            totalMarketValue += row.marketValue;
+            if (row.hasPrice) {
+                totalUnrealized += row.unrealized;
+                totalCostBasisWithPrice += row.positionCostBasis;
             }
-            totalRealized += realized;
-            totalDividends += dividends;
+            totalRealized += row.realized;
+            totalDividends += row.dividends;
 
             writeHtmlRow(
                 writer,
                 false,
-                tickerText,
-                security.getDisplayName(),
-                security.getAssetType().name(),
-                formatUnits(units),
-                formatNumber(averageCost, 2),
-                security.getLatestPriceAsText(),
-                latestPrice > 0.0 ? formatNumber(marketValue, 2) : "-",
-                formatNumber(positionCostBasis, 2),
-                hasPrice ? formatNumber(unrealized, 2) : "-",
-                hasPrice ? formatNumber(unrealizedPct, 2) : "-",
-                security.getRealizedReturnPctAsText(),
-                security.getRealizedGainAsText(),
-                security.getDividendsAsText(),
-                formatNumber(totalReturn, 2),
-                formatNumber(totalReturnPct, 2)
+                row.tickerText,
+                row.securityDisplayName,
+                row.assetType,
+                formatUnits(row.units),
+                formatNumber(row.averageCost, 2),
+                row.latestPriceText,
+                row.latestPrice > 0.0 ? formatNumber(row.marketValue, 2) : "-",
+                formatNumber(row.positionCostBasis, 2),
+                row.hasPrice ? formatNumber(row.unrealized, 2) : "-",
+                row.hasPrice ? formatNumber(row.unrealizedPct, 2) : "-",
+                row.realizedReturnPctText,
+                row.realizedGainText,
+                row.dividendsText,
+                formatNumber(row.totalReturn, 2),
+                formatNumber(row.totalReturnPct, 2)
             );
         }
 
