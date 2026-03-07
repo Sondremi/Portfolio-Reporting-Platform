@@ -556,9 +556,10 @@ public class PortfolioTracker {
         writer.write("    .overview-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 8px 0 14px 0; align-items: stretch; }\n");
         writer.write("    .overview-chart { border: 1px solid #d0d0d0; border-radius: 6px; background: #fff; padding: 10px; }\n");
         writer.write("    .overview-chart h3 { margin: 0 0 8px 0; font-size: 14px; font-weight: 600; }\n");
-        writer.write("    .chart-svg { width: 100%; height: 290px; display: block; }\n");
+        writer.write("    .chart-svg { width: 100%; height: 350px; display: block; }\n");
         writer.write("    .overview-chart.allocation-card { grid-column: 1 / -1; }\n");
         writer.write("    .overview-chart.allocation-card .chart-svg { height: 240px; }\n");
+        writer.write("    .overview-chart.allocation-card .chart-svg.market-value-bar-chart { height: 350px; }\n");
         writer.write("    .allocation-visuals { display: grid; grid-template-columns: 0.75fr 2.2fr 0.75fr; gap: 12px; }\n");
         writer.write("    .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
         writer.write("    .allocation-legend { margin: 8px 0 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; row-gap: 4px; }\n");
@@ -749,8 +750,8 @@ public class PortfolioTracker {
         final double height = 360.0;
         final double left = 68.0;
         final double right = 22.0;
-        final double top = 18.0;
-        final double bottom = 122.0;
+        final double top = 26.0;
+        final double bottom = 114.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -818,7 +819,7 @@ public class PortfolioTracker {
                     .append("</title></rect>\n");
 
             double labelAnchorX = x + (barWidth / 2.0);
-            double labelAnchorY = height - bottom + 64.0;
+            double labelAnchorY = height - bottom + 20.0;
             svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                     .append("\" transform=\"rotate(-45 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
                     .append(")\" text-anchor=\"end\" font-size=\"9\" fill=\"#444\">")
@@ -930,7 +931,7 @@ public class PortfolioTracker {
         }
 
         StringBuilder svg = new StringBuilder();
-        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+        svg.append("<svg class=\"chart-svg market-value-bar-chart\" viewBox=\"0 0 ")
             .append(svgNumber(width))
             .append(" ")
             .append(svgNumber(height))
@@ -987,7 +988,7 @@ public class PortfolioTracker {
                 .append("</title></rect>\n");
 
             double labelAnchorX = x + (barWidth / 2.0);
-            double labelAnchorY = height - bottom + 28.0;
+            double labelAnchorY = height - bottom + 20.0;
             svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                 .append("\" transform=\"rotate(-35 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
                 .append(")\" text-anchor=\"end\" font-size=\"9\" fill=\"#444\">")
