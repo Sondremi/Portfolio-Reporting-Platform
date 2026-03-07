@@ -521,7 +521,7 @@ public class PortfolioTracker {
             return false;
         }
 
-        return text.matches("-?[0-9][0-9 ]*(\\.[0-9]+)?");
+        return text.matches("-?[0-9][0-9 ]*(\\.[0-9]+)?( [A-Za-z%]+)?");
     }
 
     private static String toDataCell(String value) {
@@ -539,6 +539,50 @@ public class PortfolioTracker {
             }
         }
         writer.write("</tr>\n");
+    }
+
+    private static String getCurrencySuffix(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return "kr";
+        }
+
+        String normalized = currencyCode.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "NOK" -> "kr";
+            default -> normalized.toLowerCase(Locale.ROOT);
+        };
+    }
+
+    private static String formatMoney(double value, String currencyCode, int decimals) {
+        return formatNumber(value, decimals) + " " + getCurrencySuffix(currencyCode);
+    }
+
+    private static String formatPercent(double value, int decimals) {
+        return formatNumber(value, decimals) + " %";
+    }
+
+    private static String mergeCurrencyCodes(String currentCurrencyCode, String nextCurrencyCode) {
+        String next = (nextCurrencyCode == null || nextCurrencyCode.isBlank())
+                ? "NOK"
+                : nextCurrencyCode.trim().toUpperCase(Locale.ROOT);
+
+        if (currentCurrencyCode == null || currentCurrencyCode.isBlank()) {
+            return next;
+        }
+        if ("MIXED".equals(currentCurrencyCode)) {
+            return currentCurrencyCode;
+        }
+        if (currentCurrencyCode.equalsIgnoreCase(next)) {
+            return currentCurrencyCode.toUpperCase(Locale.ROOT);
+        }
+        return "MIXED";
+    }
+
+    private static String formatTotalMoney(double value, String aggregateCurrencyCode, int decimals) {
+        if (aggregateCurrencyCode == null || aggregateCurrencyCode.isBlank() || "MIXED".equals(aggregateCurrencyCode)) {
+            return formatNumber(value, decimals) + " mixed";
+        }
+        return formatMoney(value, aggregateCurrencyCode, decimals);
     }
 
     private static void writeOverviewTableHtml(FileWriter writer) throws IOException {
@@ -568,9 +612,11 @@ public class PortfolioTracker {
         double totalCostBasisWithPrice = 0.0;
         double totalRealized = 0.0;
         double totalDividends = 0.0;
+        String totalCurrencyCode = null;
         for (Security security : getSortedSecuritiesForOverview()) {
             String ticker = security.getTicker();
             String tickerText = (ticker == null || ticker.isBlank()) ? "-" : ticker;
+            String currencyCode = security.getCurrencyCode();
             double units = security.getUnitsOwned();
             double averageCost = security.getAverageCost();
             double latestPrice = security.getLatestPrice();
@@ -579,8 +625,10 @@ public class PortfolioTracker {
             double marketValue = hasPrice ? units * latestPrice : 0.0;
             double unrealized = hasPrice ? (marketValue - positionCostBasis) : 0.0;
             double unrealizedPct = hasPrice && positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100.0 : 0.0;
-            double realized = parseDoubleOrZero(security.getRealizedGainAsText());
-            double dividends = parseDoubleOrZero(security.getDividendsAsText());
+            double realized = security.getRealizedGain();
+            double dividends = security.getDividends();
+            double realizedCostBasis = security.getRealizedCostBasis();
+            double realizedPct = realizedCostBasis > 0.0 ? (realized / realizedCostBasis) * 100.0 : 0.0;
             double totalReturn = unrealized + realized + dividends;
             double totalReturnPct = positionCostBasis > 0 ? (totalReturn / positionCostBasis) * 100.0 : 0.0;
 
@@ -592,6 +640,7 @@ public class PortfolioTracker {
             }
             totalRealized += realized;
             totalDividends += dividends;
+            totalCurrencyCode = mergeCurrencyCodes(totalCurrencyCode, currencyCode);
 
             writeHtmlRow(
                 writer,
@@ -600,17 +649,17 @@ public class PortfolioTracker {
                 security.getDisplayName(),
                 security.getAssetType().name(),
                 formatUnits(units),
-                formatNumber(averageCost, 2),
-                security.getLatestPriceAsText(),
-                latestPrice > 0.0 ? formatNumber(marketValue, 2) : "-",
-                formatNumber(positionCostBasis, 2),
-                hasPrice ? formatNumber(unrealized, 2) : "-",
-                hasPrice ? formatNumber(unrealizedPct, 2) : "-",
-                security.getRealizedReturnPctAsText(),
-                security.getRealizedGainAsText(),
-                security.getDividendsAsText(),
-                formatNumber(totalReturn, 2),
-                formatNumber(totalReturnPct, 2)
+                formatMoney(averageCost, currencyCode, 2),
+                latestPrice > 0.0 ? formatMoney(latestPrice, currencyCode, 2) : "-",
+                latestPrice > 0.0 ? formatMoney(marketValue, currencyCode, 2) : "-",
+                formatMoney(positionCostBasis, currencyCode, 2),
+                hasPrice ? formatMoney(unrealized, currencyCode, 2) : "-",
+                hasPrice ? formatPercent(unrealizedPct, 2) : "-",
+                formatPercent(realizedPct, 2),
+                formatMoney(realized, currencyCode, 2),
+                formatMoney(dividends, currencyCode, 2),
+                formatMoney(totalReturn, currencyCode, 2),
+                formatPercent(totalReturnPct, 2)
             );
         }
 
@@ -625,15 +674,15 @@ public class PortfolioTracker {
             + toDataCell("")
             + toDataCell("")
             + toDataCell("")
-            + toDataCell(formatNumber(totalMarketValue, 2))
-            + toDataCell(formatNumber(totalCostBasis, 2))
-            + toDataCell(formatNumber(totalUnrealized, 2))
-            + toDataCell(formatNumber(totalUnrealizedPct, 2))
-            + toDataCell(formatNumber(totalRealizedPct, 2))
-            + toDataCell(formatNumber(totalRealized, 2))
-            + toDataCell(formatNumber(totalDividends, 2))
-            + toDataCell(formatNumber(totalReturn, 2))
-            + toDataCell(formatNumber(totalReturnPct, 2))
+            + toDataCell(formatTotalMoney(totalMarketValue, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalCostBasis, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalUnrealized, totalCurrencyCode, 2))
+            + toDataCell(formatPercent(totalUnrealizedPct, 2))
+            + toDataCell(formatPercent(totalRealizedPct, 2))
+            + toDataCell(formatTotalMoney(totalRealized, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalDividends, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalReturn, totalCurrencyCode, 2))
+            + toDataCell(formatPercent(totalReturnPct, 2))
             + "</tr>\n"
         );
 
@@ -651,8 +700,10 @@ public class PortfolioTracker {
         double totalCostBasis = 0.0;
         double totalRealizedGain = 0.0;
         double totalRealizedDividends = 0.0;
+        String totalCurrencyCode = null;
 
         for (Security security : soldSecurities) {
+            String currencyCode = security.getCurrencyCode();
             double salesValue = security.getRealizedSalesValue();
             double costBasis = security.getRealizedCostBasis();
             double gain = security.getRealizedGain();
@@ -663,27 +714,28 @@ public class PortfolioTracker {
             totalCostBasis += costBasis;
             totalRealizedGain += gain;
             totalRealizedDividends += realizedDividends;
+            totalCurrencyCode = mergeCurrencyCodes(totalCurrencyCode, currencyCode);
 
             writeHtmlRow(
                 writer,
                 false,
                 security.getName(),
-                formatNumber(salesValue, 2),
-                formatNumber(costBasis, 2),
-                formatNumber(gain, 2),
-                formatNumber(realizedDividends, 2),
-                formatNumber(returnPct, 2)
+                formatMoney(salesValue, currencyCode, 2),
+                formatMoney(costBasis, currencyCode, 2),
+                formatMoney(gain, currencyCode, 2),
+                formatMoney(realizedDividends, currencyCode, 2),
+                formatPercent(returnPct, 2)
             );
         }
 
         double totalReturnPct = totalCostBasis > 0 ? (totalRealizedGain / totalCostBasis) * 100.0 : (totalRealizedGain > 0 ? 100.0 : 0.0);
         writer.write("<tr class=\"total-row\">"
             + toDataCell("TOTAL")
-            + toDataCell(formatNumber(totalSalesValue, 2))
-            + toDataCell(formatNumber(totalCostBasis, 2))
-            + toDataCell(formatNumber(totalRealizedGain, 2))
-            + toDataCell(formatNumber(totalRealizedDividends, 2))
-            + toDataCell(formatNumber(totalReturnPct, 2))
+            + toDataCell(formatTotalMoney(totalSalesValue, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalCostBasis, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalRealizedGain, totalCurrencyCode, 2))
+            + toDataCell(formatTotalMoney(totalRealizedDividends, totalCurrencyCode, 2))
+            + toDataCell(formatPercent(totalReturnPct, 2))
             + "</tr>\n"
         );
 
@@ -694,6 +746,7 @@ public class PortfolioTracker {
         ArrayList<Security> soldSecurities = getSortedSoldSecurities();
 
         for (Security security : soldSecurities) {
+            String currencyCode = security.getCurrencyCode();
             writer.write("<h2>SALE TRADES - " + escapeHtml(security.getName()) + "</h2>\n");
             writer.write("<table>\n");
             writeHtmlRow(writer, true, "Sale Date", "Units", "Price/Unit", "Sale Value", "Cost Basis", "Gain/Loss", "Return (%)");
@@ -714,11 +767,11 @@ public class PortfolioTracker {
                     false,
                     trade.getTradeDateAsCsv(),
                     formatUnits(trade.getUnits()),
-                    formatNumber(trade.getUnitPrice(), 2),
-                    formatNumber(trade.getSaleValue(), 2),
-                    formatNumber(trade.getCostBasis(), 2),
-                    formatNumber(trade.getGainLoss(), 2),
-                    formatNumber(trade.getReturnPct(), 2)
+                    formatMoney(trade.getUnitPrice(), currencyCode, 2),
+                    formatMoney(trade.getSaleValue(), currencyCode, 2),
+                    formatMoney(trade.getCostBasis(), currencyCode, 2),
+                    formatMoney(trade.getGainLoss(), currencyCode, 2),
+                    formatPercent(trade.getReturnPct(), 2)
                 );
             }
 
@@ -727,10 +780,10 @@ public class PortfolioTracker {
                     + toDataCell("TOTAL")
                     + toDataCell(formatUnits(totalUnits))
                     + toDataCell("")
-                    + toDataCell(formatNumber(totalSalesValue, 2))
-                    + toDataCell(formatNumber(totalCostBasis, 2))
-                    + toDataCell(formatNumber(totalGain, 2))
-                    + toDataCell(formatNumber(totalReturnPct, 2))
+                    + toDataCell(formatMoney(totalSalesValue, currencyCode, 2))
+                    + toDataCell(formatMoney(totalCostBasis, currencyCode, 2))
+                    + toDataCell(formatMoney(totalGain, currencyCode, 2))
+                    + toDataCell(formatPercent(totalReturnPct, 2))
                     + "</tr>\n"
                 );
 
