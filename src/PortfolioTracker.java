@@ -18,12 +18,17 @@ import java.util.Map;
 public class PortfolioTracker {
     private static final String INPUT_DIRECTORY = "transaction_files";
     private static final String OUTPUT_FILE = "portfolio-report.html";
-        private static final Map<String, String> RENAMED_SECURITY_ISIN = Map.of(
+
+    // User-editable mapping for renamed/merged instruments: old ISIN -> new ISIN.
+    // Add entries here when the broker reports a replacement as separate ISINs,
+    // so history and current holdings are treated as one continuous position.
+    private static final Map<String, String> RENAMED_SECURITY_ISIN = Map.of(
             "NO0010782519", "NO0012948878"
-        );
+    );
 
     private static final ArrayList<Security> securities = new ArrayList<>();
     private static final Map<String, Security> securitiesByKey = new LinkedHashMap<>();
+    private static final Map<String, String> canonicalSecurityNameByIsin = new LinkedHashMap<>();
 
     public static void main(String[] args) throws IOException {
         ensureInputDirectoryExists();
@@ -174,6 +179,37 @@ public class PortfolioTracker {
         return newSecurity;
     }
 
+    private static String canonicalizeIsin(String isin) {
+        if (isin == null || isin.isBlank()) {
+            return isin;
+        }
+
+        String normalized = isin.trim().toUpperCase(Locale.ROOT);
+        return RENAMED_SECURITY_ISIN.getOrDefault(normalized, normalized);
+    }
+
+    private static boolean isRenamedSecurityIsin(String isin) {
+        if (isin == null || isin.isBlank()) {
+            return false;
+        }
+
+        String normalized = isin.trim().toUpperCase(Locale.ROOT);
+        return RENAMED_SECURITY_ISIN.containsKey(normalized)
+                || RENAMED_SECURITY_ISIN.containsValue(normalized);
+    }
+
+    private static boolean isRenameBookkeepingTransaction(String transactionType, String securityIsin) {
+        if (!isRenamedSecurityIsin(securityIsin) || transactionType == null || transactionType.isBlank()) {
+            return false;
+        }
+
+        String normalized = transactionType.toUpperCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+        return "BYTTE INNLEGG VP".equals(normalized)
+                || "BYTTE UTTAK VP".equals(normalized)
+                || "MAK BYTTE INNLEGG VP".equals(normalized)
+                || "MAK BYTTE UTTAK VP".equals(normalized);
+    }
+
     private static class HeaderIndexes {
         int transactionId;
         int securityName;
@@ -186,9 +222,10 @@ public class PortfolioTracker {
         int result;
         int totalFees;
         int tradeDate;
+        int cancellationDate;
 
         HeaderIndexes() {
-            transactionId = securityName = securityType = isin = transactionType = amount = quantity = price = result = totalFees = tradeDate = -1;
+            transactionId = securityName = securityType = isin = transactionType = amount = quantity = price = result = totalFees = tradeDate = cancellationDate = -1;
         }
 
         boolean hasRequiredColumns() {
@@ -201,10 +238,7 @@ public class PortfolioTracker {
         private final String securityDisplayName;
         private final String assetType;
         private final String currencyCode;
-        private final String latestPriceText;
         private final String realizedReturnPctText;
-        private final String realizedGainText;
-        private final String dividendsText;
         private final double units;
         private final double averageCost;
         private final double latestPrice;
@@ -223,10 +257,7 @@ public class PortfolioTracker {
                 String securityDisplayName,
                 String assetType,
                 String currencyCode,
-                String latestPriceText,
                 String realizedReturnPctText,
-                String realizedGainText,
-                String dividendsText,
                 double units,
                 double averageCost,
                 double latestPrice,
@@ -243,10 +274,7 @@ public class PortfolioTracker {
             this.securityDisplayName = securityDisplayName;
             this.assetType = assetType;
             this.currencyCode = currencyCode;
-            this.latestPriceText = latestPriceText;
             this.realizedReturnPctText = realizedReturnPctText;
-            this.realizedGainText = realizedGainText;
-            this.dividendsText = dividendsText;
             this.units = units;
             this.averageCost = averageCost;
             this.latestPrice = latestPrice;
@@ -279,6 +307,7 @@ public class PortfolioTracker {
                 case "resultat" -> indexes.result = i;
                 case "totale avgifter", "omkostninger" -> indexes.totalFees = i;
                 case "handelsdag", "handelsdato" -> indexes.tradeDate = i;
+                case "makuleringsdato" -> indexes.cancellationDate = i;
                 default -> {
                     // Ignored.
                 }
@@ -298,15 +327,50 @@ public class PortfolioTracker {
         }
 
         String isin = getCell(row, indexes.isin);
+        String canonicalIsin = canonicalizeIsin(isin);
+        rememberCanonicalSecurityName(isin, canonicalIsin, securityName);
         String securityType = getCell(row, indexes.securityType);
-        Security security = getOrCreateSecurity(securityName, isin);
+        Security security = getOrCreateSecurity(securityName, canonicalIsin);
         if (security == null) {
             return;
         }
 
         security.updateAssetTypeFromHint(securityType, securityName);
 
-        processTransaction(security, row, indexes);
+        processTransaction(security, row, indexes, isin);
+    }
+
+    private static void rememberCanonicalSecurityName(String originalIsin, String canonicalIsin, String securityName) {
+        if (securityName == null || securityName.isBlank() || canonicalIsin == null || canonicalIsin.isBlank()) {
+            return;
+        }
+
+        String normalizedCanonicalIsin = canonicalIsin.trim().toUpperCase(Locale.ROOT);
+        String existingName = canonicalSecurityNameByIsin.get(normalizedCanonicalIsin);
+        boolean fromCanonicalIsin = originalIsin != null
+                && !originalIsin.isBlank()
+                && normalizedCanonicalIsin.equals(originalIsin.trim().toUpperCase(Locale.ROOT));
+
+        if (fromCanonicalIsin || existingName == null || existingName.isBlank()) {
+            canonicalSecurityNameByIsin.put(normalizedCanonicalIsin, securityName);
+        }
+    }
+
+    private static String getPreferredSecurityName(Security security) {
+        if (security == null) {
+            return "-";
+        }
+
+        String isin = security.getIsin();
+        if (isin != null && !isin.isBlank()) {
+            String preferred = canonicalSecurityNameByIsin.get(isin.trim().toUpperCase(Locale.ROOT));
+            if (preferred != null && !preferred.isBlank()) {
+                return preferred;
+            }
+        }
+
+        String displayName = security.getDisplayName();
+        return (displayName == null || displayName.isBlank()) ? "-" : displayName;
     }
 
     private static LocalDate parseTradeDateForSort(String tradeDateText) {
@@ -405,18 +469,26 @@ public class PortfolioTracker {
         return soldSecurities;
     }
 
-    private static void processTransaction(Security security, ArrayList<String> row, HeaderIndexes indexes) {
+    private static void processTransaction(Security security, ArrayList<String> row, HeaderIndexes indexes, String originalIsin) {
         String transactionType = getCell(row, indexes.transactionType)
                 .toUpperCase(Locale.ROOT)
                 .replaceAll("\\s+", " ");
 
-        String tradeDate = getCell(row, indexes.tradeDate);
-
-        double amount = parseDoubleOrZero(getCell(row, indexes.amount));
         double quantity = parseDoubleOrZero(getCell(row, indexes.quantity));
+        double amount = parseDoubleOrZero(getCell(row, indexes.amount));
         double price = parseDoubleOrZero(getCell(row, indexes.price));
         double result = parseDoubleOrZero(getCell(row, indexes.result));
         double totalFees = parseDoubleOrZero(getCell(row, indexes.totalFees));
+
+        if (isRenameBookkeepingTransaction(transactionType, originalIsin)) {
+            boolean isCancelled = indexes.cancellationDate >= 0 && !getCell(row, indexes.cancellationDate).isBlank();
+            if (!isCancelled && "BYTTE INNLEGG VP".equals(transactionType) && quantity > 0.0) {
+                security.reconcileUnitsFromCorporateAction(quantity);
+            }
+            return;
+        }
+
+        String tradeDate = getCell(row, indexes.tradeDate);
 
         switch (transactionType) {
             case "SALG", "SELL", "KJØPT", "KJOPT", "KJØP", "KJOP", "BUY", "REINVESTERT UTBYTTE", "REINVESTERTUTBYTTE" ->
@@ -427,7 +499,11 @@ public class PortfolioTracker {
                 }
             }
             case "UTBYTTE", "DIVIDEND" -> security.addDividend(amount);
-            case "INNSKUDD", "UTTAK INTERNET", "PLATTFORMAVGIFT", "TILBAKEBET. FOND AVG",
+            case "TILBAKEBET. FOND AVG" -> {
+                double refundAmount = totalFees > 0.0 ? totalFees : Math.abs(amount);
+                security.applyCostRefund(refundAmount);
+            }
+            case "INNSKUDD", "UTTAK INTERNET", "PLATTFORMAVGIFT",
                     "OVERBELÅNINGSRENTE", "TILBAKEBETALING", "OVERFØRING VIA TRUSTLY", "OVERFORING VIA TRUSTLY" -> {
                 // Ignored on purpose; these are cash-account events.
             }
@@ -707,13 +783,10 @@ public class PortfolioTracker {
 
         return new OverviewRow(
                 tickerText,
-                security.getDisplayName(),
+            getPreferredSecurityName(security),
                 security.getAssetType().name(),
-            currencyCode,
-                security.getLatestPriceAsText(),
+                currencyCode,
                 security.getRealizedReturnPctAsText(),
-                security.getRealizedGainAsText(),
-                security.getDividendsAsText(),
                 units,
                 averageCost,
                 latestPrice,
@@ -1352,7 +1425,7 @@ public class PortfolioTracker {
             writeHtmlRowWithClass(
                 writer,
                 rowClass,
-                security.getName(),
+                getPreferredSecurityName(security),
                 formatMoney(salesValue, currencyCode, 2),
                 formatMoney(costBasis, currencyCode, 2),
                 formatMoney(gain, currencyCode, 2),
@@ -1382,7 +1455,7 @@ public class PortfolioTracker {
 
         for (Security security : soldSecurities) {
             String currencyCode = security.getCurrencyCode();
-            writer.write("<h2>SALE TRADES - " + escapeHtml(security.getName()) + "</h2>\n");
+            writer.write("<h2>SALE TRADES - " + escapeHtml(getPreferredSecurityName(security)) + "</h2>\n");
             writer.write("<table>\n");
             writeHtmlRow(writer, true, "Sale Date", "Units", "Price/Unit", "Sale Value", "Cost Basis", "Gain/Loss", "Return (%)");
 

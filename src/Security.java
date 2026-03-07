@@ -206,7 +206,12 @@ public class Security {
         LocalDate tradeDate = parseDate(tradeDateText);
 
         if (isBuy) {
-            registerBuy(units, amount, price, totalFees);
+            if (isReinvestTransaction(transactionType)) {
+                // Reinvested dividends add units but do not represent new external capital.
+                registerBuy(units, 0.0, 0.0, 0.0);
+            } else {
+                registerBuy(units, amount, price, totalFees);
+            }
         } else {
             registerSale(tradeDate, units, amount, price, totalFees, reportedResult);
         }
@@ -218,6 +223,57 @@ public class Security {
             return;
         }
         registerBuy(units, 0.0, 0.0, 0.0);
+    }
+
+    public void applyCostRefund(double refundAmount) {
+        if (refundAmount <= EPSILON || unitsOwned <= EPSILON || buyLots.isEmpty()) {
+            return;
+        }
+
+        double totalCost = 0.0;
+        for (BuyLot lot : buyLots) {
+            totalCost += lot.remainingUnits * lot.unitCost;
+        }
+
+        if (totalCost <= EPSILON) {
+            return;
+        }
+
+        double adjustedTotalCost = Math.max(0.0, totalCost - refundAmount);
+        double costScale = adjustedTotalCost / totalCost;
+        for (BuyLot lot : buyLots) {
+            lot.unitCost *= costScale;
+        }
+    }
+
+    public void reconcileUnitsFromCorporateAction(double targetUnitsRaw) {
+        double targetUnits = Math.abs(targetUnitsRaw);
+        if (targetUnits <= EPSILON || unitsOwned <= EPSILON) {
+            return;
+        }
+
+        if (Math.abs(unitsOwned - targetUnits) <= EPSILON) {
+            return;
+        }
+
+        double scale = targetUnits / unitsOwned;
+        if (scale <= EPSILON) {
+            return;
+        }
+
+        // Scale units while preserving total cost basis for each lot.
+        for (BuyLot lot : buyLots) {
+            if (lot.remainingUnits <= EPSILON) {
+                continue;
+            }
+
+            lot.remainingUnits *= scale;
+            if (lot.unitCost > EPSILON) {
+                lot.unitCost /= scale;
+            }
+        }
+
+        unitsOwned = targetUnits;
     }
 
     public void updateAssetTypeFromHint(String securityTypeHint, String securityNameHint) {
@@ -248,6 +304,15 @@ public class Security {
             return false;
         }
         return amount < 0;
+    }
+
+    private boolean isReinvestTransaction(String transactionType) {
+        if (transactionType == null || transactionType.isBlank()) {
+            return false;
+        }
+
+        String normalized = transactionType.toUpperCase(Locale.ROOT);
+        return normalized.contains("REINVEST");
     }
 
     private void registerBuy(double units, double amount, double price, double totalFees) {
