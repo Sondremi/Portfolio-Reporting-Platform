@@ -558,12 +558,15 @@ public class PortfolioTracker {
         writer.write("    .chart-svg { width: 100%; height: 290px; display: block; }\n");
         writer.write("    .overview-chart.allocation-card { grid-column: 1 / -1; }\n");
         writer.write("    .overview-chart.allocation-card .chart-svg { height: 240px; }\n");
+        writer.write("    .allocation-visuals { display: grid; grid-template-columns: 0.9fr 2.1fr; gap: 12px; }\n");
+        writer.write("    .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
         writer.write("    .allocation-legend { margin: 8px 0 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; row-gap: 4px; }\n");
         writer.write("    .allocation-legend li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #333; }\n");
         writer.write("    .allocation-legend .name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }\n");
         writer.write("    .allocation-legend .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }\n");
         writer.write("    .allocation-legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }\n");
         writer.write("    .allocation-legend .value { font-variant-numeric: tabular-nums; color: #555; }\n");
+        writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } }\n");
         writer.write("    @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
         writer.write("  </style>\n");
         writer.write("</head>\n");
@@ -678,7 +681,14 @@ public class PortfolioTracker {
     private static void writeMarketValueAllocationCard(FileWriter writer, ArrayList<OverviewRow> rows) throws IOException {
         writer.write("<section class=\"overview-chart allocation-card\">\n");
         writer.write("<h3>Market Value Allocation</h3>\n");
+        writer.write("<div class=\"allocation-visuals\">\n");
+        writer.write("<div class=\"allocation-panel\">\n");
         writer.write(buildMarketValueAllocationSvg(rows));
+        writer.write("</div>\n");
+        writer.write("<div class=\"allocation-panel\">\n");
+        writer.write(buildMarketValueBarChartSvg(rows));
+        writer.write("</div>\n");
+        writer.write("</div>\n");
 
         ArrayList<OverviewRow> rowsWithValue = new ArrayList<>();
         double totalMarketValue = 0.0;
@@ -706,6 +716,10 @@ public class PortfolioTracker {
         }
 
         writer.write("</section>\n");
+    }
+
+    private static String getOverviewRowLabel(OverviewRow row) {
+        return (row.securityDisplayName == null || row.securityDisplayName.isBlank()) ? row.tickerText : row.securityDisplayName;
     }
 
     private static String buildOverviewBarChartSvg(ArrayList<OverviewRow> rows, boolean percentChart) {
@@ -806,8 +820,8 @@ public class PortfolioTracker {
         final double height = 330.0;
         final double centerX = width / 2.0;
         final double centerY = 142.0;
-        final double radius = 96.0;
-        final double innerRadius = 52.0;
+        final double radius = 92.0;
+        final double innerRadius = 50.0;
 
         ArrayList<OverviewRow> rowsWithValue = new ArrayList<>();
         double totalMarketValue = 0.0;
@@ -852,7 +866,7 @@ public class PortfolioTracker {
                 .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                 .append(" Z\" fill=\"").append(color).append("\">\n")
                 .append("<title>")
-                    .append(escapeHtml(((row.securityDisplayName == null || row.securityDisplayName.isBlank()) ? row.tickerText : row.securityDisplayName)
+                    .append(escapeHtml(getOverviewRowLabel(row)
                     + ": " + formatNumber(row.marketValue, 2) + " kr (" + formatNumber(fraction * 100.0, 2) + "%)"))
                 .append("</title></path>\n");
 
@@ -868,6 +882,103 @@ public class PortfolioTracker {
             .append(escapeHtml(formatNumber(totalMarketValue, 0) + " kr"))
             .append("</text>\n");
 
+        svg.append("</svg>\n");
+        return svg.toString();
+        }
+
+        private static String buildMarketValueBarChartSvg(ArrayList<OverviewRow> rows) {
+        final double width = 860.0;
+        final double height = 330.0;
+        final double left = 74.0;
+        final double right = 86.0;
+        final double top = 18.0;
+        final double bottom = 118.0;
+        final double plotWidth = width - left - right;
+        final double plotHeight = height - top - bottom;
+
+        ArrayList<OverviewRow> rowsWithValue = new ArrayList<>();
+        double totalMarketValue = 0.0;
+        double maxValue = 0.0;
+        for (OverviewRow row : rows) {
+            if (row.marketValue > 0.0) {
+            rowsWithValue.add(row);
+            totalMarketValue += row.marketValue;
+            maxValue = Math.max(maxValue, row.marketValue);
+            }
+        }
+
+        StringBuilder svg = new StringBuilder();
+        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+            .append(svgNumber(width))
+            .append(" ")
+            .append(svgNumber(height))
+            .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
+
+        if (rowsWithValue.isEmpty() || maxValue <= 0.0) {
+            svg.append("<text x=\"").append(svgNumber(width / 2.0)).append("\" y=\"").append(svgNumber(height / 2.0))
+                .append("\" text-anchor=\"middle\" font-size=\"13\" fill=\"#666\">No market value data</text>\n");
+            svg.append("</svg>\n");
+            return svg.toString();
+        }
+
+        int tickCount = 5;
+        for (int i = 0; i <= tickCount; i++) {
+            double tickValue = maxValue - ((maxValue / tickCount) * i);
+            double y = mapValueToY(tickValue, 0.0, maxValue, top, plotHeight);
+
+            svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(y))
+                .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(y))
+                .append("\" stroke=\"#ececec\" stroke-width=\"1\"/>\n");
+
+            svg.append("<text x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
+                .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#666\">")
+                .append(escapeHtml(formatNumber(tickValue, 0) + " kr"))
+                .append("</text>\n");
+        }
+
+        double averageValue = totalMarketValue / rowsWithValue.size();
+        double averageY = mapValueToY(averageValue, 0.0, maxValue, top, plotHeight);
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(averageY))
+            .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(averageY))
+            .append("\" stroke=\"#495057\" stroke-width=\"1.2\" stroke-dasharray=\"5 4\"/>\n");
+        svg.append("<text x=\"").append(svgNumber(left + plotWidth + 8.0)).append("\" y=\"").append(svgNumber(averageY + 3.0))
+            .append("\" text-anchor=\"start\" font-size=\"10\" fill=\"#495057\">")
+            .append(escapeHtml("Avg: " + formatNumber(averageValue, 0) + " kr"))
+            .append("</text>\n");
+
+        double slotWidth = plotWidth / rowsWithValue.size();
+        double barWidth = Math.max(10.0, slotWidth * 0.92);
+        for (int i = 0; i < rowsWithValue.size(); i++) {
+            OverviewRow row = rowsWithValue.get(i);
+            double x = left + (i * slotWidth) + ((slotWidth - barWidth) / 2.0);
+            double y = mapValueToY(row.marketValue, 0.0, maxValue, top, plotHeight);
+            double barHeight = (top + plotHeight) - y;
+
+            String label = getOverviewRowLabel(row);
+            String color = getAllocationColor(i);
+
+            svg.append("<rect x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(y))
+                .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
+                .append("\" fill=\"").append(color).append("\" rx=\"2\">\n")
+                .append("<title>")
+                .append(escapeHtml(label + ": " + formatNumber(row.marketValue, 2) + " kr"))
+                .append("</title></rect>\n");
+
+            double labelAnchorX = x + (barWidth / 2.0);
+            double labelAnchorY = height - bottom + 28.0;
+            svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
+                .append("\" transform=\"rotate(-35 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
+                .append(")\" text-anchor=\"end\" font-size=\"9\" fill=\"#444\">")
+                .append(escapeHtml(label))
+                .append("</text>\n");
+        }
+
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top + plotHeight))
+            .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(top + plotHeight))
+            .append("\" stroke=\"#7a7a7a\" stroke-width=\"1.1\"/>\n");
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
+            .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(top + plotHeight))
+            .append("\" stroke=\"#7a7a7a\" stroke-width=\"1.1\"/>\n");
         svg.append("</svg>\n");
         return svg.toString();
         }
