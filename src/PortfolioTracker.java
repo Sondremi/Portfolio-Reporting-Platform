@@ -2,18 +2,32 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PortfolioTracker {
     private static final String INPUT_DIRECTORY = "transaction_files";
@@ -29,13 +43,18 @@ public class PortfolioTracker {
     private static final ArrayList<Security> securities = new ArrayList<>();
     private static final Map<String, Security> securitiesByKey = new LinkedHashMap<>();
     private static final Map<String, String> canonicalSecurityNameByIsin = new LinkedHashMap<>();
+    private static final ArrayList<UnitEvent> unitEvents = new ArrayList<>();
     private static int loadedCsvFileCount = 0;
     private static int loadedTransactionRowCount = 0;
+
+    private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
+    private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
 
     public static void main(String[] args) throws IOException {
         ensureInputDirectoryExists();
         loadedCsvFileCount = 0;
         loadedTransactionRowCount = 0;
+        unitEvents.clear();
         int filesProcessed = readAllTransactionFiles();
         loadedCsvFileCount = filesProcessed;
 
@@ -235,6 +254,28 @@ public class PortfolioTracker {
 
         boolean hasRequiredColumns() {
             return securityName >= 0 && transactionType >= 0;
+        }
+    }
+
+    private static final class UnitEvent {
+        private final LocalDate tradeDate;
+        private final String securityKey;
+        private final double unitsDelta;
+
+        private UnitEvent(LocalDate tradeDate, String securityKey, double unitsDelta) {
+            this.tradeDate = tradeDate;
+            this.securityKey = securityKey;
+            this.unitsDelta = unitsDelta;
+        }
+    }
+
+    private static final class PortfolioValuePoint {
+        private final LocalDate monthEnd;
+        private final double value;
+
+        private PortfolioValuePoint(LocalDate monthEnd, double value) {
+            this.monthEnd = monthEnd;
+            this.value = value;
         }
     }
 
@@ -571,6 +612,9 @@ public class PortfolioTracker {
         double price = parseDoubleOrZero(getCell(row, indexes.price));
         double result = parseDoubleOrZero(getCell(row, indexes.result));
         double totalFees = parseDoubleOrZero(getCell(row, indexes.totalFees));
+        LocalDate tradeDateForTracking = indexes.tradeDate >= 0
+            ? parseTradeDateForSort(getCell(row, indexes.tradeDate))
+            : LocalDate.MIN;
 
         if (isRenameBookkeepingTransaction(transactionType, originalIsin)) {
             boolean isCancelled = indexes.cancellationDate >= 0 && !getCell(row, indexes.cancellationDate).isBlank();
@@ -583,11 +627,21 @@ public class PortfolioTracker {
         String tradeDate = getCell(row, indexes.tradeDate);
 
         switch (transactionType) {
-            case "SALG", "SELL", "KJØPT", "KJOPT", "KJØP", "KJOP", "BUY", "REINVESTERT UTBYTTE", "REINVESTERTUTBYTTE" ->
+            case "SALG", "SELL", "KJØPT", "KJOPT", "KJØP", "KJOP", "BUY", "REINVESTERT UTBYTTE", "REINVESTERTUTBYTTE" -> {
+                    if (Math.abs(quantity) > 0.0) {
+                        double unitsDelta = isBuyLikeTransaction(transactionType, amount)
+                                ? Math.abs(quantity)
+                                : -Math.abs(quantity);
+                        recordUnitEvent(security, tradeDateForTracking, unitsDelta);
+                    }
                     security.addTransaction(tradeDate, transactionType, amount, quantity, price, result, totalFees);
+            }
             case "UTBYTTE INNLEGG VP", "BYTTE INNLEGG VP", "MAK BYTTE INNLEGG VP", "TILDELING INNLEGG RE" -> {
                 if (!isTemporaryRightsSecurity(security)) {
-                    security.addZeroCostUnits(quantity);
+                    if (Math.abs(quantity) > 0.0) {
+                        recordUnitEvent(security, tradeDateForTracking, Math.abs(quantity));
+                    }
+                    security.addZeroCostUnits(quantity, tradeDate);
                 }
             }
             case "UTBYTTE", "DIVIDEND" -> security.addDividend(amount);
@@ -603,6 +657,50 @@ public class PortfolioTracker {
                 // Intentionally ignored unknown transaction types.
             }
         }
+    }
+
+    private static boolean isBuyLikeTransaction(String transactionType, double amount) {
+        String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
+        if (normalized.contains("KJØP") || normalized.contains("KJOP") || normalized.contains("BUY")
+                || normalized.contains("REINVEST")) {
+            return true;
+        }
+        if (normalized.contains("SALG") || normalized.contains("SELL")) {
+            return false;
+        }
+        return amount < 0.0;
+    }
+
+    private static void recordUnitEvent(Security security, LocalDate tradeDate, double unitsDelta) {
+        if (security == null || Math.abs(unitsDelta) < 1e-9) {
+            return;
+        }
+
+        String securityKey = getTrackingSecurityKey(security);
+        if (securityKey.isBlank()) {
+            return;
+        }
+
+        LocalDate eventDate = tradeDate == null ? LocalDate.MIN : tradeDate;
+        unitEvents.add(new UnitEvent(eventDate, securityKey, unitsDelta));
+    }
+
+    private static String getTrackingSecurityKey(Security security) {
+        if (security == null) {
+            return "";
+        }
+
+        String isin = security.getIsin();
+        if (isin != null && !isin.isBlank()) {
+            return isin.trim().toUpperCase(Locale.ROOT);
+        }
+
+        String name = security.getName();
+        if (name == null || name.isBlank()) {
+            return "";
+        }
+
+        return "NAME:" + name.trim().toUpperCase(Locale.ROOT);
     }
 
     private static boolean readFile(File file) throws IOException {
@@ -779,109 +877,318 @@ public class PortfolioTracker {
 
     private static String buildHeaderSparklineSvg(ArrayList<OverviewRow> overviewRows) {
         final double width = 320.0;
-        final double height = 58.0;
-        final double left = 14.0;
-        final double right = 4.0;
-        final double top = 9.0;
-        final double bottom = 6.0;
+        final double height = 72.0;
+        final double left = 50.0;
+        final double right = 8.0;
+        final double top = 8.0;
+        final double bottom = 18.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
+
+        ArrayList<PortfolioValuePoint> points = buildPortfolioValueTimelineLast12Months();
 
         StringBuilder svg = new StringBuilder();
         svg.append("<svg class=\"hero-sparkline\" viewBox=\"0 0 ")
                 .append(svgNumber(width)).append(" ").append(svgNumber(height))
             .append("\" preserveAspectRatio=\"xMinYMid meet\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
 
-        if (overviewRows == null || overviewRows.isEmpty()) {
+        if (points.isEmpty()) {
             svg.append("<text x=\"").append(svgNumber(width / 2.0)).append("\" y=\"").append(svgNumber(height / 2.0 + 3.0))
-                .append("\" text-anchor=\"middle\" font-size=\"10\" fill=\"#5f6b7a\">No holdings yet</text>\n");
+                .append("\" text-anchor=\"middle\" font-size=\"9\" fill=\"#eaf2ff\">No 12M portfolio history</text>\n");
             svg.append("</svg>\n");
             return svg.toString();
         }
 
+        int count = points.size();
         double minValue = Double.POSITIVE_INFINITY;
         double maxValue = Double.NEGATIVE_INFINITY;
-        for (OverviewRow row : overviewRows) {
-            minValue = Math.min(minValue, row.totalReturnPct);
-            maxValue = Math.max(maxValue, row.totalReturnPct);
+        int minIndex = -1;
+        int maxIndex = -1;
+        for (int i = 0; i < count; i++) {
+            double value = points.get(i).value;
+            if (value < minValue) {
+                minValue = value;
+                minIndex = i;
+            }
+            if (value > maxValue) {
+                maxValue = value;
+                maxIndex = i;
+            }
         }
+
         if (!Double.isFinite(minValue) || !Double.isFinite(maxValue)) {
-            minValue = -1.0;
+            minValue = 0.0;
             maxValue = 1.0;
         }
         if (Math.abs(maxValue - minValue) < 1e-9) {
-            maxValue += 1.0;
-            minValue -= 1.0;
+            maxValue += Math.max(1.0, maxValue * 0.02);
+            minValue = Math.max(0.0, minValue - Math.max(1.0, minValue * 0.02));
         }
-
-        double zeroY = mapValueToY(0.0, minValue, maxValue, top, plotHeight);
-        double chartZeroY = Math.max(top, Math.min(top + plotHeight, zeroY));
 
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
             .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(top + plotHeight))
             .append("\" stroke=\"#c7d2df\" stroke-width=\"1\"/>\n");
-        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(chartZeroY))
-                .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(chartZeroY))
-            .append("\" stroke=\"#aab8ca\" stroke-width=\"1.2\" stroke-dasharray=\"3 3\"/>\n");
-        svg.append("<text x=\"").append(svgNumber(left - 3.0)).append("\" y=\"").append(svgNumber(chartZeroY))
-            .append("\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"3\" fill=\"#c7d2df\">0%</text>\n");
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top + plotHeight))
+            .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(top + plotHeight))
+            .append("\" stroke=\"#c7d2df\" stroke-width=\"1\"/>\n");
 
-        int count = overviewRows.size();
+        String maxText = formatCompactKroner(maxValue);
+        String minText = formatCompactKroner(minValue);
+        svg.append("<text x=\"").append(svgNumber(left - 5.0)).append("\" y=\"").append(svgNumber(top + 1.0))
+            .append("\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"6\" fill=\"#eaf2ff\">")
+            .append(escapeHtml(maxText)).append("</text>\n");
+        svg.append("<text x=\"").append(svgNumber(left - 5.0)).append("\" y=\"").append(svgNumber(top + plotHeight))
+            .append("\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"6\" fill=\"#eaf2ff\">")
+            .append(escapeHtml(minText)).append("</text>\n");
+
         double[] xValues = new double[count];
         double[] yValues = new double[count];
-        double[] pctValues = new double[count];
         for (int i = 0; i < count; i++) {
-            OverviewRow row = overviewRows.get(i);
             double x = count == 1
                     ? left + (plotWidth / 2.0)
                     : left + ((plotWidth / (count - 1.0)) * i);
-            double y = mapValueToY(row.totalReturnPct, minValue, maxValue, top, plotHeight);
+            double y = mapValueToY(points.get(i).value, minValue, maxValue, top, plotHeight);
             xValues[i] = x;
             yValues[i] = y;
-            pctValues[i] = row.totalReturnPct;
         }
 
+        double dashedGuideY = maxIndex >= 0 ? yValues[maxIndex] : top;
+        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(dashedGuideY))
+            .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(dashedGuideY))
+            .append("\" stroke=\"#eaf2ff\" stroke-width=\"0.8\" opacity=\"0.45\" stroke-dasharray=\"3 3\"/>\n");
+
         for (int i = 1; i < count; i++) {
-            double x1 = xValues[i - 1];
-            double y1 = yValues[i - 1];
-            double v1 = pctValues[i - 1];
-            double x2 = xValues[i];
-            double y2 = yValues[i];
-            double v2 = pctValues[i];
-
-            boolean above1 = v1 >= 0.0;
-            boolean above2 = v2 >= 0.0;
-
-            if (above1 == above2 || Math.abs(v2 - v1) < 1e-12) {
-            svg.append("<line x1=\"").append(svgNumber(x1)).append("\" y1=\"").append(svgNumber(y1))
-                .append("\" x2=\"").append(svgNumber(x2)).append("\" y2=\"").append(svgNumber(y2))
-                .append("\" stroke=\"").append(above1 ? "#2f9e44" : "#d94841")
-                .append("\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>\n");
-            continue;
-            }
-
-            double t = (0.0 - v1) / (v2 - v1);
-            double crossX = x1 + ((x2 - x1) * t);
-            double crossY = chartZeroY;
-
-            svg.append("<line x1=\"").append(svgNumber(x1)).append("\" y1=\"").append(svgNumber(y1))
-                .append("\" x2=\"").append(svgNumber(crossX)).append("\" y2=\"").append(svgNumber(crossY))
-                .append("\" stroke=\"").append(above1 ? "#2f9e44" : "#d94841")
-                .append("\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>\n");
-            svg.append("<line x1=\"").append(svgNumber(crossX)).append("\" y1=\"").append(svgNumber(crossY))
-                .append("\" x2=\"").append(svgNumber(x2)).append("\" y2=\"").append(svgNumber(y2))
-                .append("\" stroke=\"").append(above2 ? "#2f9e44" : "#d94841")
-                .append("\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>\n");
+            svg.append("<line x1=\"").append(svgNumber(xValues[i - 1])).append("\" y1=\"").append(svgNumber(yValues[i - 1]))
+                .append("\" x2=\"").append(svgNumber(xValues[i])).append("\" y2=\"").append(svgNumber(yValues[i]))
+                .append("\" stroke=\"#f1f6ff\" stroke-width=\"2\" stroke-linecap=\"round\"/>\n");
         }
 
         for (int i = 0; i < count; i++) {
-            String dotColor = pctValues[i] >= 0.0 ? "#2f9e44" : "#d94841";
             svg.append("<circle cx=\"").append(svgNumber(xValues[i])).append("\" cy=\"").append(svgNumber(yValues[i]))
-                .append("\" r=\"2.4\" fill=\"").append(dotColor).append("\"/>\n");
+                .append("\" r=\"2.2\" fill=\"#f1f6ff\">\n")
+                .append("<title>")
+                .append(escapeHtml(points.get(i).monthEnd.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))
+                        + ": " + formatNumber(points.get(i).value, 0) + " kr"))
+                .append("</title></circle>\n");
+        }
+
+        if (minIndex >= 0) {
+            svg.append("<circle cx=\"").append(svgNumber(xValues[minIndex])).append("\" cy=\"").append(svgNumber(yValues[minIndex]))
+                .append("\" r=\"3.7\" fill=\"none\" stroke=\"#ffd0cd\" stroke-width=\"1.1\"/>\n");
+        }
+        if (maxIndex >= 0 && maxIndex != minIndex) {
+            svg.append("<circle cx=\"").append(svgNumber(xValues[maxIndex])).append("\" cy=\"").append(svgNumber(yValues[maxIndex]))
+                .append("\" r=\"3.7\" fill=\"none\" stroke=\"#c9f7cf\" stroke-width=\"1.1\"/>\n");
+        }
+
+        double axisY = top + plotHeight;
+        DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM yy", Locale.ENGLISH);
+        int[] tickIndices = count >= 4
+                ? new int[] {0, count / 3, (count * 2) / 3, count - 1}
+                : new int[] {0, count - 1};
+
+        int previousIndex = -1;
+        for (int tickIndex : tickIndices) {
+            if (tickIndex < 0 || tickIndex >= count || tickIndex == previousIndex) {
+                continue;
+            }
+
+            svg.append("<line x1=\"").append(svgNumber(xValues[tickIndex])).append("\" y1=\"").append(svgNumber(axisY))
+                .append("\" x2=\"").append(svgNumber(xValues[tickIndex])).append("\" y2=\"").append(svgNumber(axisY + 2.8))
+                .append("\" stroke=\"#eaf2ff\" stroke-width=\"0.8\"/>\n");
+            svg.append("<text x=\"").append(svgNumber(xValues[tickIndex])).append("\" y=\"").append(svgNumber(axisY + 8.8))
+                .append("\" text-anchor=\"middle\" font-size=\"5.7\" fill=\"#eaf2ff\">")
+                .append(escapeHtml(points.get(tickIndex).monthEnd.format(axisMonthFormat)))
+                .append("</text>\n");
+            previousIndex = tickIndex;
         }
 
         svg.append("</svg>\n");
         return svg.toString();
+    }
+
+    private static ArrayList<PortfolioValuePoint> buildPortfolioValueTimelineLast12Months() {
+        ArrayList<PortfolioValuePoint> timeline = new ArrayList<>();
+        if (unitEvents.isEmpty()) {
+            return timeline;
+        }
+
+        ArrayList<UnitEvent> sortedEvents = new ArrayList<>(unitEvents);
+        sortedEvents.sort(Comparator.comparing((UnitEvent e) -> e.tradeDate)
+                .thenComparing(e -> e.securityKey));
+
+        Map<String, Security> securitiesByTrackingKey = new HashMap<>();
+        for (Security security : securities) {
+            securitiesByTrackingKey.put(getTrackingSecurityKey(security), security);
+        }
+
+        Map<String, Double> unitsBySecurity = new HashMap<>();
+        Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache = new HashMap<>();
+
+        YearMonth endMonth = YearMonth.now();
+        YearMonth startMonth = endMonth.minusMonths(11);
+        int eventIndex = 0;
+
+        for (int monthOffset = 0; monthOffset < 12; monthOffset++) {
+            YearMonth currentMonth = startMonth.plusMonths(monthOffset);
+            LocalDate monthEnd = currentMonth.atEndOfMonth();
+
+            while (eventIndex < sortedEvents.size() && !sortedEvents.get(eventIndex).tradeDate.isAfter(monthEnd)) {
+                UnitEvent event = sortedEvents.get(eventIndex);
+                unitsBySecurity.merge(event.securityKey, event.unitsDelta, Double::sum);
+                eventIndex++;
+            }
+
+            double totalValue = 0.0;
+            for (Map.Entry<String, Double> entry : unitsBySecurity.entrySet()) {
+                double units = entry.getValue();
+                if (units <= 0.0000001) {
+                    continue;
+                }
+
+                Security security = securitiesByTrackingKey.get(entry.getKey());
+                if (security == null) {
+                    continue;
+                }
+
+                double price = resolveHistoricalPrice(security, monthEnd, priceSeriesCache);
+                if (price <= 0.0) {
+                    continue;
+                }
+
+                totalValue += units * price;
+            }
+
+            timeline.add(new PortfolioValuePoint(monthEnd, totalValue));
+        }
+
+        return timeline;
+    }
+
+    private static double resolveHistoricalPrice(Security security, LocalDate monthEnd,
+                                                 Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+        if (security == null) {
+            return 0.0;
+        }
+
+        String ticker = security.getTicker();
+        if (ticker == null || ticker.isBlank() || "-".equals(ticker)) {
+            return Math.max(0.0, security.getLatestPrice());
+        }
+
+        NavigableMap<LocalDate, Double> series = priceSeriesCache.computeIfAbsent(
+                ticker,
+                t -> fetchHistoricalCloseSeries(t, LocalDate.now().minusMonths(18), LocalDate.now())
+        );
+
+        if (series.isEmpty()) {
+            return Math.max(0.0, security.getLatestPrice());
+        }
+
+        Map.Entry<LocalDate, Double> floor = series.floorEntry(monthEnd);
+        if (floor != null && floor.getValue() != null && floor.getValue() > 0.0) {
+            return floor.getValue();
+        }
+
+        Map.Entry<LocalDate, Double> first = series.firstEntry();
+        if (first != null && first.getValue() != null && first.getValue() > 0.0) {
+            return first.getValue();
+        }
+
+        return Math.max(0.0, security.getLatestPrice());
+    }
+
+    private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeries(String ticker, LocalDate fromDate, LocalDate toDate) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        if (ticker == null || ticker.isBlank()) {
+            return series;
+        }
+
+        HttpURLConnection connection = null;
+        try {
+            long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+            long period2 = toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+            String encodedTicker = URLEncoder.encode(ticker, StandardCharsets.UTF_8);
+            String urlText = "https://query1.finance.yahoo.com/v8/finance/chart/" + encodedTicker
+                    + "?period1=" + period1
+                    + "&period2=" + period2
+                    + "&interval=1d&events=history";
+
+            URL url = URI.create(urlText).toURL();
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(7000);
+
+            if (connection.getResponseCode() != 200) {
+                return series;
+            }
+
+            StringBuilder body = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    body.append(line);
+                }
+            }
+
+            Matcher timestampMatcher = YAHOO_TIMESTAMP_ARRAY.matcher(body);
+            Matcher closeMatcher = YAHOO_CLOSE_ARRAY.matcher(body);
+            if (!timestampMatcher.find() || !closeMatcher.find()) {
+                return series;
+            }
+
+            String[] timestamps = timestampMatcher.group(1).split(",");
+            String[] closes = closeMatcher.group(1).split(",");
+            int length = Math.min(timestamps.length, closes.length);
+
+            for (int i = 0; i < length; i++) {
+                String tsText = timestamps[i].trim();
+                String closeText = closes[i].trim();
+                if (tsText.isEmpty() || closeText.isEmpty() || "null".equalsIgnoreCase(closeText)) {
+                    continue;
+                }
+
+                long epochSeconds;
+                double close;
+                try {
+                    epochSeconds = Long.parseLong(tsText);
+                    close = Double.parseDouble(closeText);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+
+                if (!Double.isFinite(close) || close <= 0.0) {
+                    continue;
+                }
+
+                LocalDate date = Instant.ofEpochSecond(epochSeconds).atZone(ZoneOffset.UTC).toLocalDate();
+                series.put(date, close);
+            }
+        } catch (IOException ignored) {
+            return series;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+
+        return series;
+    }
+
+    private static String formatCompactKroner(double value) {
+        double absValue = Math.abs(value);
+        String prefix = value < 0.0 ? "-" : "";
+        if (absValue >= 1_000_000_000.0) {
+            return prefix + formatNumber(absValue / 1_000_000_000.0, 1) + "B kr";
+        }
+        if (absValue >= 1_000_000.0) {
+            return prefix + formatNumber(absValue / 1_000_000.0, 1) + "M kr";
+        }
+        if (absValue >= 1_000.0) {
+            return prefix + formatNumber(absValue / 1_000.0, 0) + "k kr";
+        }
+        return prefix + formatNumber(absValue, 0) + " kr";
     }
 
     private static void writeHtmlHeader(FileWriter writer, HeaderSummary summary) throws IOException {
@@ -964,7 +1271,7 @@ public class PortfolioTracker {
         writer.write("        <div class=\"hero-card\"><div class=\"label\">Best / Worst Holding</div><div class=\"name\">Best: " + escapeHtml(summary.bestLabel) + "</div><div class=\"subvalue\">" + escapeHtml(bestReturnText) + "</div><div class=\"name\" style=\"margin-top:6px;\">Worst: " + escapeHtml(summary.worstLabel) + "</div><div class=\"subvalue\">" + escapeHtml(worstReturnText) + "</div></div>\n");
         writer.write("        <div class=\"hero-card\"><div class=\"label\">Total Return (%)</div><div class=\"value\">" + escapeHtml(totalReturnPctText) + "</div></div>\n");
         writer.write("      </div>\n");
-        writer.write("      <div class=\"hero-spark-card\"><div class=\"label\">Return Spread</div>" + summary.sparklineSvg + "</div>\n");
+        writer.write("      <div class=\"hero-spark-card\"><div class=\"label\">Portfolio Value (12M)</div>" + summary.sparklineSvg + "</div>\n");
         writer.write("    </div>\n");
         writer.write("  </header>\n");
     }
@@ -1680,19 +1987,13 @@ public class PortfolioTracker {
             currentAngle = endAngle;
         }
 
-        AllocationBucket topBucket = buckets.get(0);
-        double topPct = (topBucket.value / totalMarketValue) * 100.0;
         double summaryY = centerY + radius + 12.0;
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
             .append("\" text-anchor=\"middle\" font-size=\"10\" fill=\"#666\">")
             .append(escapeHtml(centerTitle))
             .append("</text>\n");
-        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0))
-            .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
-            .append(escapeHtml(topBucket.label + " " + formatNumber(topPct, 1) + "%"))
-            .append("</text>\n");
 
-        double legendYStart = 256.0;
+        double legendYStart = 244.0;
         for (int i = 0; i < buckets.size(); i++) {
             AllocationBucket bucket = buckets.get(i);
             double pct = (bucket.value / totalMarketValue) * 100.0;

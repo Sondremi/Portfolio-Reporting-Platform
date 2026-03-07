@@ -63,6 +63,7 @@ public class Security {
     private double realizedSalesValue = 0.0;
     private double latestPrice = 0.0;
     private String currencyCode = "NOK";
+    private LocalDate firstHoldingDate = null;
 
     private static class BuyLot {
         double remainingUnits;
@@ -159,6 +160,7 @@ public class Security {
     public double getUnitsOwned() { return unitsOwned; }
     public double getDividends() { return dividends; }
     public double getLatestPrice() { return latestPrice; }
+    public LocalDate getFirstHoldingDate() { return firstHoldingDate; }
 
     public boolean isFullyRealized() {
         return Math.abs(unitsOwned) < EPSILON;
@@ -208,9 +210,9 @@ public class Security {
         if (isBuy) {
             if (isReinvestTransaction(transactionType)) {
                 // Reinvested dividends add units but do not represent new external capital.
-                registerBuy(units, 0.0, 0.0, 0.0);
+                registerBuy(units, 0.0, 0.0, 0.0, tradeDate);
             } else {
-                registerBuy(units, amount, price, totalFees);
+                registerBuy(units, amount, price, totalFees, tradeDate);
             }
         } else {
             registerSale(tradeDate, units, amount, price, totalFees, reportedResult);
@@ -218,11 +220,17 @@ public class Security {
     }
 
     public void addZeroCostUnits(double quantity) {
+        addZeroCostUnits(quantity, null);
+    }
+
+    public void addZeroCostUnits(double quantity, String tradeDateText) {
         double units = Math.abs(quantity);
         if (units < EPSILON) {
             return;
         }
-        registerBuy(units, 0.0, 0.0, 0.0);
+
+        LocalDate tradeDate = parseDate(tradeDateText);
+        registerBuy(units, 0.0, 0.0, 0.0, tradeDate);
     }
 
     public void applyCostRefund(double refundAmount) {
@@ -315,7 +323,7 @@ public class Security {
         return normalized.contains("REINVEST");
     }
 
-    private void registerBuy(double units, double amount, double price, double totalFees) {
+    private void registerBuy(double units, double amount, double price, double totalFees, LocalDate tradeDate) {
         double cashOut = Math.abs(amount);
         if (cashOut < EPSILON && price > 0) {
             cashOut = units * price + Math.max(totalFees, 0.0);
@@ -324,6 +332,11 @@ public class Security {
         double unitCost = cashOut / units;
         buyLots.addLast(new BuyLot(units, unitCost));
         unitsOwned += units;
+
+        if (tradeDate != null && !tradeDate.equals(LocalDate.MIN)
+                && (firstHoldingDate == null || tradeDate.isBefore(firstHoldingDate))) {
+            firstHoldingDate = tradeDate;
+        }
     }
 
     private void registerSale(LocalDate tradeDate, double units, double amount, double price, double totalFees, double reportedResult) {
