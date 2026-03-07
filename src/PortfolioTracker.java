@@ -1016,6 +1016,9 @@ public class PortfolioTracker {
         double stockValue = 0.0;
         double fundValue = 0.0;
         double otherValue = 0.0;
+        int stockCount = 0;
+        int fundCount = 0;
+        int otherCount = 0;
 
         for (OverviewRow row : rows) {
             if (row.marketValue <= 0.0) {
@@ -1023,9 +1026,18 @@ public class PortfolioTracker {
             }
 
             switch (row.assetType) {
-                case "STOCK" -> stockValue += row.marketValue;
-                case "FUND" -> fundValue += row.marketValue;
-                default -> otherValue += row.marketValue;
+                case "STOCK" -> {
+                    stockValue += row.marketValue;
+                    stockCount++;
+                }
+                case "FUND" -> {
+                    fundValue += row.marketValue;
+                    fundCount++;
+                }
+                default -> {
+                    otherValue += row.marketValue;
+                    otherCount++;
+                }
             }
         }
 
@@ -1104,25 +1116,27 @@ public class PortfolioTracker {
         svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
             .append("\" r=\"").append(svgNumber(innerRadius)).append("\" fill=\"#fff\"/>\n");
 
-        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY - 4.0))
-            .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#666\">Asset Mix</text>\n");
-        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY + 14.0))
-            .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#222\" font-weight=\"600\">")
-            .append(escapeHtml(formatNumber(totalValue, 0) + " kr"))
-            .append("</text>\n");
-
         double stockPct = totalValue > 0.0 ? (stockValue / totalValue) * 100.0 : 0.0;
         double fundPct = totalValue > 0.0 ? (fundValue / totalValue) * 100.0 : 0.0;
+        double otherPct = totalValue > 0.0 ? (otherValue / totalValue) * 100.0 : 0.0;
 
-        svg.append("<circle cx=\"").append(svgNumber(centerX - 60.0)).append("\" cy=\"258.00\" r=\"4.00\" fill=\"#1c7ed6\"/>\n");
-        svg.append("<text x=\"").append(svgNumber(centerX - 50.0)).append("\" y=\"261.00\" font-size=\"10\" fill=\"#444\">")
-            .append(escapeHtml("Stocks: " + formatNumber(stockPct, 1) + "%"))
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY - 14.0))
+            .append("\" text-anchor=\"middle\" font-size=\"10\" fill=\"#666\">Asset Mix</text>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY))
+            .append("\" text-anchor=\"middle\" font-size=\"9\" fill=\"#222\" font-weight=\"600\">")
+            .append(escapeHtml("Stocks: " + stockCount + " (" + formatNumber(stockPct, 1) + "%)"))
+            .append("</text>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY + 14.0))
+            .append("\" text-anchor=\"middle\" font-size=\"9\" fill=\"#222\" font-weight=\"600\">")
+            .append(escapeHtml("Funds: " + fundCount + " (" + formatNumber(fundPct, 1) + "%)"))
             .append("</text>\n");
 
-        svg.append("<circle cx=\"").append(svgNumber(centerX - 60.0)).append("\" cy=\"276.00\" r=\"4.00\" fill=\"#2f9e44\"/>\n");
-        svg.append("<text x=\"").append(svgNumber(centerX - 50.0)).append("\" y=\"279.00\" font-size=\"10\" fill=\"#444\">")
-            .append(escapeHtml("Funds: " + formatNumber(fundPct, 1) + "%"))
-            .append("</text>\n");
+        if (otherCount > 0) {
+            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY + 28.0))
+                .append("\" text-anchor=\"middle\" font-size=\"9\" fill=\"#555\">")
+                .append(escapeHtml("Other: " + otherCount + " (" + formatNumber(otherPct, 1) + "%)"))
+                .append("</text>\n");
+        }
 
         svg.append("</svg>\n");
         return svg.toString();
