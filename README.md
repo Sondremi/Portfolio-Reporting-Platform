@@ -1,9 +1,6 @@
 # Portfolio Performance Tracker
 
-A Java program that reads investment transactions from CSV files and generates a browser-based portfolio report.
-Shows current holdings, combined realized sales, and detailed trade history per security (stocks and funds).
-
-Useful when you want to combine portfolios from multiple banks or brokers in one overview.
+Portfolio Performance Tracker is a Java tool that reads investment transactions from CSV files and generates a browser-based portfolio report. It gives you a consolidated view of current holdings, realized and unrealized return, dividends, detailed sale-trade history across both stocks and funds, and visual charts for total return and market value allocation.
 
 ## Key Features
 - Reads all supported `.csv` files from `transaction_files/`
@@ -12,6 +9,9 @@ Useful when you want to combine portfolios from multiple banks or brokers in one
 - Tracks buys, sells, and dividends across stocks and funds
 - Calculates FIFO-based realized gain/loss and return percentages
 - Resolves ticker, exchange, and company name using Yahoo Finance data
+- Includes visual charts in the report:
+	- Total Return bar chart
+	- Market Value allocation charts (holdings allocation + asset mix)
 - Includes a Realized Overview table (combined realized sales per security)
 - Includes Sale Trades tables (every sell transaction per security)
 - Report can be exported to PDF from the browser
@@ -35,7 +35,6 @@ The program generates `portfolio-report.html`.
 
 ## Example Data
 - `transaction_files/transactions_example.csv` contains realistic sample transactions with both gains and losses.
-- To run only the sample dataset, temporarily rename the file to something like `transactions_demo.csv`.
 
-## Portfolio PDF Example
-[Open PDF](portfolio_report_example.pdf)
+## Portfolio Example
+![Portfolio report example](portfolio_report_example.png)
