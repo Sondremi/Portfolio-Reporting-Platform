@@ -652,6 +652,8 @@ public class PortfolioTracker {
         writer.write("    h2 { margin: 28px 0 8px 0; font-size: 18px; }\n");
         writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
         writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
+        writer.write("    .sale-trades-table { table-layout: fixed; }\n");
+        writer.write("    .sale-trades-table th, .sale-trades-table td { overflow: hidden; text-overflow: ellipsis; }\n");
         writer.write("    th { background: #f3f3f3; font-weight: 600; }\n");
         writer.write("    td.num { text-align: right; font-variant-numeric: tabular-nums; }\n");
         writer.write("    td.text { text-align: left; }\n");
@@ -1512,7 +1514,16 @@ public class PortfolioTracker {
         for (Security security : soldSecurities) {
             String currencyCode = security.getCurrencyCode();
             writer.write("<h2>SALE TRADES - " + escapeHtml(getPreferredSecurityName(security)) + "</h2>\n");
-            writer.write("<table>\n");
+            writer.write("<table class=\"sale-trades-table\">\n");
+            writer.write("<colgroup>\n");
+            writer.write("<col style=\"width:12%\">\n");
+            writer.write("<col style=\"width:12%\">\n");
+            writer.write("<col style=\"width:13%\">\n");
+            writer.write("<col style=\"width:18%\">\n");
+            writer.write("<col style=\"width:18%\">\n");
+            writer.write("<col style=\"width:17%\">\n");
+            writer.write("<col style=\"width:10%\">\n");
+            writer.write("</colgroup>\n");
             writeHtmlRow(writer, true, "Sale Date", "Units", "Price/Unit", "Sale Value", "Cost Basis", "Gain/Loss", "Return (%)");
 
             double totalUnits = 0.0;
