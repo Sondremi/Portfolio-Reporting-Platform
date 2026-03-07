@@ -640,6 +640,8 @@ public class PortfolioTracker {
     }
 
     private static void writeHtmlHeader(FileWriter writer) throws IOException {
+        String generatedDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+
         writer.write("<!DOCTYPE html>\n");
         writer.write("<html lang=\"en\">\n");
         writer.write("<head>\n");
@@ -647,9 +649,13 @@ public class PortfolioTracker {
         writer.write("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
         writer.write("  <title>Portfolio Report</title>\n");
         writer.write("  <style>\n");
-        writer.write("    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #111; }\n");
+        writer.write("    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #111; background: #f7f8fb; }\n");
         writer.write("    h1 { margin: 0 0 20px 0; font-size: 26px; }\n");
         writer.write("    h2 { margin: 28px 0 8px 0; font-size: 18px; }\n");
+        writer.write("    .report-hero { margin: 0 0 18px 0; padding: 16px 18px; border-radius: 10px; background: linear-gradient(135deg, #0b7285, #1c7ed6); color: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15); }\n");
+        writer.write("    .report-hero h1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; }\n");
+        writer.write("    .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
+        writer.write("    .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
         writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
         writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
         writer.write("    .sale-trades-table { table-layout: fixed; }\n");
@@ -676,13 +682,16 @@ public class PortfolioTracker {
         writer.write("    .allocation-legend .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }\n");
         writer.write("    .allocation-legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }\n");
         writer.write("    .allocation-legend .value { font-variant-numeric: tabular-nums; color: #555; }\n");
+        writer.write("    @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
         writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } }\n");
         writer.write("    @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
         writer.write("  </style>\n");
         writer.write("</head>\n");
         writer.write("<body>\n");
-        writer.write("  <h1>Portfolio Report</h1>\n");
-        writer.write("  <div class=\"muted\">Generated from all CSV files in transaction_files/</div>\n");
+        writer.write("  <header class=\"report-hero\">\n");
+        writer.write("    <h1>Portfolio Report</h1>\n");
+        writer.write("    <div class=\"meta\"><span>Date: " + escapeHtml(generatedDate) + "</span><span>Source: transaction_files/</span></div>\n");
+        writer.write("  </header>\n");
     }
 
     private static void writeHtmlFooter(FileWriter writer) throws IOException {
