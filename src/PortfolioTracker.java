@@ -1695,7 +1695,7 @@ public class PortfolioTracker {
                 .append("</text>\n");
         }
 
-        double summaryY = centerY + radius + 18.0;
+        double summaryY = centerY + radius + 30.0;
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
             .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#666\">Market Value Total</text>\n");
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 16.0))
