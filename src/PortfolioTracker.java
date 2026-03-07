@@ -558,7 +558,7 @@ public class PortfolioTracker {
         writer.write("    .chart-svg { width: 100%; height: 290px; display: block; }\n");
         writer.write("    .overview-chart.allocation-card { grid-column: 1 / -1; }\n");
         writer.write("    .overview-chart.allocation-card .chart-svg { height: 240px; }\n");
-        writer.write("    .allocation-visuals { display: grid; grid-template-columns: 0.9fr 2.1fr; gap: 12px; }\n");
+        writer.write("    .allocation-visuals { display: grid; grid-template-columns: 0.75fr 2.2fr 0.75fr; gap: 12px; }\n");
         writer.write("    .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
         writer.write("    .allocation-legend { margin: 8px 0 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; row-gap: 4px; }\n");
         writer.write("    .allocation-legend li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #333; }\n");
@@ -687,6 +687,9 @@ public class PortfolioTracker {
         writer.write("</div>\n");
         writer.write("<div class=\"allocation-panel\">\n");
         writer.write(buildMarketValueBarChartSvg(rows));
+        writer.write("</div>\n");
+        writer.write("<div class=\"allocation-panel\">\n");
+        writer.write(buildAssetTypeAllocationSvg(rows));
         writer.write("</div>\n");
         writer.write("</div>\n");
 
@@ -979,6 +982,129 @@ public class PortfolioTracker {
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
             .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(top + plotHeight))
             .append("\" stroke=\"#7a7a7a\" stroke-width=\"1.1\"/>\n");
+        svg.append("</svg>\n");
+        return svg.toString();
+        }
+
+        private static String buildAssetTypeAllocationSvg(ArrayList<OverviewRow> rows) {
+        final double width = 360.0;
+        final double height = 330.0;
+        final double centerX = width / 2.0;
+        final double centerY = 142.0;
+        final double radius = 86.0;
+        final double innerRadius = 44.0;
+
+        double stockValue = 0.0;
+        double fundValue = 0.0;
+        double otherValue = 0.0;
+
+        for (OverviewRow row : rows) {
+            if (row.marketValue <= 0.0) {
+                continue;
+            }
+
+            switch (row.assetType) {
+                case "STOCK" -> stockValue += row.marketValue;
+                case "FUND" -> fundValue += row.marketValue;
+                default -> otherValue += row.marketValue;
+            }
+        }
+
+        double totalValue = stockValue + fundValue + otherValue;
+
+        StringBuilder svg = new StringBuilder();
+        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+            .append(svgNumber(width))
+            .append(" ")
+            .append(svgNumber(height))
+            .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
+
+        if (totalValue <= 0.0) {
+            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY))
+                .append("\" text-anchor=\"middle\" font-size=\"13\" fill=\"#666\">No asset type data</text>\n");
+            svg.append("</svg>\n");
+            return svg.toString();
+        }
+
+        ArrayList<String> labels = new ArrayList<>();
+        ArrayList<Double> values = new ArrayList<>();
+        ArrayList<String> colors = new ArrayList<>();
+
+        if (stockValue > 0.0) {
+            labels.add("Stocks");
+            values.add(stockValue);
+            colors.add("#1c7ed6");
+        }
+        if (fundValue > 0.0) {
+            labels.add("Funds");
+            values.add(fundValue);
+            colors.add("#2f9e44");
+        }
+        if (otherValue > 0.0) {
+            labels.add("Other");
+            values.add(otherValue);
+            colors.add("#868e96");
+        }
+
+        if (values.size() == 1) {
+            svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
+                .append("\" r=\"").append(svgNumber(radius)).append("\" fill=\"").append(colors.get(0)).append("\">\n")
+                .append("<title>")
+                .append(escapeHtml(labels.get(0) + ": " + formatNumber(values.get(0), 2) + " kr (100.0%)"))
+                .append("</title></circle>\n");
+        } else {
+            double currentAngle = -Math.PI / 2.0;
+            for (int i = 0; i < values.size(); i++) {
+                double value = values.get(i);
+                double fraction = value / totalValue;
+                double sliceAngle = fraction * Math.PI * 2.0;
+                double endAngle = currentAngle + sliceAngle;
+                String color = colors.get(i);
+
+                double x1 = centerX + radius * Math.cos(currentAngle);
+                double y1 = centerY + radius * Math.sin(currentAngle);
+                double x2 = centerX + radius * Math.cos(endAngle);
+                double y2 = centerY + radius * Math.sin(endAngle);
+                int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
+
+                svg.append("<path d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                    .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
+                    .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
+                    .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
+                    .append(" Z\" fill=\"").append(color).append("\">\n")
+                    .append("<title>")
+                    .append(escapeHtml(labels.get(i)
+                        + ": " + formatNumber(value, 2)
+                        + " kr (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                    .append("</title></path>\n");
+
+                currentAngle = endAngle;
+            }
+        }
+
+        svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
+            .append("\" r=\"").append(svgNumber(innerRadius)).append("\" fill=\"#fff\"/>\n");
+
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY - 4.0))
+            .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#666\">Asset Mix</text>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY + 14.0))
+            .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#222\" font-weight=\"600\">")
+            .append(escapeHtml(formatNumber(totalValue, 0) + " kr"))
+            .append("</text>\n");
+
+        double stockPct = totalValue > 0.0 ? (stockValue / totalValue) * 100.0 : 0.0;
+        double fundPct = totalValue > 0.0 ? (fundValue / totalValue) * 100.0 : 0.0;
+
+        svg.append("<circle cx=\"").append(svgNumber(centerX - 60.0)).append("\" cy=\"258.00\" r=\"4.00\" fill=\"#1c7ed6\"/>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX - 50.0)).append("\" y=\"261.00\" font-size=\"10\" fill=\"#444\">")
+            .append(escapeHtml("Stocks: " + formatNumber(stockPct, 1) + "%"))
+            .append("</text>\n");
+
+        svg.append("<circle cx=\"").append(svgNumber(centerX - 60.0)).append("\" cy=\"276.00\" r=\"4.00\" fill=\"#2f9e44\"/>\n");
+        svg.append("<text x=\"").append(svgNumber(centerX - 50.0)).append("\" y=\"279.00\" font-size=\"10\" fill=\"#444\">")
+            .append(escapeHtml("Funds: " + formatNumber(fundPct, 1) + "%"))
+            .append("</text>\n");
+
         svg.append("</svg>\n");
         return svg.toString();
         }
