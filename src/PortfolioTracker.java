@@ -367,6 +367,17 @@ public class PortfolioTracker {
             return "-";
         }
 
+        // For stocks, prefer resolved provider/company name when available.
+        if (security.getAssetType() == Security.AssetType.STOCK) {
+            String resolvedStockName = security.getDisplayName();
+            if (resolvedStockName != null && !resolvedStockName.isBlank()) {
+                return resolvedStockName;
+            }
+
+            String csvName = security.getName();
+            return (csvName == null || csvName.isBlank()) ? "-" : csvName;
+        }
+
         String isin = security.getIsin();
         if (isin != null && !isin.isBlank()) {
             String preferred = canonicalSecurityNameByIsin.get(isin.trim().toUpperCase(Locale.ROOT));
@@ -377,6 +388,15 @@ public class PortfolioTracker {
 
         String displayName = security.getDisplayName();
         return (displayName == null || displayName.isBlank()) ? "-" : displayName;
+    }
+
+    private static String getTickerText(Security security) {
+        if (security == null) {
+            return "-";
+        }
+
+        String ticker = security.getTicker();
+        return (ticker == null || ticker.isBlank()) ? "-" : ticker;
     }
 
     private static LocalDate parseTradeDateForSort(String tradeDateText) {
@@ -1409,7 +1429,7 @@ public class PortfolioTracker {
     private static void writeRealizedSummaryTableHtml(FileWriter writer) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<table>\n");
-        writeHtmlRow(writer, true, "Security", "Sales Value", "Cost Basis", "Realized Gain/Loss", "Dividends", "Return (%)");
+        writeHtmlRow(writer, true, "Ticker", "Security", "Sales Value", "Cost Basis", "Realized Gain/Loss", "Dividends", "Return (%)");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities();
 
@@ -1439,6 +1459,7 @@ public class PortfolioTracker {
             writeHtmlRowWithClass(
                 writer,
                 rowClass,
+                getTickerText(security),
                 getPreferredSecurityName(security),
                 formatMoney(salesValue, currencyCode, 2),
                 formatMoney(costBasis, currencyCode, 2),
@@ -1452,6 +1473,7 @@ public class PortfolioTracker {
 
         double totalReturnPct = totalCostBasis > 0 ? (totalRealizedGain / totalCostBasis) * 100.0 : (totalRealizedGain > 0 ? 100.0 : 0.0);
         writer.write("<tr class=\"total-row\">"
+            + toDataCell("")
             + toDataCell("TOTAL")
             + toDataCell(formatTotalMoney(totalSalesValue, totalCurrencyCode, 2))
             + toDataCell(formatTotalMoney(totalCostBasis, totalCurrencyCode, 2))
