@@ -285,6 +285,7 @@ public class PortfolioTracker {
         private final String sectorLabel;
         private final Map<String, Double> sectorWeights;
         private final String regionLabel;
+        private final Map<String, Double> regionWeights;
         private final String currencyCode;
         private final String realizedReturnPctText;
         private final double units;
@@ -309,6 +310,7 @@ public class PortfolioTracker {
                 String sectorLabel,
                 Map<String, Double> sectorWeights,
                 String regionLabel,
+                Map<String, Double> regionWeights,
                 String currencyCode,
                 String realizedReturnPctText,
                 double units,
@@ -331,6 +333,7 @@ public class PortfolioTracker {
             this.sectorLabel = sectorLabel;
             this.sectorWeights = sectorWeights == null ? Map.of() : new LinkedHashMap<>(sectorWeights);
             this.regionLabel = regionLabel;
+            this.regionWeights = regionWeights == null ? Map.of() : new LinkedHashMap<>(regionWeights);
             this.currencyCode = currencyCode;
             this.realizedReturnPctText = realizedReturnPctText;
             this.units = units;
@@ -1432,6 +1435,7 @@ public class PortfolioTracker {
                 security.getResolvedSector(),
                 security.getResolvedSectorWeights(),
                 security.getResolvedRegion(),
+                security.getResolvedRegionWeights(),
                 currencyCode,
                 security.getRealizedReturnPctAsText(),
                 units,
@@ -2045,12 +2049,39 @@ public class PortfolioTracker {
                 }
             }
 
+            if (!sectorChart && row.regionWeights != null && !row.regionWeights.isEmpty()) {
+                double totalWeight = 0.0;
+                for (double weight : row.regionWeights.values()) {
+                    if (Double.isFinite(weight) && weight > 0.0) {
+                        totalWeight += weight;
+                    }
+                }
+
+                if (totalWeight > 0.0) {
+                    for (Map.Entry<String, Double> entry : row.regionWeights.entrySet()) {
+                        double weight = entry.getValue() == null ? 0.0 : entry.getValue();
+                        if (!Double.isFinite(weight) || weight <= 0.0) {
+                            continue;
+                        }
+
+                        String regionLabel = entry.getKey() == null || entry.getKey().isBlank()
+                                ? "Global"
+                                : entry.getKey();
+                        double weightedValue = row.marketValue * (weight / totalWeight);
+                        valueByCategory.merge(regionLabel, weightedValue, Double::sum);
+                    }
+
+                    totalMarketValue += row.marketValue;
+                    continue;
+                }
+            }
+
             String category = sectorChart ? classifySector(row) : classifyRegion(row);
             valueByCategory.merge(category, row.marketValue, Double::sum);
             totalMarketValue += row.marketValue;
         }
 
-        int maxBuckets = sectorChart ? 12 : 6;
+        int maxBuckets = sectorChart ? 12 : 10;
         ArrayList<AllocationBucket> buckets = compactAllocationBuckets(valueByCategory, maxBuckets);
 
         StringBuilder svg = new StringBuilder();

@@ -25,7 +25,10 @@ public class Security {
     private static final DateTimeFormatter CSV_DATE_OUTPUT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final double EPSILON = 0.0000001;
     private static final long YAHOO_AUTH_TTL_MS = 10 * 60 * 1000L;
+    private static final Map<String, String> FUND_QUOTE_SUMMARY_CACHE = new LinkedHashMap<>();
     private static final Map<String, LinkedHashMap<String, Double>> FUND_SECTOR_WEIGHT_CACHE = new LinkedHashMap<>();
+    private static final Map<String, LinkedHashMap<String, Double>> FUND_REGION_WEIGHT_CACHE = new LinkedHashMap<>();
+    private static final Map<String, String> HOLDING_SYMBOL_REGION_CACHE = new LinkedHashMap<>();
 
     private static String yahooAuthCookieHeader = "";
     private static String yahooAuthCrumb = "";
@@ -71,6 +74,7 @@ public class Security {
     private String resolvedSector = "";
     private String resolvedRegion = "";
     private final LinkedHashMap<String, Double> resolvedSectorWeights = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Double> resolvedRegionWeights = new LinkedHashMap<>();
     private String ticker = "";
     private AssetType assetType = AssetType.UNKNOWN;
 
@@ -139,6 +143,7 @@ public class Security {
     public String getResolvedSector() { return resolvedSector; }
     public String getResolvedRegion() { return resolvedRegion; }
     public Map<String, Double> getResolvedSectorWeights() { return new LinkedHashMap<>(resolvedSectorWeights); }
+    public Map<String, Double> getResolvedRegionWeights() { return new LinkedHashMap<>(resolvedRegionWeights); }
     public String getTicker() { return ticker; }
     public String getIsin() { return isin; }
     public AssetType getAssetType() { return assetType; }
@@ -458,6 +463,7 @@ public class Security {
             latestPrice = 0.0;
             currencyCode = "NOK";
             resolvedSectorWeights.clear();
+            resolvedRegionWeights.clear();
             return;
         }
 
@@ -495,6 +501,7 @@ public class Security {
                 resolvedSector = "Other";
                 resolvedRegion = "Global";
                 resolvedSectorWeights.clear();
+                resolvedRegionWeights.clear();
             }
         } catch (Exception e) {
             System.err.println("Yahoo Finance ISIN lookup failed: " + e.getMessage());
@@ -504,6 +511,7 @@ public class Security {
             resolvedSector = "Other";
             resolvedRegion = "Global";
             resolvedSectorWeights.clear();
+            resolvedRegionWeights.clear();
         }
     }
 
@@ -622,6 +630,7 @@ public class Security {
         }
 
         resolvedSectorWeights.clear();
+        resolvedRegionWeights.clear();
         String quoteType = candidate.quoteType == null ? "" : candidate.quoteType.toUpperCase(Locale.ROOT);
         boolean fundLike = quoteType.contains("ETF") || quoteType.contains("MUTUAL")
                 || quoteType.contains("FUND") || assetType == AssetType.FUND;
@@ -630,6 +639,11 @@ public class Security {
             LinkedHashMap<String, Double> weights = fetchFundSectorWeights(firstNonBlank(ticker, candidate.symbol));
             if (!weights.isEmpty()) {
                 resolvedSectorWeights.putAll(weights);
+            }
+
+            LinkedHashMap<String, Double> regionWeights = fetchFundRegionWeights(firstNonBlank(ticker, candidate.symbol));
+            if (!regionWeights.isEmpty()) {
+                resolvedRegionWeights.putAll(regionWeights);
             }
         }
 
@@ -647,7 +661,7 @@ public class Security {
             sectorValue = fetchSectorFromSearchNav(candidate.symbol);
         }
 
-        if (sectorValue == null || sectorValue.isBlank() && !resolvedSectorWeights.isEmpty()) {
+        if ((sectorValue == null || sectorValue.isBlank()) && !resolvedSectorWeights.isEmpty()) {
             sectorValue = findDominantSector(resolvedSectorWeights);
         }
 
@@ -657,7 +671,15 @@ public class Security {
         }
         resolvedSector = normalizedSector;
 
-        String normalizedRegion = resolveCountryFromListing(candidate);
+        String normalizedRegion = "";
+        if (!resolvedRegionWeights.isEmpty()) {
+            normalizedRegion = findDominantSector(resolvedRegionWeights);
+        }
+
+        if (normalizedRegion.isBlank()) {
+            normalizedRegion = resolveCountryFromListing(candidate);
+        }
+
         if (normalizedRegion.isBlank()) {
             String regionValue = candidate.exchangeDisplay;
             if (regionValue == null || regionValue.isBlank()) {
@@ -671,6 +693,153 @@ public class Security {
         resolvedRegion = normalizedRegion;
     }
 
+    private LinkedHashMap<String, Double> fetchFundRegionWeights(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return new LinkedHashMap<>();
+        }
+
+        String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
+        LinkedHashMap<String, Double> cached = FUND_REGION_WEIGHT_CACHE.get(normalizedSymbol);
+        if (cached != null && !cached.isEmpty()) {
+            return new LinkedHashMap<>(cached);
+        }
+
+        String response = getFundQuoteSummaryResponse(normalizedSymbol);
+        LinkedHashMap<String, Double> weights = parseRegionWeightingsFromTopHoldings(response);
+        if (!weights.isEmpty()) {
+            FUND_REGION_WEIGHT_CACHE.put(normalizedSymbol, new LinkedHashMap<>(weights));
+        }
+        return weights;
+    }
+
+    private LinkedHashMap<String, Double> parseRegionWeightingsFromTopHoldings(String response) {
+        LinkedHashMap<String, Double> weights = new LinkedHashMap<>();
+        if (response == null || response.isBlank()) {
+            return weights;
+        }
+
+        Pattern holdingPattern = Pattern.compile(
+                "\\\"symbol\\\"\\s*:\\s*\\\"([^\\\"]+)\\\".*?\\\"holdingPercent\\\"\\s*:\\s*\\{\\s*\\\"raw\\\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?(?:[Ee][+-]?\\d+)?)",
+                Pattern.DOTALL
+        );
+
+        Matcher matcher = holdingPattern.matcher(response);
+        double total = 0.0;
+        while (matcher.find()) {
+            String holdingSymbol = matcher.group(1);
+            String rawWeightText = matcher.group(2);
+            if (holdingSymbol == null || holdingSymbol.isBlank()) {
+                continue;
+            }
+
+            double rawWeight;
+            try {
+                rawWeight = Double.parseDouble(rawWeightText);
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+
+            if (!Double.isFinite(rawWeight) || rawWeight <= 0.0) {
+                continue;
+            }
+
+            String regionLabel = resolveRegionForHoldingSymbol(holdingSymbol);
+            if (regionLabel.isBlank()) {
+                regionLabel = "Global";
+            }
+
+            weights.merge(regionLabel, rawWeight, Double::sum);
+            total += rawWeight;
+        }
+
+        if (total <= 0.0) {
+            return new LinkedHashMap<>();
+        }
+
+        for (Map.Entry<String, Double> entry : new ArrayList<>(weights.entrySet())) {
+            weights.put(entry.getKey(), entry.getValue() / total);
+        }
+        return weights;
+    }
+
+    private String resolveRegionForHoldingSymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return "";
+        }
+
+        String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
+        String cached = HOLDING_SYMBOL_REGION_CACHE.get(normalizedSymbol);
+        if (cached != null && !cached.isBlank()) {
+            return cached;
+        }
+
+        try {
+            String url = "https://query2.finance.yahoo.com/v1/finance/search?q="
+                    + URLEncoder.encode(normalizedSymbol, "UTF-8")
+                    + "&quotesCount=8&newsCount=0";
+            String response = httpGetRequest(url);
+            ArrayList<SearchCandidate> candidates = extractSearchCandidates(response);
+            SearchCandidate best = chooseBestHoldingCandidate(candidates, normalizedSymbol);
+            if (best == null) {
+                return "";
+            }
+
+            String region = resolveCountryFromListing(best);
+            if (region == null || region.isBlank()) {
+                region = mapMarketToMacroRegion(firstNonBlank(best.exchangeDisplay, best.exchange));
+            }
+            if (region == null) {
+                region = "";
+            }
+
+            if (!region.isBlank()) {
+                HOLDING_SYMBOL_REGION_CACHE.put(normalizedSymbol, region);
+            }
+            return region;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private SearchCandidate chooseBestHoldingCandidate(ArrayList<SearchCandidate> candidates, String symbol) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+
+        String normalizedSymbol = symbol == null ? "" : symbol.toUpperCase(Locale.ROOT);
+        SearchCandidate exact = null;
+        SearchCandidate startsWith = null;
+        SearchCandidate fallback = null;
+
+        for (SearchCandidate candidate : candidates) {
+            if (candidate == null || candidate.symbol == null || candidate.symbol.isBlank()) {
+                continue;
+            }
+
+            String candidateSymbol = candidate.symbol.toUpperCase(Locale.ROOT);
+            if (fallback == null) {
+                fallback = candidate;
+            }
+
+            if (candidateSymbol.equals(normalizedSymbol)) {
+                exact = candidate;
+                break;
+            }
+
+            if (startsWith == null && candidateSymbol.startsWith(normalizedSymbol + ".")) {
+                startsWith = candidate;
+            }
+        }
+
+        if (exact != null) {
+            return exact;
+        }
+        if (startsWith != null) {
+            return startsWith;
+        }
+        return fallback;
+    }
+
     private LinkedHashMap<String, Double> fetchFundSectorWeights(String symbol) {
         if (symbol == null || symbol.isBlank()) {
             return new LinkedHashMap<>();
@@ -682,21 +851,39 @@ public class Security {
             return new LinkedHashMap<>(cached);
         }
 
+        String response = getFundQuoteSummaryResponse(normalizedSymbol);
+        LinkedHashMap<String, Double> weights = parseSectorWeightings(response);
+        if (!weights.isEmpty()) {
+            FUND_SECTOR_WEIGHT_CACHE.put(normalizedSymbol, new LinkedHashMap<>(weights));
+        }
+        return weights;
+    }
+
+    private String getFundQuoteSummaryResponse(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return "";
+        }
+
+        String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
+        String cached = FUND_QUOTE_SUMMARY_CACHE.get(normalizedSymbol);
+        if (cached != null && !cached.isBlank()) {
+            return cached;
+        }
+
         String baseUrl;
         try {
             baseUrl = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/"
                     + URLEncoder.encode(normalizedSymbol, "UTF-8")
                     + "?modules=topHoldings,fundProfile";
         } catch (Exception ignored) {
-            return new LinkedHashMap<>();
+            return "";
         }
 
         String response = fetchYahooQuoteSummaryWithAuth(baseUrl);
-        LinkedHashMap<String, Double> weights = parseSectorWeightings(response);
-        if (!weights.isEmpty()) {
-            FUND_SECTOR_WEIGHT_CACHE.put(normalizedSymbol, new LinkedHashMap<>(weights));
+        if (response != null && !response.isBlank()) {
+            FUND_QUOTE_SUMMARY_CACHE.put(normalizedSymbol, response);
         }
-        return weights;
+        return response;
     }
 
     private String findDominantSector(Map<String, Double> weights) {
