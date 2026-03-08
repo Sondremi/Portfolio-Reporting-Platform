@@ -4,9 +4,14 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.HttpURLConnection;
@@ -19,21 +24,34 @@ import java.util.Locale;
 public class Security {
     private static final DateTimeFormatter CSV_DATE_OUTPUT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final double EPSILON = 0.0000001;
+    private static final long YAHOO_AUTH_TTL_MS = 10 * 60 * 1000L;
+    private static final Map<String, LinkedHashMap<String, Double>> FUND_SECTOR_WEIGHT_CACHE = new LinkedHashMap<>();
+
+    private static String yahooAuthCookieHeader = "";
+    private static String yahooAuthCrumb = "";
+    private static long yahooAuthExpiresAtMs = 0L;
 
     private static class SearchCandidate {
         final String symbol;
         final String exchange;
+        final String exchangeDisplay;
         final String quoteType;
+        final String sector;
+        final String industry;
         final String currency;
         final String shortName;
         final String longName;
         final double regularMarketPrice;
 
-        SearchCandidate(String symbol, String exchange, String quoteType, String currency,
+        SearchCandidate(String symbol, String exchange, String exchangeDisplay, String quoteType,
+                        String sector, String industry, String currency,
                         String shortName, String longName, double regularMarketPrice) {
             this.symbol = symbol;
             this.exchange = exchange;
+            this.exchangeDisplay = exchangeDisplay;
             this.quoteType = quoteType;
+            this.sector = sector;
+            this.industry = industry;
             this.currency = currency;
             this.shortName = shortName;
             this.longName = longName;
@@ -50,6 +68,9 @@ public class Security {
     private final String name;
     private final String isin;
     private String resolvedSecurityName = "";
+    private String resolvedSector = "";
+    private String resolvedRegion = "";
+    private final LinkedHashMap<String, Double> resolvedSectorWeights = new LinkedHashMap<>();
     private String ticker = "";
     private AssetType assetType = AssetType.UNKNOWN;
 
@@ -115,6 +136,9 @@ public class Security {
     public String getDisplayName() {
         return resolvedSecurityName == null || resolvedSecurityName.isBlank() ? name : resolvedSecurityName;
     }
+    public String getResolvedSector() { return resolvedSector; }
+    public String getResolvedRegion() { return resolvedRegion; }
+    public Map<String, Double> getResolvedSectorWeights() { return new LinkedHashMap<>(resolvedSectorWeights); }
     public String getTicker() { return ticker; }
     public String getIsin() { return isin; }
     public AssetType getAssetType() { return assetType; }
@@ -433,6 +457,7 @@ public class Security {
             ticker = "";
             latestPrice = 0.0;
             currencyCode = "NOK";
+            resolvedSectorWeights.clear();
             return;
         }
 
@@ -459,6 +484,7 @@ public class Security {
                 updateAssetTypeFromQuoteType(candidate.quoteType);
                 updateAssetTypeFromTicker(ticker);
                 updateResolvedName(candidate);
+                updateResolvedClassification(candidate);
                 latestPrice = candidate.regularMarketPrice > EPSILON
                         ? candidate.regularMarketPrice
                         : fetchLatestPrice(ticker);
@@ -466,12 +492,18 @@ public class Security {
                 ticker = "";
                 latestPrice = 0.0;
                 currencyCode = "NOK";
+                resolvedSector = "Other";
+                resolvedRegion = "Global";
+                resolvedSectorWeights.clear();
             }
         } catch (Exception e) {
             System.err.println("Yahoo Finance ISIN lookup failed: " + e.getMessage());
             ticker = "";
             latestPrice = 0.0;
             currencyCode = "NOK";
+            resolvedSector = "Other";
+            resolvedRegion = "Global";
+            resolvedSectorWeights.clear();
         }
     }
 
@@ -542,7 +574,10 @@ public class Security {
         return new SearchCandidate(
             osloSymbol,
             "oslo",
+            baseCandidate.exchangeDisplay,
             baseCandidate.quoteType,
+            baseCandidate.sector,
+            baseCandidate.industry,
             "NOK",
             baseCandidate.shortName,
             baseCandidate.longName,
@@ -579,6 +614,508 @@ public class Security {
         if (assetType == AssetType.STOCK || assetType == AssetType.UNKNOWN) {
             resolvedSecurityName = normalized;
         }
+    }
+
+    private void updateResolvedClassification(SearchCandidate candidate) {
+        if (candidate == null) {
+            return;
+        }
+
+        resolvedSectorWeights.clear();
+        String quoteType = candidate.quoteType == null ? "" : candidate.quoteType.toUpperCase(Locale.ROOT);
+        boolean fundLike = quoteType.contains("ETF") || quoteType.contains("MUTUAL")
+                || quoteType.contains("FUND") || assetType == AssetType.FUND;
+
+        if (fundLike) {
+            LinkedHashMap<String, Double> weights = fetchFundSectorWeights(firstNonBlank(ticker, candidate.symbol));
+            if (!weights.isEmpty()) {
+                resolvedSectorWeights.putAll(weights);
+            }
+        }
+
+        String sectorValue = candidate.sector;
+        if (sectorValue == null || sectorValue.isBlank()) {
+            sectorValue = candidate.industry;
+        }
+        if (sectorValue == null || sectorValue.isBlank()) {
+            sectorValue = fetchSectorFromSearchNav(candidate.longName);
+        }
+        if (sectorValue == null || sectorValue.isBlank()) {
+            sectorValue = fetchSectorFromSearchNav(name);
+        }
+        if (sectorValue == null || sectorValue.isBlank()) {
+            sectorValue = fetchSectorFromSearchNav(candidate.symbol);
+        }
+
+        if (sectorValue == null || sectorValue.isBlank() && !resolvedSectorWeights.isEmpty()) {
+            sectorValue = findDominantSector(resolvedSectorWeights);
+        }
+
+        String normalizedSector = normalizeClassificationLabel(sectorValue);
+        if (normalizedSector.isBlank()) {
+            normalizedSector = "Other";
+        }
+        resolvedSector = normalizedSector;
+
+        String normalizedRegion = resolveCountryFromListing(candidate);
+        if (normalizedRegion.isBlank()) {
+            String regionValue = candidate.exchangeDisplay;
+            if (regionValue == null || regionValue.isBlank()) {
+                regionValue = candidate.exchange;
+            }
+            normalizedRegion = mapMarketToMacroRegion(regionValue);
+        }
+        if (normalizedRegion.isBlank()) {
+            normalizedRegion = "Global";
+        }
+        resolvedRegion = normalizedRegion;
+    }
+
+    private LinkedHashMap<String, Double> fetchFundSectorWeights(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return new LinkedHashMap<>();
+        }
+
+        String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
+        LinkedHashMap<String, Double> cached = FUND_SECTOR_WEIGHT_CACHE.get(normalizedSymbol);
+        if (cached != null && !cached.isEmpty()) {
+            return new LinkedHashMap<>(cached);
+        }
+
+        String baseUrl;
+        try {
+            baseUrl = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/"
+                    + URLEncoder.encode(normalizedSymbol, "UTF-8")
+                    + "?modules=topHoldings,fundProfile";
+        } catch (Exception ignored) {
+            return new LinkedHashMap<>();
+        }
+
+        String response = fetchYahooQuoteSummaryWithAuth(baseUrl);
+        LinkedHashMap<String, Double> weights = parseSectorWeightings(response);
+        if (!weights.isEmpty()) {
+            FUND_SECTOR_WEIGHT_CACHE.put(normalizedSymbol, new LinkedHashMap<>(weights));
+        }
+        return weights;
+    }
+
+    private String findDominantSector(Map<String, Double> weights) {
+        String dominant = "";
+        double bestWeight = -1.0;
+        for (Map.Entry<String, Double> entry : weights.entrySet()) {
+            if (entry.getValue() != null && entry.getValue() > bestWeight) {
+                bestWeight = entry.getValue();
+                dominant = entry.getKey();
+            }
+        }
+        return dominant;
+    }
+
+    private LinkedHashMap<String, Double> parseSectorWeightings(String response) {
+        LinkedHashMap<String, Double> weights = new LinkedHashMap<>();
+        if (response == null || response.isBlank()) {
+            return weights;
+        }
+
+        Pattern listPattern = Pattern.compile("\\\"sectorWeightings\\\"\\s*:\\s*\\[(.*?)]", Pattern.DOTALL);
+        Matcher listMatcher = listPattern.matcher(response);
+        if (!listMatcher.find()) {
+            return weights;
+        }
+
+        String listBody = listMatcher.group(1);
+        Pattern entryPattern = Pattern.compile(
+                "\\{\\s*\\\"([a-z_]+)\\\"\\s*:\\s*\\{\\s*\\\"raw\\\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?(?:[Ee][+-]?\\d+)?)",
+                Pattern.DOTALL
+        );
+        Matcher entryMatcher = entryPattern.matcher(listBody);
+
+        double total = 0.0;
+        while (entryMatcher.find()) {
+            String rawKey = entryMatcher.group(1);
+            String rawValueText = entryMatcher.group(2);
+            double rawValue;
+            try {
+                rawValue = Double.parseDouble(rawValueText);
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+
+            if (!Double.isFinite(rawValue) || rawValue <= 0.0) {
+                continue;
+            }
+
+            String label = normalizeSectorWeightKey(rawKey);
+            if (label.isBlank()) {
+                continue;
+            }
+
+            weights.merge(label, rawValue, Double::sum);
+            total += rawValue;
+        }
+
+        if (total <= 0.0) {
+            weights.clear();
+            return weights;
+        }
+
+        for (Map.Entry<String, Double> entry : new ArrayList<>(weights.entrySet())) {
+            weights.put(entry.getKey(), entry.getValue() / total);
+        }
+
+        return weights;
+    }
+
+    private String normalizeSectorWeightKey(String rawKey) {
+        if (rawKey == null || rawKey.isBlank()) {
+            return "";
+        }
+
+        return switch (rawKey.toLowerCase(Locale.ROOT)) {
+            case "other", "others" -> "Others";
+            case "realestate" -> "Real Estate";
+            case "consumer_cyclical" -> "Consumer Cyclical";
+            case "consumer_defensive" -> "Consumer Defensive";
+            case "basic_materials" -> "Basic Materials";
+            case "communication_services" -> "Communication Services";
+            case "financial_services" -> "Financial Services";
+            default -> normalizeClassificationLabel(rawKey);
+        };
+    }
+
+    private String fetchYahooQuoteSummaryWithAuth(String baseUrl) {
+        try {
+            if (!ensureYahooAuthSession()) {
+                return "";
+            }
+
+            String response = doYahooAuthRequest(baseUrl);
+            if (isYahooAuthError(response)) {
+                clearYahooAuthSession();
+                if (!ensureYahooAuthSession()) {
+                    return "";
+                }
+                response = doYahooAuthRequest(baseUrl);
+            }
+
+            if (isYahooAuthError(response)) {
+                return "";
+            }
+            return response;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String doYahooAuthRequest(String baseUrl) throws Exception {
+        String url = baseUrl + (baseUrl.contains("?") ? "&" : "?")
+                + "crumb=" + URLEncoder.encode(yahooAuthCrumb, "UTF-8");
+
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("User-Agent", "Mozilla/5.0");
+        headers.put("Cookie", yahooAuthCookieHeader);
+        headers.put("Accept", "application/json,text/plain,*/*");
+        headers.put("Referer", "https://finance.yahoo.com/");
+        headers.put("Origin", "https://finance.yahoo.com");
+        return httpGetRequest(url, headers);
+    }
+
+    private boolean ensureYahooAuthSession() {
+        if (System.currentTimeMillis() < yahooAuthExpiresAtMs
+                && yahooAuthCookieHeader != null && !yahooAuthCookieHeader.isBlank()
+                && yahooAuthCrumb != null && !yahooAuthCrumb.isBlank()) {
+            return true;
+        }
+
+        try {
+            Map<String, String> cookieHeaders = fetchYahooCookies();
+            if (cookieHeaders.isEmpty()) {
+                return false;
+            }
+
+            StringBuilder cookieBuilder = new StringBuilder();
+            for (Map.Entry<String, String> entry : cookieHeaders.entrySet()) {
+                if (cookieBuilder.length() > 0) {
+                    cookieBuilder.append("; ");
+                }
+                cookieBuilder.append(entry.getKey()).append("=").append(entry.getValue());
+            }
+
+            if (cookieBuilder.length() == 0) {
+                return false;
+            }
+
+            Map<String, String> crumbHeaders = new LinkedHashMap<>();
+            crumbHeaders.put("User-Agent", "Mozilla/5.0");
+            crumbHeaders.put("Cookie", cookieBuilder.toString());
+
+            String crumb = httpGetRequest("https://query1.finance.yahoo.com/v1/test/getcrumb", crumbHeaders).trim();
+            if (crumb.isBlank() || crumb.startsWith("{") || crumb.startsWith("<") || crumb.contains("Edge:")) {
+                return false;
+            }
+
+            yahooAuthCookieHeader = cookieBuilder.toString();
+            yahooAuthCrumb = crumb;
+            yahooAuthExpiresAtMs = System.currentTimeMillis() + YAHOO_AUTH_TTL_MS;
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private Map<String, String> fetchYahooCookies() throws Exception {
+        URL url = URI.create("https://fc.yahoo.com").toURL();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+
+        try (InputStream input = conn.getInputStream()) {
+            while (input.read() != -1) {
+                // Consume response to complete the request.
+            }
+        } catch (IOException ignored) {
+            // Continue; some responses still include cookies even if body read fails.
+        }
+
+        List<String> setCookieHeaders = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
+            if (entry.getKey() != null && "Set-Cookie".equalsIgnoreCase(entry.getKey()) && entry.getValue() != null) {
+                setCookieHeaders.addAll(entry.getValue());
+            }
+        }
+        Map<String, String> cookies = new LinkedHashMap<>();
+        if (!setCookieHeaders.isEmpty()) {
+            for (String header : setCookieHeaders) {
+                if (header == null || header.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = header.split(";", 2);
+                if (parts.length == 0 || !parts[0].contains("=")) {
+                    continue;
+                }
+
+                String[] nameValue = parts[0].split("=", 2);
+                if (nameValue.length != 2) {
+                    continue;
+                }
+
+                String cookieName = nameValue[0].trim();
+                String cookieValue = nameValue[1].trim();
+                if (!cookieName.isBlank() && !cookieValue.isBlank()) {
+                    cookies.put(cookieName, cookieValue);
+                }
+            }
+        }
+
+        conn.disconnect();
+        return cookies;
+    }
+
+    private boolean isYahooAuthError(String response) {
+        if (response == null || response.isBlank()) {
+            return true;
+        }
+
+        return response.contains("Invalid Crumb")
+                || response.contains("Invalid Cookie")
+                || response.contains("Unauthorized")
+                || response.contains("Too Many Requests")
+                || response.contains("Edge:");
+    }
+
+    private void clearYahooAuthSession() {
+        yahooAuthCookieHeader = "";
+        yahooAuthCrumb = "";
+        yahooAuthExpiresAtMs = 0L;
+    }
+
+    private String resolveCountryFromListing(SearchCandidate candidate) {
+        if (candidate == null) {
+            return "";
+        }
+
+        String symbol = candidate.symbol == null ? "" : candidate.symbol.toUpperCase(Locale.ROOT).trim();
+        if (symbol.endsWith(".OL")) return "Norway";
+        if (symbol.endsWith(".IR")) return "Ireland";
+        if (symbol.endsWith(".L")) return "United Kingdom";
+        if (symbol.endsWith(".DE")) return "Germany";
+        if (symbol.endsWith(".PA")) return "France";
+        if (symbol.endsWith(".AS")) return "Netherlands";
+        if (symbol.endsWith(".ST")) return "Sweden";
+        if (symbol.endsWith(".CO")) return "Denmark";
+        if (symbol.endsWith(".HE")) return "Finland";
+        if (symbol.endsWith(".SW")) return "Switzerland";
+        if (symbol.endsWith(".MI")) return "Italy";
+        if (symbol.endsWith(".MC")) return "Spain";
+        if (symbol.endsWith(".TO")) return "Canada";
+        if (symbol.endsWith(".AX")) return "Australia";
+        if (symbol.endsWith(".HK")) return "Hong Kong";
+        if (symbol.endsWith(".T")) return "Japan";
+
+        String market = normalizeClassificationLabel(firstNonBlank(candidate.exchangeDisplay, candidate.exchange))
+                .toLowerCase(Locale.ROOT);
+        if (market.isBlank()) {
+            return "";
+        }
+
+        if (containsAny(market, "oslo", "norway", "norwegian")) return "Norway";
+        if (containsAny(market, "irish", "ireland", "dublin")) return "Ireland";
+        if (containsAny(market, "new york", "nyse", "nasdaq", "united states", "usa", "us")) return "United States";
+        if (containsAny(market, "london", "united kingdom", "uk")) return "United Kingdom";
+        if (containsAny(market, "frankfurt", "xetra", "germany")) return "Germany";
+        if (containsAny(market, "paris", "france")) return "France";
+        if (containsAny(market, "amsterdam", "netherlands")) return "Netherlands";
+        if (containsAny(market, "stockholm", "sweden")) return "Sweden";
+        if (containsAny(market, "copenhagen", "denmark")) return "Denmark";
+        if (containsAny(market, "helsinki", "finland")) return "Finland";
+        if (containsAny(market, "swiss", "zurich", "switzerland")) return "Switzerland";
+        if (containsAny(market, "milan", "italy")) return "Italy";
+        if (containsAny(market, "madrid", "spain")) return "Spain";
+        if (containsAny(market, "toronto", "canada")) return "Canada";
+        if (containsAny(market, "sydney", "australia")) return "Australia";
+        if (containsAny(market, "hong kong")) return "Hong Kong";
+        if (containsAny(market, "tokyo", "japan")) return "Japan";
+
+        return "";
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return "";
+    }
+
+    private String fetchSectorFromSearchNav(String query) {
+        if (query == null || query.isBlank()) {
+            return "";
+        }
+
+        try {
+            String url = "https://query2.finance.yahoo.com/v1/finance/search?q="
+                    + URLEncoder.encode(query, "UTF-8")
+                    + "&quotesCount=5&newsCount=0";
+
+            String response = httpGetRequest(url);
+            return extractSectorNavName(response);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String extractSectorNavName(String response) {
+        if (response == null || response.isBlank()) {
+            return "";
+        }
+
+        Pattern navPattern = Pattern.compile("\\\"navName\\\"\\s*:\\s*\\\"(.*?)\\\".*?\\\"navUrl\\\"\\s*:\\s*\\\"(.*?)\\\"", Pattern.DOTALL);
+        Matcher matcher = navPattern.matcher(response);
+        while (matcher.find()) {
+            String navName = matcher.group(1);
+            String navUrl = matcher.group(2);
+            if (navName == null || navName.isBlank() || navUrl == null || navUrl.isBlank()) {
+                continue;
+            }
+
+            if (navUrl.contains("/sectors/")) {
+                return navName;
+            }
+        }
+
+        return "";
+    }
+
+    private String mapMarketToMacroRegion(String marketValue) {
+        String market = normalizeClassificationLabel(marketValue).toLowerCase(Locale.ROOT);
+        if (market.isBlank()) {
+            return "";
+        }
+
+        if (containsAny(market, "nasdaq", "nyse", "nysearca", "bats", "otc", "usa", "united states", "us")) {
+            return "USA";
+        }
+
+        if (containsAny(market, "oslo", "irish", "ireland", "frankfurt", "xetra", "paris", "london", "euronext", "stockholm", "copenhagen", "helsinki", "amsterdam", "swiss", "vienna", "madrid", "milan", "europe")) {
+            return "Europe";
+        }
+
+        if (containsAny(market, "tokyo", "japan", "hong kong", "shanghai", "shenzhen", "singapore", "korea", "india", "australia", "sydney", "asia")) {
+            return "Asia-Pacific";
+        }
+
+        if (containsAny(market, "toronto", "canada")) {
+            return "North America";
+        }
+
+        if (containsAny(market, "brazil", "mexico", "chile", "argentina", "latin")) {
+            return "Latin America";
+        }
+
+        if (containsAny(market, "south africa", "africa")) {
+            return "Africa";
+        }
+
+        if (containsAny(market, "saudi", "dubai", "abu dhabi", "qatar", "middle east")) {
+            return "Middle East";
+        }
+
+        return "Global";
+    }
+
+    private boolean containsAny(String text, String... candidates) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank() && text.contains(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeClassificationLabel(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        String normalized = value
+                .replace("_", " ")
+                .replace("-", " ")
+                .trim();
+        if (normalized.isBlank()) {
+            return "";
+        }
+
+        String[] words = normalized.split("\\s+");
+        StringBuilder output = new StringBuilder();
+        for (String word : words) {
+            if (word.isBlank()) {
+                continue;
+            }
+
+            String lower = word.toLowerCase(Locale.ROOT);
+            String pretty;
+            if (lower.length() <= 3) {
+                pretty = lower.toUpperCase(Locale.ROOT);
+            } else {
+                pretty = Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+            }
+
+            if (output.length() > 0) {
+                output.append(' ');
+            }
+            output.append(pretty);
+        }
+
+        return output.toString().trim();
     }
 
     private SearchCandidate refineCandidateBySymbolListings(SearchCandidate baseCandidate) {
@@ -745,13 +1282,33 @@ public class Security {
         }
 
         String exchange = extractValue(quoteObject, "exchange");
+        String exchangeDisplay = extractValue(quoteObject, "exchDisp");
         String quoteType = extractValue(quoteObject, "quoteType");
+        String sector = extractValue(quoteObject, "sectorDisp");
+        if (sector == null || sector.isBlank()) {
+            sector = extractValue(quoteObject, "sector");
+        }
+        String industry = extractValue(quoteObject, "industryDisp");
+        if (industry == null || industry.isBlank()) {
+            industry = extractValue(quoteObject, "industry");
+        }
         String currency = extractValue(quoteObject, "currency");
         String shortName = extractValue(quoteObject, "shortname");
         String longName = extractValue(quoteObject, "longname");
         double regularMarketPrice = extractNumericValue(quoteObject, "regularMarketPrice");
 
-        return new SearchCandidate(symbol, exchange, quoteType, currency, shortName, longName, regularMarketPrice);
+        return new SearchCandidate(
+                symbol,
+                exchange,
+                exchangeDisplay,
+                quoteType,
+                sector,
+                industry,
+                currency,
+                shortName,
+                longName,
+                regularMarketPrice
+        );
     }
 
     private SearchCandidate chooseBestCandidate(ArrayList<SearchCandidate> candidates) {
@@ -887,21 +1444,42 @@ public class Security {
     }
 
     private String httpGetRequest(String urlString) throws Exception {
+        return httpGetRequest(urlString, null);
+    }
+
+    private String httpGetRequest(String urlString, Map<String, String> headers) throws Exception {
         URL url = URI.create(urlString).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        if (headers != null) {
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                if (header.getKey() == null || header.getValue() == null || header.getValue().isBlank()) {
+                    continue;
+                }
+                conn.setRequestProperty(header.getKey(), header.getValue());
+            }
+        }
         conn.setConnectTimeout(5000);
         conn.setReadTimeout(5000);
 
         StringBuilder response = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getInputStream()))) {
+        int statusCode = conn.getResponseCode();
+        InputStream stream = (statusCode >= 200 && statusCode < 400)
+                ? conn.getInputStream()
+                : conn.getErrorStream();
+        if (stream == null) {
+            conn.disconnect();
+            return "";
+        }
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 response.append(line);
             }
         }
+        conn.disconnect();
         return response.toString();
     }
 }

@@ -49,7 +49,6 @@ public class PortfolioTracker {
 
     private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
-
     public static void main(String[] args) throws IOException {
         ensureInputDirectoryExists();
         loadedCsvFileCount = 0;
@@ -283,6 +282,9 @@ public class PortfolioTracker {
         private final String tickerText;
         private final String securityDisplayName;
         private final String assetType;
+        private final String sectorLabel;
+        private final Map<String, Double> sectorWeights;
+        private final String regionLabel;
         private final String currencyCode;
         private final String realizedReturnPctText;
         private final double units;
@@ -304,6 +306,9 @@ public class PortfolioTracker {
                 String tickerText,
                 String securityDisplayName,
                 String assetType,
+                String sectorLabel,
+                Map<String, Double> sectorWeights,
+                String regionLabel,
                 String currencyCode,
                 String realizedReturnPctText,
                 double units,
@@ -323,6 +328,9 @@ public class PortfolioTracker {
             this.tickerText = tickerText;
             this.securityDisplayName = securityDisplayName;
             this.assetType = assetType;
+            this.sectorLabel = sectorLabel;
+            this.sectorWeights = sectorWeights == null ? Map.of() : new LinkedHashMap<>(sectorWeights);
+            this.regionLabel = regionLabel;
             this.currencyCode = currencyCode;
             this.realizedReturnPctText = realizedReturnPctText;
             this.units = units;
@@ -1421,6 +1429,9 @@ public class PortfolioTracker {
                 tickerText,
             getPreferredSecurityName(security),
                 security.getAssetType().name(),
+                security.getResolvedSector(),
+                security.getResolvedSectorWeights(),
+                security.getResolvedRegion(),
                 currencyCode,
                 security.getRealizedReturnPctAsText(),
                 units,
@@ -2007,12 +2018,40 @@ public class PortfolioTracker {
                 continue;
             }
 
+            if (sectorChart && row.sectorWeights != null && !row.sectorWeights.isEmpty()) {
+                double totalWeight = 0.0;
+                for (double weight : row.sectorWeights.values()) {
+                    if (Double.isFinite(weight) && weight > 0.0) {
+                        totalWeight += weight;
+                    }
+                }
+
+                if (totalWeight > 0.0) {
+                    for (Map.Entry<String, Double> entry : row.sectorWeights.entrySet()) {
+                        double weight = entry.getValue() == null ? 0.0 : entry.getValue();
+                        if (!Double.isFinite(weight) || weight <= 0.0) {
+                            continue;
+                        }
+
+                        String sectorLabel = entry.getKey() == null || entry.getKey().isBlank()
+                                ? "Other"
+                                : entry.getKey();
+                        double weightedValue = row.marketValue * (weight / totalWeight);
+                        valueByCategory.merge(sectorLabel, weightedValue, Double::sum);
+                    }
+
+                    totalMarketValue += row.marketValue;
+                    continue;
+                }
+            }
+
             String category = sectorChart ? classifySector(row) : classifyRegion(row);
             valueByCategory.merge(category, row.marketValue, Double::sum);
             totalMarketValue += row.marketValue;
         }
 
-        ArrayList<AllocationBucket> buckets = compactAllocationBuckets(valueByCategory, 6);
+        int maxBuckets = sectorChart ? 12 : 6;
+        ArrayList<AllocationBucket> buckets = compactAllocationBuckets(valueByCategory, maxBuckets);
 
         StringBuilder svg = new StringBuilder();
         svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
@@ -2118,90 +2157,20 @@ public class PortfolioTracker {
     }
 
     private static String classifySector(OverviewRow row) {
-        String probe = buildCategoryProbeText(row);
-        String ticker = row.tickerText == null ? "" : row.tickerText.trim().toUpperCase(Locale.ROOT);
-
-        if (containsAny(probe, "apple", "microsoft", "technology", "software", "semiconductor", "nasdaq")
-                || "AAPL".equals(ticker) || "MSFT".equals(ticker)) {
-            return "Technology";
+        if (row == null || row.sectorLabel == null || row.sectorLabel.isBlank()) {
+            return "Other";
         }
-
-        if (containsAny(probe, "equinor", "frontline", "oil", "petroleum", "gas", "energy", "hydrogen", "nel")
-                || "EQNR.OL".equals(ticker) || "EQNR".equals(ticker) || "FRO".equals(ticker) || "NEL.OL".equals(ticker)) {
-            return "Energy";
-        }
-
-        if (containsAny(probe, "tesla", "automotive", "consumer") || "TSLA".equals(ticker)) {
-            return "Consumer";
-        }
-
-        if (containsAny(probe, "bank", "financial", "finance", "insurance")) {
-            return "Financials";
-        }
-
-        if (containsAny(probe, "health", "pharma", "biotech", "medical")) {
-            return "Healthcare";
-        }
-
-        if ("FUND".equals(row.assetType)
-                || containsAny(probe, "fund", "etf", "index", "global", "norden", "vanguard", "skagen", "klp")) {
-            return "Diversified";
-        }
-
-        if ("STOCK".equals(row.assetType)) {
-            return "Industrials";
-        }
-
-        return "Other";
+        return row.sectorLabel;
     }
 
     private static String classifyRegion(OverviewRow row) {
-        String probe = buildCategoryProbeText(row);
-        String ticker = row.tickerText == null ? "" : row.tickerText.trim().toUpperCase(Locale.ROOT);
-
-        if (containsAny(probe, "norden", "nordic", "sweden", "danmark", "denmark", "finland")) {
-            return "Nordics";
-        }
-
-        if (containsAny(probe, "norge", "norway", "oslo", "equinor", "nel")
-                || ticker.endsWith(".OL") || "EQNR".equals(ticker) || "NEL".equals(ticker)) {
-            return "Norway";
-        }
-
-        if (containsAny(probe, "apple", "microsoft", "tesla", "s&p 500", "nasdaq", "nyse", "u.s.", "usa")
-                || "AAPL".equals(ticker) || "MSFT".equals(ticker) || "TSLA".equals(ticker) || "FRO".equals(ticker)) {
-            return "United States";
-        }
-
-        if (containsAny(probe, "global", "world", "international")) {
+        if (row == null || row.regionLabel == null || row.regionLabel.isBlank()) {
             return "Global";
         }
-
-        if (containsAny(probe, "europe", "eu")) {
-            return "Europe";
-        }
-
-        if (containsAny(probe, "asia", "china", "japan", "india")) {
-            return "Asia-Pacific";
-        }
-
-        return "Other";
+        return row.regionLabel;
     }
 
-    private static String buildCategoryProbeText(OverviewRow row) {
-        String label = getOverviewRowLabel(row);
-        String tickerText = row.tickerText == null ? "" : row.tickerText;
-        return (label + " " + tickerText).toLowerCase(Locale.ROOT);
-    }
-
-    private static boolean containsAny(String text, String... candidates) {
-        for (String candidate : candidates) {
-            if (text.contains(candidate)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    
 
         private static String getAllocationColor(int index) {
         String[] palette = new String[] {
