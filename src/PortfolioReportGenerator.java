@@ -1185,11 +1185,11 @@ public class PortfolioReportGenerator {
 
     private static String buildHeaderSparklineSvg(ArrayList<OverviewRow> overviewRows) {
         final double width = 320.0;
-        final double height = 72.0;
-        final double left = 50.0;
+        final double height = 60.0;
+        final double left = 30.0;
         final double right = 8.0;
-        final double top = 8.0;
-        final double bottom = 18.0;
+        final double top = 4.0;
+        final double bottom = 12.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -1567,17 +1567,17 @@ public class PortfolioReportGenerator {
         writer.write("    .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
         writer.write("    .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
         writer.write("    .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: 12px; align-items: stretch; }\n");
-        writer.write("    .hero-kpi-grid { display: contents; }\n");
-        writer.write("    .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; height: 100%; }\n");
+        writer.write("    .hero-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; grid-column: span 2; align-items: stretch; }\n");
+        writer.write("    .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; }\n");
         writer.write("    .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; }\n");
         writer.write("    .hero-card .label, .hero-spark-card .label { font-size: 11px; opacity: 0.9; }\n");
         writer.write("    .hero-card .value { margin-top: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }\n");
         writer.write("    .hero-card .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n");
         writer.write("    .hero-card .subvalue { font-size: 12px; opacity: 0.95; }\n");
-        writer.write("    .hero-spark-card { display: flex; flex-direction: column; justify-content: stretch; padding: 8px 9px; height: 100%; min-height: 0; }\n");
-        writer.write("    .hero-spark-card .label { margin-bottom: 6px; }\n");
-        writer.write("    .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }\n");
-        writer.write("    .hero-sparkline { width: 100%; height: auto; min-height: 120px; max-height: 100%; display: block; }\n");
+        writer.write("    .hero-spark-card { display: flex; flex-direction: column; justify-content: stretch; padding: 6px 8px; height: 100%; min-height: 0; }\n");
+        writer.write("    .hero-spark-card .label { margin-bottom: 4px; }\n");
+        writer.write("    .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; height: 100%; display: flex; align-items: center; }\n");
+        writer.write("    .hero-sparkline { width: 100%; height: 100%; min-height: 0; max-height: 100%; display: block; }\n");
         writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
         writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
         writer.write("    .sale-trades-table { table-layout: fixed; }\n");
@@ -1602,8 +1602,8 @@ public class PortfolioReportGenerator {
         writer.write("    .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel { grid-column: span 2; }\n");
         writer.write("    .allocation-panel.security-pie-panel { grid-column: span 2; }\n");
         writer.write("    .allocation-panel.security-bar-panel { grid-column: span 4; }\n");
-        writer.write("    @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-spark-card { grid-column: span 2; } }\n");
-        writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
+        writer.write("    @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-kpi-grid { grid-column: span 2; } .hero-spark-card { grid-column: span 2; } }\n");
+        writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-kpi-grid { grid-column: span 1; grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
         writer.write("    @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
         writer.write("    @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel, .allocation-panel.security-pie-panel, .allocation-panel.security-bar-panel { grid-column: span 1; } .allocation-panel.security-bar-panel { grid-column: span 2; } }\n");
         writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } .allocation-panel.security-bar-panel { grid-column: span 1; } }\n");
@@ -2039,7 +2039,7 @@ public class PortfolioReportGenerator {
                 .append("</text>\n");
         }
 
-        double summaryY = centerY + radius + 30.0;
+        double summaryY = centerY + radius + 40.0;
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
             .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#666\">Market Value Total</text>\n");
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 16.0))
@@ -2058,6 +2058,20 @@ public class PortfolioReportGenerator {
         }
 
         return label;
+    }
+
+    private static String abbreviateLegendLabel(String label, int maxChars) {
+        String text = label == null ? "" : label.trim();
+        if (text.isEmpty()) {
+            return "-";
+        }
+
+        int safeMax = Math.max(6, maxChars);
+        if (text.length() <= safeMax) {
+            return text;
+        }
+
+        return text.substring(0, safeMax - 3) + "...";
     }
 
     private static void adjustPieLabelPositions(ArrayList<PieSliceLabel> labels, boolean rightSide,
@@ -2365,14 +2379,15 @@ public class PortfolioReportGenerator {
             double y = legendYStart + (rowIndex * legendRowGap);
             double dotX = columnIndex == 0 ? 22.0 : 228.0;
             double labelX = dotX + 9.0;
-            double pctX = useTwoColumns
-                    ? (columnIndex == 0 ? 208.0 : (width - 16.0))
+                double pctX = useTwoColumns
+                    ? (columnIndex == 0 ? 214.0 : (width - 16.0))
                     : (width - 16.0);
+                String displayLabel = abbreviateLegendLabel(legendLabels.get(i), useTwoColumns ? 18 : 26);
 
             svg.append("<circle cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
                 .append(legendColors.get(i)).append("\"/>\n");
             svg.append("<text x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
-                .append(escapeHtml(legendLabels.get(i)))
+                .append(escapeHtml(displayLabel))
                 .append("</text>\n");
             svg.append("<text x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
                 .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
@@ -2530,15 +2545,16 @@ public class PortfolioReportGenerator {
             double y = legendYStart + (rowIndex * legendRowGap);
             double dotX = columnIndex == 0 ? 22.0 : 228.0;
             double labelX = dotX + 9.0;
-            double pctX = useTwoColumns
-                    ? (columnIndex == 0 ? 208.0 : (width - 16.0))
+                double pctX = useTwoColumns
+                    ? (columnIndex == 0 ? 214.0 : (width - 16.0))
                     : (width - 16.0);
             String color = getAllocationColor(i);
+                String displayLabel = abbreviateLegendLabel(bucket.label, useTwoColumns ? 18 : 26);
 
             svg.append("<circle cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
                 .append(color).append("\"/>\n");
             svg.append("<text x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
-                .append(escapeHtml(bucket.label))
+                .append(escapeHtml(displayLabel))
                 .append("</text>\n");
             svg.append("<text x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
                 .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
