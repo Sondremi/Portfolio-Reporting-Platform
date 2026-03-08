@@ -750,51 +750,52 @@ public class PortfolioReportGenerator {
 
         String tradeDate = getCell(row, indexes.tradeDate);
 
-        switch (transactionType) {
-            case "SALG", "SELL", "KJØPT", "KJOPT", "KJØP", "KJOP", "BUY", "REINVESTERT UTBYTTE", "REINVESTERTUTBYTTE" -> {
-                    double tradeCashDelta = resolveTradeCashDelta(transactionType, amount, quantity, price, totalFees);
-                    if (!balanceBackedRow && Math.abs(tradeCashDelta) > 1e-9) {
-                        recordCashEvent(tradeDateForTracking, tradeCashDelta);
-                    }
-                    if (Math.abs(quantity) > 0.0) {
-                        double unitsDelta = isBuyLikeTransaction(transactionType, amount)
-                                ? Math.abs(quantity)
-                                : -Math.abs(quantity);
-                        recordUnitEvent(security, tradeDateForTracking, unitsDelta);
-                    }
-                    security.addTransaction(tradeDate, transactionType, amount, quantity, price, result, totalFees);
+        if (isTradeLikeTransaction(transactionType)) {
+            double tradeCashDelta = resolveTradeCashDelta(transactionType, amount, quantity, price, totalFees);
+            if (!balanceBackedRow && Math.abs(tradeCashDelta) > 1e-9) {
+                recordCashEvent(tradeDateForTracking, tradeCashDelta);
             }
-            case "UTBYTTE INNLEGG VP", "BYTTE INNLEGG VP", "MAK BYTTE INNLEGG VP", "TILDELING INNLEGG RE" -> {
-                if (!isTemporaryRightsSecurity(security)) {
-                    if (Math.abs(quantity) > 0.0) {
-                        recordUnitEvent(security, tradeDateForTracking, Math.abs(quantity));
-                    }
-                    security.addZeroCostUnits(quantity, tradeDate);
+            if (Math.abs(quantity) > 0.0) {
+                double unitsDelta = isBuyLikeTransaction(transactionType, amount)
+                        ? Math.abs(quantity)
+                        : -Math.abs(quantity);
+                recordUnitEvent(security, tradeDateForTracking, unitsDelta);
+            }
+            security.addTransaction(tradeDate, transactionType, amount, quantity, price, result, totalFees);
+            return;
+        }
+
+        if (isUnitsCorporateActionTransaction(transactionType)) {
+            if (!isTemporaryRightsSecurity(security)) {
+                if (Math.abs(quantity) > 0.0) {
+                    recordUnitEvent(security, tradeDateForTracking, Math.abs(quantity));
                 }
+                security.addZeroCostUnits(quantity, tradeDate);
             }
-            case "UTBYTTE", "DIVIDEND" -> {
-                if (!balanceBackedRow && Math.abs(amount) > 1e-9) {
-                    recordCashEvent(tradeDateForTracking, Math.abs(amount));
-                }
-                security.addDividend(Math.abs(amount));
+            return;
+        }
+
+        if (isDividendCashTransaction(transactionType)) {
+            if (!balanceBackedRow && Math.abs(amount) > 1e-9) {
+                recordCashEvent(tradeDateForTracking, Math.abs(amount));
             }
-            case "TILBAKEBET. FOND AVG" -> {
-                double refundAmount = totalFees > 0.0 ? totalFees : Math.abs(amount);
-                security.applyCostRefund(refundAmount);
-                if (!balanceBackedRow && Math.abs(refundAmount) > 0.0) {
-                    recordCashEvent(tradeDateForTracking, refundAmount);
-                }
+            security.addDividend(Math.abs(amount));
+            return;
+        }
+
+        if (isFundCostRefundTransaction(transactionType)) {
+            double refundAmount = totalFees > 0.0 ? totalFees : Math.abs(amount);
+            security.applyCostRefund(refundAmount);
+            if (!balanceBackedRow && Math.abs(refundAmount) > 0.0) {
+                recordCashEvent(tradeDateForTracking, refundAmount);
             }
-            case "INNSKUDD", "UTTAK INTERNET", "PLATTFORMAVGIFT",
-                    "OVERBELÅNINGSRENTE", "OVERBELANINGSRENTE", "DEBETRENTE", "TILBAKEBETALING",
-                    "OVERFØRING VIA TRUSTLY", "OVERFORING VIA TRUSTLY", "PLATTFORMAVG KORR" -> {
-                double cashDelta = resolveCashAccountEventDelta(transactionType, amount, totalFees);
-                if (!balanceBackedRow && Math.abs(cashDelta) > 1e-9) {
-                    recordCashEvent(tradeDateForTracking, cashDelta);
-                }
-            }
-            default -> {
-                // Intentionally ignored unknown transaction types.
+            return;
+        }
+
+        if (isCashAccountEventType(transactionType)) {
+            double cashDelta = resolveCashAccountEventDelta(transactionType, amount, totalFees);
+            if (!balanceBackedRow && Math.abs(cashDelta) > 1e-9) {
+                recordCashEvent(tradeDateForTracking, cashDelta);
             }
         }
     }
@@ -813,6 +814,41 @@ public class PortfolioReportGenerator {
 
     private static boolean isSellLikeTransaction(String transactionType, double amount) {
         return !isBuyLikeTransaction(transactionType, amount);
+    }
+
+    private static boolean containsAnyKeyword(String value, String... keywords) {
+        if (value == null || value.isBlank() || keywords == null || keywords.length == 0) {
+            return false;
+        }
+
+        for (String keyword : keywords) {
+            if (keyword != null && !keyword.isBlank() && value.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isTradeLikeTransaction(String transactionType) {
+        String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
+        return containsAnyKeyword(normalized,
+                "KJØP", "KJOP", "BUY", "SALG", "SELL", "REINVEST");
+    }
+
+    private static boolean isUnitsCorporateActionTransaction(String transactionType) {
+        String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
+        return containsAnyKeyword(normalized,
+                "UTBYTTE INNLEGG VP", "BYTTE INNLEGG VP", "MAK BYTTE INNLEGG VP", "TILDELING INNLEGG RE");
+    }
+
+    private static boolean isDividendCashTransaction(String transactionType) {
+        String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
+        return !normalized.contains("REINVEST") && containsAnyKeyword(normalized, "UTBYTTE", "DIVIDEND");
+    }
+
+    private static boolean isFundCostRefundTransaction(String transactionType) {
+        String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
+        return normalized.contains("TILBAKEBET") && normalized.contains("FOND");
     }
 
     private static double resolveTradeCashDelta(String transactionType, double amount,
@@ -842,31 +878,33 @@ public class PortfolioReportGenerator {
         }
 
         String normalized = transactionType.toUpperCase(Locale.ROOT);
-        return normalized.contains("INNSKUDD")
-                || normalized.contains("UTTAK")
-                || normalized.contains("PLATTFORMAVG")
-                || normalized.contains("DEBETRENTE")
-                || normalized.contains("OVERBEL")
-                || normalized.contains("OVERFØRING VIA TRUSTLY")
-                || normalized.contains("OVERFORING VIA TRUSTLY")
-                || normalized.contains("TILBAKEBETALING");
+        return containsAnyKeyword(normalized,
+                "INNSKUDD", "INNBETAL", "INNSATT", "DEPOSIT", "TRANSFER IN",
+                "UTTAK", "UTBETAL", "WITHDRAW", "TRANSFER OUT",
+                "PLATTFORMAVG", "GEBYR", "KURTASJE", "FEE", "KOSTNAD",
+                "DEBETRENTE", "RENTE", "OVERBEL",
+                "OVERFØRING", "OVERFORING", "INTERNAL FROM", "INTERNAL TO",
+                "TILBAKEBETALING", "REFUND");
     }
 
     private static double resolveCashAccountEventDelta(String transactionType, double amount, double totalFees) {
         String normalized = transactionType == null ? "" : transactionType.toUpperCase(Locale.ROOT);
 
-        if (normalized.contains("INNSKUDD") || normalized.contains("OVERFØRING VIA TRUSTLY")
-                || normalized.contains("OVERFORING VIA TRUSTLY") || normalized.contains("TILBAKEBETALING")) {
+        if (containsAnyKeyword(normalized,
+                "INNSKUDD", "INNBETAL", "INNSATT", "DEPOSIT", "TRANSFER IN",
+                "OVERFØRING", "OVERFORING", "INTERNAL FROM", "TILBAKEBETALING", "REFUND")) {
             double baseAmount = Math.abs(amount);
             return baseAmount > 1e-9 ? baseAmount : Math.max(0.0, totalFees);
         }
 
-        if (normalized.contains("UTTAK")) {
+        if (containsAnyKeyword(normalized,
+                "UTTAK", "UTBETAL", "WITHDRAW", "TRANSFER OUT", "INTERNAL TO")) {
             double baseAmount = Math.abs(amount);
             return baseAmount > 1e-9 ? -baseAmount : -Math.max(0.0, totalFees);
         }
 
-        if (normalized.contains("PLATTFORMAVG") || normalized.contains("DEBETRENTE") || normalized.contains("OVERBEL")) {
+        if (containsAnyKeyword(normalized,
+                "PLATTFORMAVG", "GEBYR", "KURTASJE", "FEE", "KOSTNAD", "DEBETRENTE", "RENTE", "OVERBEL")) {
             if (Math.abs(amount) > 1e-9) {
                 return amount;
             }
@@ -1518,15 +1556,15 @@ public class PortfolioReportGenerator {
         writer.write("    .report-hero h1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; }\n");
         writer.write("    .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
         writer.write("    .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
-        writer.write("    .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(300px, 1fr) 2fr; gap: 12px; align-items: stretch; }\n");
-        writer.write("    .hero-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }\n");
-        writer.write("    .hero-kpi-col { display: grid; gap: 10px; align-content: start; }\n");
+        writer.write("    .hero-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }\n");
+        writer.write("    .hero-kpi-grid { display: contents; }\n");
+        writer.write("    .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; height: 100%; }\n");
         writer.write("    .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; }\n");
         writer.write("    .hero-card .label, .hero-spark-card .label { font-size: 11px; opacity: 0.9; }\n");
         writer.write("    .hero-card .value { margin-top: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }\n");
         writer.write("    .hero-card .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n");
         writer.write("    .hero-card .subvalue { font-size: 12px; opacity: 0.95; }\n");
-        writer.write("    .hero-spark-card { display: flex; flex-direction: column; justify-content: center; padding: 8px 9px; }\n");
+        writer.write("    .hero-spark-card { display: flex; flex-direction: column; justify-content: center; padding: 8px 9px; height: 100%; }\n");
         writer.write("    .hero-sparkline { width: 100%; height: auto; display: block; }\n");
         writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
         writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
@@ -1552,8 +1590,8 @@ public class PortfolioReportGenerator {
         writer.write("    .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel { grid-column: span 2; }\n");
         writer.write("    .allocation-panel.security-pie-panel { grid-column: span 2; }\n");
         writer.write("    .allocation-panel.security-bar-panel { grid-column: span 4; }\n");
-        writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }\n");
-        writer.write("    @media (max-width: 620px) { .hero-kpi-grid { grid-template-columns: 1fr; } }\n");
+        writer.write("    @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-spark-card { grid-column: span 2; } }\n");
+        writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
         writer.write("    @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
         writer.write("    @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel, .allocation-panel.security-pie-panel, .allocation-panel.security-bar-panel { grid-column: span 1; } .allocation-panel.security-bar-panel { grid-column: span 2; } }\n");
         writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } .allocation-panel.security-bar-panel { grid-column: span 1; } }\n");
@@ -2148,8 +2186,8 @@ public class PortfolioReportGenerator {
         final double width = 440.0;
         final double height = 330.0;
         final double centerX = width / 2.0;
-        final double centerY = 142.0;
-        final double radius = 112.0;
+        final double centerY = 126.0;
+        final double radius = 98.0;
 
         double stockValue = 0.0;
         double fundValue = 0.0;
@@ -2272,38 +2310,50 @@ public class PortfolioReportGenerator {
         double cashDebtPct = totalValue > 0.0 ? (cashDebtValue / totalValue) * 100.0 : 0.0;
         double otherPct = totalValue > 0.0 ? (otherValue / totalValue) * 100.0 : 0.0;
 
-        double summaryY = centerY + radius + 14.0;
+        double summaryY = centerY + radius + 12.0;
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
             .append("\" text-anchor=\"middle\" font-size=\"10\" fill=\"#666\">Asset Mix</text>\n");
-        int summaryLine = 0;
+        ArrayList<String> legendLabels = new ArrayList<>();
+        ArrayList<Double> legendPcts = new ArrayList<>();
+        ArrayList<String> legendColors = new ArrayList<>();
+
         if (stockCount > 0) {
-            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0 + (summaryLine++ * 14.0)))
-                .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
-                .append(escapeHtml("Stocks: " + stockCount + " (" + formatNumber(stockPct, 1) + "%)"))
-                .append("</text>\n");
+            legendLabels.add("Stocks: " + stockCount);
+            legendPcts.add(stockPct);
+            legendColors.add("#1c7ed6");
         }
         if (fundCount > 0) {
-            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0 + (summaryLine++ * 14.0)))
-                .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
-                .append(escapeHtml("Funds: " + fundCount + " (" + formatNumber(fundPct, 1) + "%)"))
-                .append("</text>\n");
+            legendLabels.add("Funds: " + fundCount);
+            legendPcts.add(fundPct);
+            legendColors.add("#2f9e44");
         }
         if (cashCount > 0) {
-            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0 + (summaryLine++ * 14.0)))
-                .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
-                .append(escapeHtml("Cash: " + formatNumber(cashValue, 2) + " kr (" + formatNumber(cashPct, 1) + "%)"))
-                .append("</text>\n");
+            legendLabels.add("Cash");
+            legendPcts.add(cashPct);
+            legendColors.add("#f59f00");
         }
         if (cashDebtCount > 0) {
-            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0 + (summaryLine++ * 14.0)))
-                .append("\" text-anchor=\"middle\" font-size=\"11\" fill=\"#222\" font-weight=\"600\">")
-                .append(escapeHtml("Cash (Debt): -" + formatNumber(cashDebtValue, 2) + " kr (" + formatNumber(cashDebtPct, 1) + "%)"))
-                .append("</text>\n");
+            legendLabels.add("Cash (Debt)");
+            legendPcts.add(cashDebtPct);
+            legendColors.add("#e03131");
         }
         if (otherCount > 0) {
-            svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 14.0 + (summaryLine * 14.0)))
-                .append("\" text-anchor=\"middle\" font-size=\"9\" fill=\"#555\">")
-                .append(escapeHtml("Other: " + otherCount + " (" + formatNumber(otherPct, 1) + "%)"))
+            legendLabels.add("Other: " + otherCount);
+            legendPcts.add(otherPct);
+            legendColors.add("#868e96");
+        }
+
+        double legendYStart = 244.0;
+        for (int i = 0; i < legendLabels.size(); i++) {
+            double y = legendYStart + (i * 14.0);
+            svg.append("<circle cx=\"22\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
+                .append(legendColors.get(i)).append("\"/>\n");
+            svg.append("<text x=\"31\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"10\" fill=\"#2f2f2f\">")
+                .append(escapeHtml(legendLabels.get(i)))
+                .append("</text>\n");
+            svg.append("<text x=\"").append(svgNumber(width - 16.0)).append("\" y=\"").append(svgNumber(y))
+                .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#4a4a4a\">")
+                .append(escapeHtml(formatNumber(legendPcts.get(i), 1) + "%"))
                 .append("</text>\n");
         }
 
