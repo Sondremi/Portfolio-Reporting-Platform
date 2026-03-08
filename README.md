@@ -1,6 +1,6 @@
-# Portfolio Performance Tracker
+# Portfolio Report Generator
 
-Portfolio Performance Tracker is a Java tool that reads investment transactions from CSV files and generates a browser-based portfolio report. It gives you a consolidated view of current holdings, realized and unrealized return, dividends, detailed sale-trade history across both stocks and funds, and visual charts for total return and market value allocation.
+Portfolio Report Generator is a Java tool that reads investment transactions from CSV files and generates a browser-based portfolio report. It gives you a consolidated view of current holdings, realized and unrealized return, dividends, detailed sale-trade history across both stocks and funds, and visual charts for total return and market value allocation.
 
 ## Key Features
 - Reads all supported `.csv` files from `transaction_files/`
@@ -23,7 +23,7 @@ Portfolio Performance Tracker is a Java tool that reads investment transactions 
 
 ```bash
 javac src/*.java
-java -cp src PortfolioTracker
+java -cp src PortfolioReportGenerator
 ```
 
 The program generates `portfolio-report.html`.

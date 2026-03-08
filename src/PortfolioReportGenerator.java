@@ -29,7 +29,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class PortfolioTracker {
+public class PortfolioReportGenerator {
     private static final String INPUT_DIRECTORY = "transaction_files";
     private static final String OUTPUT_FILE = "portfolio-report.html";
 
@@ -591,7 +591,7 @@ public class PortfolioTracker {
         }
 
         sorted.sort(
-                Comparator.comparingInt(PortfolioTracker::getAssetPriority)
+                Comparator.comparingInt(PortfolioReportGenerator::getAssetPriority)
                         .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER)
         );
         return sorted;
@@ -626,7 +626,7 @@ public class PortfolioTracker {
         }
 
         soldSecurities.sort(
-                Comparator.comparingInt(PortfolioTracker::getAssetPriority)
+                Comparator.comparingInt(PortfolioReportGenerator::getAssetPriority)
                         .thenComparing(Security::getRealizedSalesValue, Comparator.reverseOrder())
                         .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER)
         );
