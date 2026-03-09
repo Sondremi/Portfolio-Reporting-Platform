@@ -1184,12 +1184,12 @@ public class PortfolioReportGenerator {
     }
 
     private static String buildHeaderSparklineSvg(ArrayList<OverviewRow> overviewRows) {
-        final double width = 320.0;
-        final double height = 60.0;
-        final double left = 30.0;
-        final double right = 8.0;
-        final double top = 4.0;
-        final double bottom = 12.0;
+        final double width = 620.0;
+        final double height = 72.0;
+        final double left = 20.0;
+        final double right = 0.0;
+        final double top = 8.0;
+        final double bottom = 10.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -1290,35 +1290,27 @@ public class PortfolioReportGenerator {
         }
 
         double axisY = top + plotHeight;
-        DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM yy", Locale.ENGLISH);
-        int[] tickIndices = count >= 4
-                ? new int[] {0, count / 3, (count * 2) / 3, count - 1}
-                : new int[] {0, count - 1};
+        DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
 
-        int previousIndex = -1;
-        for (int tickIndex : tickIndices) {
-            if (tickIndex < 0 || tickIndex >= count || tickIndex == previousIndex) {
-                continue;
-            }
-
-            svg.append("<line x1=\"").append(svgNumber(xValues[tickIndex])).append("\" y1=\"").append(svgNumber(axisY))
-                .append("\" x2=\"").append(svgNumber(xValues[tickIndex])).append("\" y2=\"").append(svgNumber(axisY + 2.8))
+        for (int i = 0; i < count; i++) {
+            svg.append("<line x1=\"").append(svgNumber(xValues[i])).append("\" y1=\"").append(svgNumber(axisY))
+                .append("\" x2=\"").append(svgNumber(xValues[i])).append("\" y2=\"").append(svgNumber(axisY + 2.8))
                 .append("\" stroke=\"#eaf2ff\" stroke-width=\"0.8\"/>\n");
+
             String tickAnchor = "middle";
-            double tickLabelX = xValues[tickIndex];
-            if (tickIndex == 0) {
+            double tickLabelX = xValues[i];
+            if (i == 0) {
                 tickAnchor = "start";
                 tickLabelX = Math.max(tickLabelX, left + 1.0);
-            } else if (tickIndex == count - 1) {
+            } else if (i == count - 1) {
                 tickAnchor = "end";
                 tickLabelX = Math.min(tickLabelX, left + plotWidth - 1.0);
             }
 
             svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 8.8))
-                .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"5.7\" fill=\"#eaf2ff\">")
-                .append(escapeHtml(points.get(tickIndex).monthEnd.format(axisMonthFormat)))
+                .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"5.2\" fill=\"#eaf2ff\">")
+                .append(escapeHtml(points.get(i).monthEnd.format(axisMonthFormat)))
                 .append("</text>\n");
-            previousIndex = tickIndex;
         }
 
         svg.append("</svg>\n");
@@ -1555,80 +1547,85 @@ public class PortfolioReportGenerator {
         writer.write("<!DOCTYPE html>\n");
         writer.write("<html lang=\"en\">\n");
         writer.write("<head>\n");
-        writer.write("  <meta charset=\"utf-8\">\n");
-        writer.write("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-        writer.write("  <title>Portfolio Report</title>\n");
-        writer.write("  <style>\n");
-        writer.write("    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #111; background: #f7f8fb; }\n");
-        writer.write("    h1 { margin: 0 0 20px 0; font-size: 26px; }\n");
-        writer.write("    h2 { margin: 28px 0 8px 0; font-size: 18px; }\n");
-        writer.write("    .report-hero { margin: 0 0 18px 0; padding: 16px 18px; border-radius: 10px; background: linear-gradient(135deg, #0b7285, #1c7ed6); color: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15); }\n");
-        writer.write("    .report-hero h1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; }\n");
-        writer.write("    .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
-        writer.write("    .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
-        writer.write("    .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: 12px; align-items: stretch; }\n");
-        writer.write("    .hero-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; grid-column: span 2; align-items: stretch; }\n");
-        writer.write("    .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; }\n");
-        writer.write("    .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; }\n");
-        writer.write("    .hero-card .label, .hero-spark-card .label { font-size: 11px; opacity: 0.9; }\n");
-        writer.write("    .hero-card .value { margin-top: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }\n");
-        writer.write("    .hero-card .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n");
-        writer.write("    .hero-card .subvalue { font-size: 12px; opacity: 0.95; }\n");
-        writer.write("    .hero-spark-card { display: flex; flex-direction: column; justify-content: stretch; padding: 6px 8px; height: 100%; min-height: 0; }\n");
-        writer.write("    .hero-spark-card .label { margin-bottom: 4px; }\n");
-        writer.write("    .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; height: 100%; display: flex; align-items: center; }\n");
-        writer.write("    .hero-sparkline { width: 100%; height: 100%; min-height: 0; max-height: 100%; display: block; }\n");
-        writer.write("    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
-        writer.write("    th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
-        writer.write("    .sale-trades-table { table-layout: fixed; }\n");
-        writer.write("    .sale-trades-table th, .sale-trades-table td { overflow: hidden; text-overflow: ellipsis; }\n");
-        writer.write("    th { background: #f3f3f3; font-weight: 600; }\n");
-        writer.write("    td.num { text-align: right; font-variant-numeric: tabular-nums; }\n");
-        writer.write("    td.text { text-align: left; }\n");
-        writer.write("    tr.total-row td { font-weight: 700; background: #fafafa; }\n");
-        writer.write("    tr.asset-split td { border-top: 2px solid #9a9a9a; }\n");
-        writer.write("    .muted { color: #666; font-size: 12px; margin-top: -8px; }\n");
-        writer.write("    .overview-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 8px 0 14px 0; align-items: stretch; }\n");
-        writer.write("    .overview-chart { border: 1px solid #d0d0d0; border-radius: 6px; background: #fff; padding: 10px; }\n");
-        writer.write("    .overview-chart h3 { margin: 0 0 8px 0; font-size: 15px; font-weight: 600; }\n");
-        writer.write("    .chart-svg { width: 100%; height: 350px; display: block; }\n");
-        writer.write("    .overview-chart.total-return-chart .chart-svg { height: 430px; }\n");
-        writer.write("    .overview-chart.allocation-card { margin-top: 12px; }\n");
-        writer.write("    .overview-chart.allocation-card .chart-svg { height: 230px; }\n");
-        writer.write("    .overview-chart.allocation-card .chart-svg.market-value-bar-chart { height: 290px; }\n");
-        writer.write("    .allocation-visuals { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }\n");
-        writer.write("    .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
-        writer.write("    .allocation-panel-title { margin: 0 0 6px 0; font-size: 13px; color: #2b2b2b; font-weight: 600; }\n");
-        writer.write("    .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel { grid-column: span 2; }\n");
-        writer.write("    .allocation-panel.security-pie-panel { grid-column: span 2; }\n");
-        writer.write("    .allocation-panel.security-bar-panel { grid-column: span 4; }\n");
-        writer.write("    @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-kpi-grid { grid-column: span 2; } .hero-spark-card { grid-column: span 2; } }\n");
-        writer.write("    @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-kpi-grid { grid-column: span 1; grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
-        writer.write("    @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
-        writer.write("    @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel, .allocation-panel.security-pie-panel, .allocation-panel.security-bar-panel { grid-column: span 1; } .allocation-panel.security-bar-panel { grid-column: span 2; } }\n");
-        writer.write("    @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } .allocation-panel.security-bar-panel { grid-column: span 1; } }\n");
-        writer.write("    @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
-        writer.write("  </style>\n");
+        writer.write(" <meta charset=\"utf-8\">\n");
+        writer.write(" <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+        writer.write(" <title>Portfolio Report</title>\n");
+        writer.write(" <style>\n");
+        writer.write(" body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #111; background: #f7f8fb; }\n");
+        writer.write(" h1 { margin: 0 0 20px 0; font-size: 26px; }\n");
+        writer.write(" h2 { margin: 28px 0 8px 0; font-size: 18px; }\n");
+        writer.write(" .report-hero { margin: 0 0 18px 0; padding: 16px 18px; border-radius: 10px; background: linear-gradient(135deg, #0b7285, #1c7ed6); color: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15); }\n");
+        writer.write(" .report-hero h1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; }\n");
+        writer.write(" .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
+        writer.write(" .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
+        writer.write(" .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(300px, 1fr) 2fr; gap: 12px; align-items: stretch; }\n");
+        writer.write(" .hero-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }\n");
+        writer.write(" .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; }\n");
+        writer.write(" .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; }\n");
+        writer.write(" .hero-card .label, .hero-spark-card .label { font-size: 11px; opacity: 0.9; }\n");
+        writer.write(" .hero-card .value { margin-top: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }\n");
+        writer.write(" .hero-card .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n");
+        writer.write(" .hero-card .subvalue { font-size: 12px; opacity: 0.95; }\n");
+        writer.write(" .hero-spark-card { display: flex; flex-direction: column; justify-content: center; padding: 9px 10px; padding-bottom: 12px; } /* padding-bottom gir luften nederst */\n");
+        writer.write(" .hero-spark-card .label { margin-bottom: 6px; }\n");
+        writer.write(" .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }\n");
+        writer.write(" .hero-sparkline { width: 100%; height: auto; max-height: 130px; display: block; } /* max-height hindrer overdreven høyde */\n");
+        writer.write(" table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
+        writer.write(" th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
+        writer.write(" .sale-trades-table { table-layout: fixed; }\n");
+        writer.write(" .sale-trades-table th, .sale-trades-table td { overflow: hidden; text-overflow: ellipsis; }\n");
+        writer.write(" th { background: #f3f3f3; font-weight: 600; }\n");
+        writer.write(" td.num { text-align: right; font-variant-numeric: tabular-nums; }\n");
+        writer.write(" td.text { text-align: left; }\n");
+        writer.write(" tr.total-row td { font-weight: 700; background: #fafafa; }\n");
+        writer.write(" tr.asset-split td { border-top: 2px solid #9a9a9a; }\n");
+        writer.write(" .muted { color: #666; font-size: 12px; margin-top: -8px; }\n");
+        writer.write(" .overview-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 8px 0 14px 0; align-items: stretch; }\n");
+        writer.write(" .overview-chart { border: 1px solid #d0d0d0; border-radius: 6px; background: #fff; padding: 10px; }\n");
+        writer.write(" .overview-chart h3 { margin: 0 0 8px 0; font-size: 15px; font-weight: 600; }\n");
+        writer.write(" .chart-svg { width: 100%; height: 350px; display: block; }\n");
+        writer.write(" .overview-chart.total-return-chart .chart-svg { height: 430px; }\n");
+        writer.write(" .overview-chart.allocation-card { margin-top: 12px; }\n");
+        writer.write(" .overview-chart.allocation-card .chart-svg { height: 230px; }\n");
+        writer.write(" .overview-chart.allocation-card .chart-svg.market-value-bar-chart { height: 290px; }\n");
+        writer.write(" .allocation-visuals { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }\n");
+        writer.write(" .allocation-panel { border: 1px solid #ececec; border-radius: 6px; padding: 6px; }\n");
+        writer.write(" .allocation-panel-title { margin: 0 0 6px 0; font-size: 13px; color: #2b2b2b; font-weight: 600; }\n");
+        writer.write(" .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel { grid-column: span 2; }\n");
+        writer.write(" .allocation-panel.security-pie-panel { grid-column: span 2; }\n");
+        writer.write(" .allocation-panel.security-bar-panel { grid-column: span 4; }\n");
+        writer.write(" @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-spark-card { grid-column: span 2; } }\n");
+        writer.write(" @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-kpi-grid { grid-column: span 1; grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
+        writer.write(" @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
+        writer.write(" @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel, .allocation-panel.security-pie-panel, .allocation-panel.security-bar-panel { grid-column: span 1; } .allocation-panel.security-bar-panel { grid-column: span 2; } }\n");
+        writer.write(" @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } .allocation-panel.security-bar-panel { grid-column: span 1; } }\n");
+        writer.write(" @media (max-width: 980px) { .overview-charts { grid-template-columns: 1fr; } }\n");
+        writer.write(" </style>\n");
         writer.write("</head>\n");
         writer.write("<body>\n");
-        writer.write("  <header class=\"report-hero\">\n");
-        writer.write("    <h1>Portfolio Report</h1>\n");
-        writer.write("    <div class=\"meta\"><span>Date: " + escapeHtml(generatedDate) + "</span><span>Files: " + summary.fileCount + "</span><span>Transactions: " + summary.transactionCount + "</span><span>Holdings: " + summary.holdingsCount + "</span></div>\n");
-        writer.write("    <div class=\"hero-grid\">\n");
-        writer.write("      <div class=\"hero-kpi-grid\">\n");
-        writer.write("        <div class=\"hero-kpi-col\">\n");
-        writer.write("          <div class=\"hero-card\"><div class=\"label\">Market Value</div><div class=\"value\">" + escapeHtml(totalMarketValueText) + "</div></div>\n");
-        writer.write("          <div class=\"hero-card\"><div class=\"label\">Best / Worst Holding</div><div class=\"name\">" + escapeHtml(summary.bestLabel) + "</div><div class=\"subvalue\">" + escapeHtml(bestReturnText) + "</div><div class=\"name\" style=\"margin-top:6px;\">" + escapeHtml(summary.worstLabel) + "</div><div class=\"subvalue\">" + escapeHtml(worstReturnText) + "</div></div>\n");
-        writer.write("        </div>\n");
-        writer.write("        <div class=\"hero-kpi-col\">\n");
-        writer.write("          <div class=\"hero-card\"><div class=\"label\">Cash Holdings</div><div class=\"value\">" + escapeHtml(cashHoldingsText) + "</div></div>\n");
-        writer.write("          <div class=\"hero-card\"><div class=\"label\">Total Return</div><div class=\"value\">" + escapeHtml(totalReturnText) + "</div></div>\n");
-        writer.write("          <div class=\"hero-card\"><div class=\"label\">Total Return (%)</div><div class=\"value\">" + escapeHtml(totalReturnPctText) + "</div></div>\n");
-        writer.write("        </div>\n");
-        writer.write("      </div>\n");
-        writer.write("      <div class=\"hero-spark-card\"><div class=\"label\">Portfolio Value (12M)</div><div class=\"hero-sparkline-wrap\">" + summary.sparklineSvg + "</div></div>\n");
-        writer.write("    </div>\n");
-        writer.write("  </header>\n");
+        writer.write(" <header class=\"report-hero\">\n");
+        writer.write(" <h1>Portfolio Report</h1>\n");
+        writer.write(" <div class=\"meta\"><span>Date: " + escapeHtml(generatedDate) + "</span><span>Files: " + summary.fileCount + "</span><span>Transactions: " + summary.transactionCount + "</span><span>Holdings: " + summary.holdingsCount + "</span></div>\n");
+        writer.write(" <div class=\"hero-grid\">\n");
+        writer.write("  <div class=\"hero-kpi-grid\">\n");
+        writer.write("   <div class=\"hero-kpi-col\">\n");
+        writer.write("    <div class=\"hero-card\"><div class=\"label\">Market Value</div><div class=\"value\">" + escapeHtml(totalMarketValueText) + "</div></div>\n");
+        writer.write("    <div class=\"hero-card\"><div class=\"label\">Best / Worst Holding</div><div class=\"name\">" + escapeHtml(summary.bestLabel) + "</div><div class=\"subvalue\">" + escapeHtml(bestReturnText) + "</div><div class=\"name\" style=\"margin-top:6px;\">" + escapeHtml(summary.worstLabel) + "</div><div class=\"subvalue\">" + escapeHtml(worstReturnText) + "</div></div>\n");
+        writer.write("   </div>\n");
+        writer.write("   <div class=\"hero-kpi-col\">\n");
+        writer.write("    <div class=\"hero-card\"><div class=\"label\">Cash Holdings</div><div class=\"value\">" + escapeHtml(cashHoldingsText) + "</div></div>\n");
+        writer.write("    <div class=\"hero-card\"><div class=\"label\">Total Return</div><div class=\"value\">" + escapeHtml(totalReturnText) + "</div></div>\n");
+        writer.write("    <div class=\"hero-card\"><div class=\"label\">Total Return (%)</div><div class=\"value\">" + escapeHtml(totalReturnPctText) + "</div></div>\n");
+        writer.write("   </div>\n");
+        writer.write("  </div>\n");
+        writer.write("  <div class=\"hero-spark-card\">\n");
+        writer.write("   <div class=\"label\">Portfolio Value (12M)</div>\n");
+        writer.write("   <div class=\"hero-sparkline-wrap\">\n");
+        writer.write("    " + summary.sparklineSvg + "\n");
+        writer.write("   </div>\n");
+        writer.write("  </div>\n");
+        writer.write(" </div>\n");
+        writer.write(" </header>\n");
     }
 
     private static void writeHtmlFooter(FileWriter writer) throws IOException {
