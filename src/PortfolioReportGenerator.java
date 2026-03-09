@@ -1185,11 +1185,11 @@ public class PortfolioReportGenerator {
 
     private static String buildHeaderSparklineSvg(ArrayList<OverviewRow> overviewRows) {
         final double width = 620.0;
-        final double height = 72.0;
-        final double left = 20.0;
-        final double right = 0.0;
-        final double top = 8.0;
-        final double bottom = 10.0;
+        final double height = 160.0;
+        final double left = 38.0;
+        final double right = 10.0;
+        final double top = 14.0;
+        final double bottom = 30.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -1242,11 +1242,11 @@ public class PortfolioReportGenerator {
 
         String maxText = formatCompactKroner(maxValue);
         String minText = formatCompactKroner(minValue);
-        svg.append("<text x=\"").append(svgNumber(left - 5.0)).append("\" y=\"").append(svgNumber(top + 1.0))
-            .append("\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"6\" fill=\"#eaf2ff\">")
+        svg.append("<text x=\"").append(svgNumber(left - 6.0)).append("\" y=\"").append(svgNumber(top + 1.0))
+            .append("\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"8\" fill=\"#eaf2ff\">")
             .append(escapeHtml(maxText)).append("</text>\n");
-        svg.append("<text x=\"").append(svgNumber(left - 5.0)).append("\" y=\"").append(svgNumber(top + plotHeight))
-            .append("\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"6\" fill=\"#eaf2ff\">")
+        svg.append("<text x=\"").append(svgNumber(left - 6.0)).append("\" y=\"").append(svgNumber(top + plotHeight))
+            .append("\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"8\" fill=\"#eaf2ff\">")
             .append(escapeHtml(minText)).append("</text>\n");
 
         double[] xValues = new double[count];
@@ -1307,8 +1307,8 @@ public class PortfolioReportGenerator {
                 tickLabelX = Math.min(tickLabelX, left + plotWidth - 1.0);
             }
 
-            svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 8.8))
-                .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"5.2\" fill=\"#eaf2ff\">")
+            svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 13.0))
+                .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"7\" fill=\"#eaf2ff\">")
                 .append(escapeHtml(points.get(i).monthEnd.format(axisMonthFormat)))
                 .append("</text>\n");
         }
@@ -1558,18 +1558,18 @@ public class PortfolioReportGenerator {
         writer.write(" .report-hero h1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; }\n");
         writer.write(" .report-hero .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; opacity: 0.95; }\n");
         writer.write(" .report-hero .meta span { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 3px 10px; }\n");
-        writer.write(" .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(300px, 1fr) 2fr; gap: 12px; align-items: stretch; }\n");
-        writer.write(" .hero-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }\n");
-        writer.write(" .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; }\n");
-        writer.write(" .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; }\n");
+        writer.write(" .hero-grid { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.9fr); gap: 12px; align-items: stretch; }\n");
+        writer.write(" .hero-kpi-grid { display: contents; }\n");
+        writer.write(" .hero-kpi-col { display: grid; gap: 10px; align-content: stretch; min-width: 0; }\n");
+        writer.write(" .hero-card, .hero-spark-card { border: 1px solid rgba(255,255,255,0.28); border-radius: 8px; background: rgba(255,255,255,0.12); padding: 9px 10px; min-width: 0; box-sizing: border-box; }\n");
         writer.write(" .hero-card .label, .hero-spark-card .label { font-size: 11px; opacity: 0.9; }\n");
         writer.write(" .hero-card .value { margin-top: 4px; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }\n");
         writer.write(" .hero-card .name { font-size: 12px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n");
         writer.write(" .hero-card .subvalue { font-size: 12px; opacity: 0.95; }\n");
-        writer.write(" .hero-spark-card { display: flex; flex-direction: column; justify-content: center; padding: 9px 10px; padding-bottom: 12px; } /* padding-bottom gir luften nederst */\n");
+        writer.write(" .hero-spark-card { display: flex; flex-direction: column; justify-content: flex-start; padding: 9px 10px; }\n");
         writer.write(" .hero-spark-card .label { margin-bottom: 6px; }\n");
-        writer.write(" .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }\n");
-        writer.write(" .hero-sparkline { width: 100%; height: auto; max-height: 130px; display: block; } /* max-height hindrer overdreven høyde */\n");
+        writer.write(" .hero-sparkline-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: flex-start; justify-content: stretch; }\n");
+        writer.write(" .hero-sparkline { width: 100%; height: auto; max-height: 260px; display: block; }\n");
         writer.write(" table { border-collapse: collapse; width: 100%; margin: 8px 0 18px 0; table-layout: auto; }\n");
         writer.write(" th, td { border: 1px solid #d0d0d0; padding: 6px 8px; font-size: 13px; text-align: left; white-space: nowrap; }\n");
         writer.write(" .sale-trades-table { table-layout: fixed; }\n");
@@ -1594,8 +1594,7 @@ public class PortfolioReportGenerator {
         writer.write(" .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel { grid-column: span 2; }\n");
         writer.write(" .allocation-panel.security-pie-panel { grid-column: span 2; }\n");
         writer.write(" .allocation-panel.security-bar-panel { grid-column: span 4; }\n");
-        writer.write(" @media (max-width: 1200px) { .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero-spark-card { grid-column: span 2; } }\n");
-        writer.write(" @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } .hero-kpi-grid { grid-column: span 1; grid-template-columns: 1fr; } .hero-spark-card { grid-column: span 1; } }\n");
+        writer.write(" @media (max-width: 920px) { .hero-grid { grid-template-columns: 1fr; } .hero-kpi-grid { display: grid; grid-template-columns: 1fr; gap: 10px; } }\n");
         writer.write(" @media (max-width: 700px) { .report-hero { padding: 14px; } .report-hero h1 { font-size: 22px; } }\n");
         writer.write(" @media (max-width: 1200px) { .allocation-visuals { grid-template-columns: repeat(2, minmax(0, 1fr)); } .allocation-panel.asset-type-panel, .allocation-panel.sector-panel, .allocation-panel.region-panel, .allocation-panel.security-pie-panel, .allocation-panel.security-bar-panel { grid-column: span 1; } .allocation-panel.security-bar-panel { grid-column: span 2; } }\n");
         writer.write(" @media (max-width: 980px) { .allocation-visuals { grid-template-columns: 1fr; } .allocation-panel.security-bar-panel { grid-column: span 1; } }\n");
