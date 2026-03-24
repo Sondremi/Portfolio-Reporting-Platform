@@ -24,6 +24,7 @@ import java.util.*;
 public class PortfolioCalculator {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final String DEFAULT_CURRENCY_CODE = "NOK";
     private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
 
@@ -110,9 +111,11 @@ public class PortfolioCalculator {
         OverviewRow best = null;
         OverviewRow worst = null;
         String bestLabel = "-";
+        String bestCurrencyCode = DEFAULT_CURRENCY_CODE;
         double bestReturn = 0.0;
         double bestReturnPct = 0.0;
         String worstLabel = "-";
+        String worstCurrencyCode = DEFAULT_CURRENCY_CODE;
         double worstReturn = 0.0;
         double worstReturnPct = 0.0;
 
@@ -132,11 +135,13 @@ public class PortfolioCalculator {
 
         if (best != null) {
             bestLabel = getOverviewRowLabel(best);
+            bestCurrencyCode = normalizeCurrencyCode(best.currencyCode);
             bestReturn = best.totalReturn;
             bestReturnPct = best.totalReturnPct;
         }
         if (worst != null) {
             worstLabel = getOverviewRowLabel(worst);
+            worstCurrencyCode = normalizeCurrencyCode(worst.currencyCode);
             worstReturn = worst.totalReturn;
             worstReturnPct = worst.totalReturnPct;
         }
@@ -155,9 +160,11 @@ public class PortfolioCalculator {
                 totalReturn,
                 totalReturnPct,
                 bestLabel,
+                bestCurrencyCode,
                 bestReturn,
                 bestReturnPct,
                 worstLabel,
+                worstCurrencyCode,
                 worstReturn,
                 worstReturnPct,
                 sparklineSvg
@@ -576,7 +583,7 @@ public class PortfolioCalculator {
 
     private static String mergeCurrencyCodes(String currentCurrencyCode, String nextCurrencyCode) {
         String next = (nextCurrencyCode == null || nextCurrencyCode.isBlank())
-                ? "NOK"
+                ? DEFAULT_CURRENCY_CODE
                 : nextCurrencyCode.trim().toUpperCase(Locale.ROOT);
 
         if (currentCurrencyCode == null || currentCurrencyCode.isBlank()) {
@@ -589,6 +596,18 @@ public class PortfolioCalculator {
             return currentCurrencyCode.toUpperCase(Locale.ROOT);
         }
         return "MIXED";
+    }
+
+    private static String normalizeCurrencyCode(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return DEFAULT_CURRENCY_CODE;
+        }
+
+        String normalized = currencyCode.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z]{3}")) {
+            return DEFAULT_CURRENCY_CODE;
+        }
+        return normalized;
     }
 
     private static int getAssetPriority(String assetType) {

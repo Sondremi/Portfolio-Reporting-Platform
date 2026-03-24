@@ -12,9 +12,11 @@ public class HeaderSummary {
     public final double totalReturn;
     public final double totalReturnPct;
     public final String bestLabel;
+    public final String bestCurrencyCode;
     public final double bestReturn;
     public final double bestReturnPct;
     public final String worstLabel;
+    public final String worstCurrencyCode;
     public final double worstReturn;
     public final double worstReturnPct;
     public final String sparklineSvg;
@@ -30,9 +32,11 @@ public class HeaderSummary {
             double totalReturn,
             double totalReturnPct,
             String bestLabel,
+            String bestCurrencyCode,
             double bestReturn,
             double bestReturnPct,
             String worstLabel,
+            String worstCurrencyCode,
             double worstReturn,
             double worstReturnPct,
             String sparklineSvg) {
@@ -47,9 +51,11 @@ public class HeaderSummary {
         this.totalReturn = totalReturn;
         this.totalReturnPct = totalReturnPct;
         this.bestLabel = bestLabel != null ? bestLabel : "-";
+        this.bestCurrencyCode = bestCurrencyCode != null ? bestCurrencyCode : "NOK";
         this.bestReturn = bestReturn;
         this.bestReturnPct = bestReturnPct;
         this.worstLabel = worstLabel != null ? worstLabel : "-";
+        this.worstCurrencyCode = worstCurrencyCode != null ? worstCurrencyCode : "NOK";
         this.worstReturn = worstReturn;
         this.worstReturnPct = worstReturnPct;
         this.sparklineSvg = sparklineSvg != null ? sparklineSvg : "";

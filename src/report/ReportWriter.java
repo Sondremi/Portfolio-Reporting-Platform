@@ -10,16 +10,21 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class ReportWriter {
 
     private static final DateTimeFormatter DETAIL_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final String DEFAULT_TOTAL_CURRENCY = "NOK";
 
     public static void writeHtmlReport(TransactionStore store, String outputFile) throws IOException {
         List<OverviewRow> overviewRows = PortfolioCalculator.buildOverviewRows(store);
+        Map<String, Double> ratesToNok = CurrencyConversionService.loadRatesToNok(collectCurrencies(store, overviewRows));
         HeaderSummary headerSummary = PortfolioCalculator.buildHeaderSummary(store, overviewRows);
 
         try (FileWriter writer = new FileWriter(outputFile)) {
@@ -49,6 +54,8 @@ public class ReportWriter {
             writer.write("        .hero-meta { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }\n");
             writer.write("        .meta-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; border:1px solid rgba(235,245,255,.28); background:rgba(255,255,255,.1); color:#d7e6f4; font-size:.84rem; font-weight:600; }\n");
             writer.write("        .meta-chip strong { color:#ffffff; font-weight:700; }\n");
+            writer.write("        .currency-input { width:56px; border:1px solid rgba(235,245,255,.45); border-radius:6px; background:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; padding:2px 6px; outline:none; }\n");
+            writer.write("        .currency-input:focus { border-color:#fff; background:rgba(255,255,255,.26); }\n");
             writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }\n");
             writer.write("        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n");
             writer.write("        .kpi-label { color:#c8d9eb; font-size:.8rem; text-transform:uppercase; }\n");
@@ -93,16 +100,16 @@ public class ReportWriter {
             writer.write("<main class=\"page\">\n");
 
             // Header Summary
-            writeHeaderSummaryHtml(writer, headerSummary);
+            writeHeaderSummaryHtml(writer, headerSummary, overviewRows, store, ratesToNok);
 
             // Overview Section
-            writeOverviewTableHtml(writer, overviewRows, store);
+            writeOverviewTableHtml(writer, overviewRows, store, ratesToNok);
 
             // Realized Overview
-            writeRealizedSummaryTableHtml(writer, store);
+            writeRealizedSummaryTableHtml(writer, store, ratesToNok);
 
             // Sale Trades Details
-            writeSaleTradesTablesHtml(writer, store);
+            writeSaleTradesTablesHtml(writer, store, ratesToNok);
 
             writer.write("</main>\n");
             writer.write("<script>\n");
@@ -113,14 +120,14 @@ public class ReportWriter {
             writer.write("  row.style.display = isOpen ? 'none' : 'table-row';\n");
             writer.write("  if (button) button.textContent = isOpen ? 'Show details' : 'Hide details';\n");
             writer.write("}\n");
+            writeCurrencyConversionScript(writer, ratesToNok);
             writer.write("</script>\n");
             writer.write("</body>\n");
             writer.write("</html>\n");
         }
     }
 
-    private static void writeHeaderSummaryHtml(FileWriter writer, HeaderSummary s) throws IOException {
-        String totalClass = s.totalReturn >= 0 ? "positive" : "negative";
+    private static void writeHeaderSummaryHtml(FileWriter writer, HeaderSummary s, List<OverviewRow> overviewRows, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         String bestClass = s.bestReturn >= 0 ? "positive" : "negative";
         String worstClass = s.worstReturn >= 0 ? "positive" : "negative";
 
@@ -132,12 +139,54 @@ public class ReportWriter {
         writer.write("<span class=\"meta-chip\">Files: <strong>" + s.fileCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Transactions: <strong>" + s.transactionCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Holdings: <strong>" + s.holdingsCount + "</strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Currency: <strong><input id=\"portfolio-currency-input\" class=\"currency-input\" type=\"text\" value=\"" + DEFAULT_TOTAL_CURRENCY + "\" maxlength=\"3\" autocomplete=\"off\" spellcheck=\"false\" title=\"Skriv valutakode (f.eks. NOK, USD) og trykk Enter\"></strong></span>\n");
         writer.write("</div>\n");
         writer.write("<div class=\"hero-kpis\">\n");
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Market Value</div><div class=\"kpi-value\">" + HtmlFormatter.formatMoney(s.totalMarketValue, s.totalCurrencyCode, 0) + "</div></article>\n");
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Cash Holdings</div><div class=\"kpi-value\">" + HtmlFormatter.formatMoney(s.cashHoldings, s.totalCurrencyCode, 0) + "</div></article>\n");
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Return</div><div class=\"kpi-value " + totalClass + "\">" + HtmlFormatter.formatMoney(s.totalReturn, s.totalCurrencyCode, 0) + "</div><div class=\"kpi-label " + totalClass + "\">" + HtmlFormatter.formatPercent(s.totalReturnPct) + "</div></article>\n");
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst</div><div class=\"performer " + bestClass + "\"><strong>" + escapeHtml(s.bestLabel) + "</strong><span class=\"performer-metrics\">" + HtmlFormatter.formatMoney(s.bestReturn, s.totalCurrencyCode, 0) + " | " + HtmlFormatter.formatPercent(s.bestReturnPct) + "</span></div><div class=\"performer " + worstClass + "\"><strong>" + escapeHtml(s.worstLabel) + "</strong><span class=\"performer-metrics\">" + HtmlFormatter.formatMoney(s.worstReturn, s.totalCurrencyCode, 0) + " | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
+        LinkedHashMap<String, Double> totalMarketBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalReturnBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalHistoricalCostBuckets = new LinkedHashMap<>();
+        for (OverviewRow row : overviewRows) {
+            addToCurrencyBuckets(totalMarketBuckets, row.currencyCode, row.marketValue);
+            addToCurrencyBuckets(totalReturnBuckets, row.currencyCode, row.totalReturn);
+            addToCurrencyBuckets(totalHistoricalCostBuckets, row.currencyCode, row.historicalCostBasis);
+        }
+
+        LinkedHashMap<String, Double> cashBuckets = new LinkedHashMap<>();
+        cashBuckets.put(DEFAULT_TOTAL_CURRENCY, store.getCurrentCashHoldings());
+
+        double totalReturnInDefaultCurrency = convertBucketsToTarget(totalReturnBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalHistoricalCostInDefaultCurrency = convertBucketsToTarget(totalHistoricalCostBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalReturnPct = totalHistoricalCostInDefaultCurrency > 0.0
+            ? (totalReturnInDefaultCurrency / totalHistoricalCostInDefaultCurrency) * 100.0
+            : 0.0;
+        String totalClass = totalReturnInDefaultCurrency >= 0 ? "positive" : "negative";
+
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Market Value</div><div class=\"kpi-value js-convert-money\" data-buckets=\""
+            + escapeHtml(toBucketsJson(totalMarketBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalMarketBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div></article>\n");
+
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Cash Holdings</div><div class=\"kpi-value js-convert-money\" data-buckets=\""
+            + escapeHtml(toBucketsJson(cashBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(cashBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div></article>\n");
+
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Return</div><div class=\"kpi-value js-convert-money " + totalClass
+            + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalReturnBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalReturnBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div><div class=\"kpi-label " + totalClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct) + "</div></article>\n");
+
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst</div><div class=\"performer " + bestClass + "\"><strong>"
+            + escapeHtml(s.bestLabel)
+            + "</strong><span class=\"performer-metrics\"><span class=\"js-convert-money\" data-buckets=\""
+            + escapeHtml(toBucketsJson(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn)))
+            + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</span> | " + HtmlFormatter.formatPercent(s.bestReturnPct)
+            + "</span></div><div class=\"performer " + worstClass + "\"><strong>" + escapeHtml(s.worstLabel)
+            + "</strong><span class=\"performer-metrics\"><span class=\"js-convert-money\" data-buckets=\""
+            + escapeHtml(toBucketsJson(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn)))
+            + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
         writer.write("</div></div>\n");
         writer.write("<aside class=\"hero-side\"><div class=\"hero-side-title\">Portfolio Value Last 12 Months</div>");
         if (s.sparklineSvg != null && !s.sparklineSvg.isBlank()) {
@@ -149,7 +198,7 @@ public class ReportWriter {
         writer.write("</section>\n");
     }
 
-    private static void writeOverviewTableHtml(FileWriter writer, List<OverviewRow> rows, TransactionStore store) throws IOException {
+    private static void writeOverviewTableHtml(FileWriter writer, List<OverviewRow> rows, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>PORTFOLIO OVERVIEW - CURRENT HOLDINGS</h2>\n");
         Map<String, Security> securityByKey = buildSecurityLookupByKey(store);
 
@@ -168,24 +217,22 @@ public class ReportWriter {
                 "Market Value", "Cost Basis", "Unrealized", "Unrealized (%)",
                 "Realized (%)", "Realized", "Dividends", "Total Return", "Total Return (%)");
 
-        double totalMarketValue = 0.0;
-        double totalCostBasis = 0.0;
-        double totalUnrealized = 0.0;
-        double totalRealized = 0.0;
-        double totalDividends = 0.0;
-        double totalHistoricalCost = 0.0;
-        String totalCurrencyCode = null;
+        LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalUnrealizedBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalDividendsBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalHistoricalCostBuckets = new LinkedHashMap<>();
         String previousAssetType = null;
 
         int detailsIndex = 0;
         for (OverviewRow row : rows) {
-            totalMarketValue += row.marketValue;
-            totalCostBasis += row.positionCostBasis;
-            totalUnrealized += row.unrealized;
-            totalRealized += row.realized;
-            totalDividends += row.dividends;
-            totalHistoricalCost += row.historicalCostBasis;
-            totalCurrencyCode = mergeCurrencyCodes(totalCurrencyCode, row.currencyCode);
+            addToCurrencyBuckets(totalMarketValueBuckets, row.currencyCode, row.marketValue);
+            addToCurrencyBuckets(totalCostBasisBuckets, row.currencyCode, row.positionCostBasis);
+            addToCurrencyBuckets(totalUnrealizedBuckets, row.currencyCode, row.unrealized);
+            addToCurrencyBuckets(totalRealizedBuckets, row.currencyCode, row.realized);
+            addToCurrencyBuckets(totalDividendsBuckets, row.currencyCode, row.dividends);
+            addToCurrencyBuckets(totalHistoricalCostBuckets, row.currencyCode, row.historicalCostBasis);
             String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
             String detailsRowId = "overview-details-" + detailsIndex;
             Security security = securityByKey.get(row.securityKey);
@@ -217,21 +264,28 @@ public class ReportWriter {
                     detailsIndex++;
         }
 
-        double totalReturn = totalUnrealized + totalRealized + totalDividends;
-        double totalReturnPct = totalHistoricalCost > 0 ? (totalReturn / totalHistoricalCost) * 100.0 : 0.0;
-        double totalUnrealizedPct = totalCostBasis > 0 ? (totalUnrealized / totalCostBasis) * 100.0 : 0.0;
-        double totalRealizedPct = totalCostBasis > 0 ? (totalRealized / totalCostBasis) * 100.0 : 0.0;
+        LinkedHashMap<String, Double> totalReturnBuckets = sumCurrencyBuckets(totalUnrealizedBuckets, totalRealizedBuckets, totalDividendsBuckets);
+
+        double totalReturnForPct = convertBucketsToTarget(totalReturnBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalHistoricalCostForPct = convertBucketsToTarget(totalHistoricalCostBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalUnrealizedForPct = convertBucketsToTarget(totalUnrealizedBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedForPct = convertBucketsToTarget(totalRealizedBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+
+        double totalReturnPct = totalHistoricalCostForPct > 0 ? (totalReturnForPct / totalHistoricalCostForPct) * 100.0 : 0.0;
+        double totalUnrealizedPct = totalCostBasisForPct > 0 ? (totalUnrealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
+        double totalRealizedPct = totalCostBasisForPct > 0 ? (totalRealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalMarketValue, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalCostBasis, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalUnrealized, totalCurrencyCode, 2) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalUnrealizedBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</td>\n");
         writer.write("    <td>" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalRealized, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalDividends, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalReturn, totalCurrencyCode, 2) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalDividendsBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalReturnBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</td>\n");
         writer.write("</tr>\n");
 
@@ -264,17 +318,16 @@ public class ReportWriter {
         writer.write("</section>\n");
     }
 
-    private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store) throws IOException {
+    private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table>\n");
         writeHtmlRow(writer, true, "Ticker", "Security", "Sales Value", "Cost Basis", "Realized Gain/Loss", "Dividends", "Return (%)");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
-        double totalSalesValue = 0.0;
-        double totalCostBasis = 0.0;
-        double totalRealizedGain = 0.0;
-        double totalRealizedDividends = 0.0;
-        String totalCurrencyCode = null;
+        LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedGainBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedDividendsBuckets = new LinkedHashMap<>();
         String previousAssetType = null;
 
         for (Security security : soldSecurities) {
@@ -287,11 +340,10 @@ public class ReportWriter {
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
 
-            totalSalesValue += salesValue;
-            totalCostBasis += costBasis;
-            totalRealizedGain += gain;
-            totalRealizedDividends += realizedDividends;
-            totalCurrencyCode = mergeCurrencyCodes(totalCurrencyCode, currency);
+            addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
+            addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
+            addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
+            addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
 
             writeHtmlRowWithClass(writer, rowClass,
                     security.getTicker(),
@@ -305,20 +357,24 @@ public class ReportWriter {
             previousAssetType = currentAssetType;
         }
 
-        double totalReturnPct = totalCostBasis > 0 ? (totalRealizedGain / totalCostBasis) * 100.0 : (totalRealizedGain > 0 ? 100.0 : 0.0);
+        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedGainForPct = convertBucketsToTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalReturnPct = totalCostBasisForPct > 0
+            ? (totalRealizedGainForPct / totalCostBasisForPct) * 100.0
+            : (totalRealizedGainForPct > 0 ? 100.0 : 0.0);
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalSalesValue, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalCostBasis, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalRealizedGain, totalCurrencyCode, 2) + "</td>\n");
-        writer.write("    <td>" + formatTotalMoney(totalRealizedDividends, totalCurrencyCode, 2) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</td>\n");
         writer.write("</tr>\n");
 
         writer.write("</table>\n</div>\n\n");
     }
 
-    private static void writeSaleTradesTablesHtml(FileWriter writer, TransactionStore store) throws IOException {
+    private static void writeSaleTradesTablesHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
 
         for (Security security : soldSecurities) {
@@ -349,9 +405,9 @@ public class ReportWriter {
                 writer.write("    <td><strong>TOTAL</strong></td>\n");
                 writer.write("    <td>" + HtmlFormatter.formatUnits(totalUnits) + "</td>\n");
                 writer.write("    <td></td>\n");
-                writer.write("    <td>" + HtmlFormatter.formatMoney(totalSaleValue, currency, 0) + "</td>\n");
-                writer.write("    <td>" + HtmlFormatter.formatMoney(totalCostBasis, currency, 0) + "</td>\n");
-                writer.write("    <td>" + HtmlFormatter.formatMoney(totalGainLoss, currency, 0) + "</td>\n");
+                writer.write("    <td>" + renderConvertibleMoneyCell(singleCurrencyBuckets(currency, totalSaleValue), 0, ratesToNok) + "</td>\n");
+                writer.write("    <td>" + renderConvertibleMoneyCell(singleCurrencyBuckets(currency, totalCostBasis), 0, ratesToNok) + "</td>\n");
+                writer.write("    <td>" + renderConvertibleMoneyCell(singleCurrencyBuckets(currency, totalGainLoss), 0, ratesToNok) + "</td>\n");
                 writer.write("    <td>" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</td>\n");
                 writer.write("</tr>\n");
 
@@ -545,28 +601,194 @@ public class ReportWriter {
         };
     }
 
-    private static String mergeCurrencyCodes(String currentCurrencyCode, String nextCurrencyCode) {
-        String next = (nextCurrencyCode == null || nextCurrencyCode.isBlank())
-                ? "NOK"
-                : nextCurrencyCode.trim().toUpperCase(Locale.ROOT);
+    private static Set<String> collectCurrencies(TransactionStore store, List<OverviewRow> overviewRows) {
+        LinkedHashSet<String> currencies = new LinkedHashSet<>();
+        currencies.add(DEFAULT_TOTAL_CURRENCY);
 
-        if (currentCurrencyCode == null || currentCurrencyCode.isBlank()) {
-            return next;
+        for (OverviewRow row : overviewRows) {
+            currencies.add(normalizeCurrencyCode(row.currencyCode));
         }
-        if ("MIXED".equals(currentCurrencyCode)) {
-            return currentCurrencyCode;
+
+        for (Security security : store.getSecurities()) {
+            currencies.add(normalizeCurrencyCode(security.getCurrencyCode()));
         }
-        if (currentCurrencyCode.equalsIgnoreCase(next)) {
-            return currentCurrencyCode.toUpperCase(Locale.ROOT);
-        }
-        return "MIXED";
+
+        return currencies;
     }
 
-    private static String formatTotalMoney(double value, String aggregateCurrencyCode, int decimals) {
-        if (aggregateCurrencyCode == null || aggregateCurrencyCode.isBlank() || "MIXED".equals(aggregateCurrencyCode)) {
-            return String.format(Locale.US, "%,." + decimals + "f mixed", value);
+    private static String normalizeCurrencyCode(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return DEFAULT_TOTAL_CURRENCY;
         }
-        return HtmlFormatter.formatMoney(value, aggregateCurrencyCode, decimals);
+
+        String normalized = currencyCode.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z]{3}")) {
+            return DEFAULT_TOTAL_CURRENCY;
+        }
+        return normalized;
+    }
+
+    private static void addToCurrencyBuckets(Map<String, Double> buckets, String currencyCode, double amount) {
+        String code = normalizeCurrencyCode(currencyCode);
+        buckets.merge(code, amount, Double::sum);
+    }
+
+    private static LinkedHashMap<String, Double> singleCurrencyBuckets(String currencyCode, double amount) {
+        LinkedHashMap<String, Double> buckets = new LinkedHashMap<>();
+        addToCurrencyBuckets(buckets, currencyCode, amount);
+        return buckets;
+    }
+
+    @SafeVarargs
+    private static LinkedHashMap<String, Double> sumCurrencyBuckets(Map<String, Double>... bucketSets) {
+        LinkedHashMap<String, Double> merged = new LinkedHashMap<>();
+        if (bucketSets == null) {
+            return merged;
+        }
+
+        for (Map<String, Double> bucketSet : bucketSets) {
+            if (bucketSet == null) {
+                continue;
+            }
+
+            for (Map.Entry<String, Double> entry : bucketSet.entrySet()) {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                addToCurrencyBuckets(merged, entry.getKey(), entry.getValue());
+            }
+        }
+
+        return merged;
+    }
+
+    private static String toBucketsJson(Map<String, Double> buckets) {
+        StringBuilder json = new StringBuilder();
+        json.append("{");
+
+        boolean first = true;
+        for (Map.Entry<String, Double> entry : buckets.entrySet()) {
+            String code = normalizeCurrencyCode(entry.getKey());
+            double amount = entry.getValue() == null ? 0.0 : entry.getValue();
+
+            if (!first) {
+                json.append(",");
+            }
+            first = false;
+            json.append("\"").append(code).append("\":")
+                    .append(String.format(Locale.US, "%.8f", amount));
+        }
+
+        json.append("}");
+        return json.toString();
+    }
+
+    private static double convertBucketsToTarget(Map<String, Double> buckets, String targetCurrency, Map<String, Double> ratesToNok) {
+        if (buckets == null || buckets.isEmpty()) {
+            return 0.0;
+        }
+
+        String target = normalizeCurrencyCode(targetCurrency);
+        double targetRateToNok = ratesToNok.getOrDefault(target, 0.0);
+        if (targetRateToNok <= 0.0) {
+            return 0.0;
+        }
+
+        double totalInNok = 0.0;
+        for (Map.Entry<String, Double> entry : buckets.entrySet()) {
+            String source = normalizeCurrencyCode(entry.getKey());
+            double amount = entry.getValue() == null ? 0.0 : entry.getValue();
+
+            double sourceRateToNok = ratesToNok.getOrDefault(source, 0.0);
+            if (sourceRateToNok <= 0.0) {
+                continue;
+            }
+            totalInNok += amount * sourceRateToNok;
+        }
+
+        return totalInNok / targetRateToNok;
+    }
+
+    private static String formatBucketsInTarget(Map<String, Double> buckets, String targetCurrency, int decimals, Map<String, Double> ratesToNok) {
+        String target = normalizeCurrencyCode(targetCurrency);
+        double amount = convertBucketsToTarget(buckets, target, ratesToNok);
+        return HtmlFormatter.formatMoney(amount, target, decimals);
+    }
+
+    private static String renderConvertibleMoneyCell(Map<String, Double> buckets, int decimals, Map<String, Double> ratesToNok) {
+        return "<span class=\"js-convert-money\" data-buckets=\""
+                + escapeHtml(toBucketsJson(buckets))
+                + "\" data-decimals=\""
+                + decimals
+                + "\">"
+                + formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, decimals, ratesToNok)
+                + "</span>";
+    }
+
+    private static void writeCurrencyConversionScript(FileWriter writer, Map<String, Double> ratesToNok) throws IOException {
+        writer.write("const REPORT_RATES_TO_NOK = " + CurrencyConversionService.toJson(ratesToNok) + ";\n");
+        writer.write("function normalizeCurrencyCodeInput(value) {\n");
+        writer.write("  return String(value || '').trim().toUpperCase();\n");
+        writer.write("}\n");
+        writer.write("function formatGroupedNumber(value, decimals) {\n");
+        writer.write("  var fixed = Number(value || 0).toFixed(decimals);\n");
+        writer.write("  var parts = fixed.split('.');\n");
+        writer.write("  var whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ' ');\n");
+        writer.write("  return decimals > 0 ? whole + '.' + parts[1] : whole;\n");
+        writer.write("}\n");
+        writer.write("function formatMoneyValue(amount, currency, decimals) {\n");
+        writer.write("  return formatGroupedNumber(amount, decimals) + ' ' + currency;\n");
+        writer.write("}\n");
+        writer.write("function convertBucketsToCurrency(buckets, targetCurrency) {\n");
+        writer.write("  var target = normalizeCurrencyCodeInput(targetCurrency);\n");
+        writer.write("  var targetRate = REPORT_RATES_TO_NOK[target];\n");
+        writer.write("  if (!targetRate || targetRate <= 0) return null;\n");
+        writer.write("  var totalNok = 0;\n");
+        writer.write("  for (var code in buckets) {\n");
+        writer.write("    if (!Object.prototype.hasOwnProperty.call(buckets, code)) continue;\n");
+        writer.write("    var sourceRate = REPORT_RATES_TO_NOK[normalizeCurrencyCodeInput(code)];\n");
+        writer.write("    if (!sourceRate || sourceRate <= 0) continue;\n");
+        writer.write("    totalNok += Number(buckets[code] || 0) * sourceRate;\n");
+        writer.write("  }\n");
+        writer.write("  return totalNok / targetRate;\n");
+        writer.write("}\n");
+        writer.write("function refreshReportTotalsCurrency(targetCurrency) {\n");
+        writer.write("  var target = normalizeCurrencyCodeInput(targetCurrency);\n");
+        writer.write("  if (!REPORT_RATES_TO_NOK[target]) return false;\n");
+        writer.write("  var fields = document.querySelectorAll('.js-convert-money');\n");
+        writer.write("  fields.forEach(function (field) {\n");
+        writer.write("    var raw = field.getAttribute('data-buckets');\n");
+        writer.write("    if (!raw) return;\n");
+        writer.write("    try {\n");
+        writer.write("      var buckets = JSON.parse(raw);\n");
+        writer.write("      var decimals = Number(field.getAttribute('data-decimals') || '2');\n");
+        writer.write("      var converted = convertBucketsToCurrency(buckets, target);\n");
+        writer.write("      if (converted == null) return;\n");
+        writer.write("      field.textContent = formatMoneyValue(converted, target, decimals);\n");
+        writer.write("    } catch (e) {\n");
+        writer.write("      // Keep existing content if parsing fails.\n");
+        writer.write("    }\n");
+        writer.write("  });\n");
+        writer.write("  return true;\n");
+        writer.write("}\n");
+        writer.write("(function initReportCurrencyInput() {\n");
+        writer.write("  var input = document.getElementById('portfolio-currency-input');\n");
+        writer.write("  if (!input) return;\n");
+        writer.write("  input.addEventListener('keydown', function (event) {\n");
+        writer.write("    if (event.key !== 'Enter') return;\n");
+        writer.write("    event.preventDefault();\n");
+        writer.write("    var target = normalizeCurrencyCodeInput(input.value);\n");
+        writer.write("    if (!target) { target = '" + DEFAULT_TOTAL_CURRENCY + "'; }\n");
+        writer.write("    if (!refreshReportTotalsCurrency(target)) {\n");
+        writer.write("      window.alert('No exchange rate available for ' + target + '. Try one of: ' + Object.keys(REPORT_RATES_TO_NOK).join(', '));\n");
+        writer.write("      input.value = '" + DEFAULT_TOTAL_CURRENCY + "';\n");
+        writer.write("      refreshReportTotalsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
+        writer.write("      return;\n");
+        writer.write("    }\n");
+        writer.write("    input.value = target;\n");
+        writer.write("  });\n");
+        writer.write("  refreshReportTotalsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
+        writer.write("})();\n");
     }
 
     private static String escapeHtml(String text) {
