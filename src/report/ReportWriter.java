@@ -83,6 +83,9 @@ public class ReportWriter {
             writer.write("        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:98%; }\n");
             writer.write("        .expand-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; padding:4px 8px; font-size:.78rem; font-weight:600; cursor:pointer; }\n");
             writer.write("        .expand-btn:hover { background:#e6f1fb; }\n");
+            writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");
+            writer.write("        .detail-group-toggle { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:50%; width:18px; height:18px; padding:0; line-height:16px; font-size:.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }\n");
+            writer.write("        .detail-group-toggle:hover { background:#e6f1fb; }\n");
             writer.write("        .details-row { display:none; }\n");
             writer.write("        .details-cell { padding:0 !important; background:#f9fcff; }\n");
             writer.write("        .details-wrap { padding:10px 12px 12px; }\n");
@@ -116,6 +119,21 @@ public class ReportWriter {
             writer.write("  var isOpen = row.style.display === 'table-row';\n");
             writer.write("  row.style.display = isOpen ? 'none' : 'table-row';\n");
             writer.write("  if (button) button.textContent = isOpen ? 'Show details' : 'Hide details';\n");
+            writer.write("}\n");
+            writer.write("function toggleDetailGroup(groupName, button) {\n");
+            writer.write("  var rows = document.querySelectorAll('tr.details-row[data-group=\\\"' + groupName + '\\\"]');\n");
+            writer.write("  if (!rows.length) return;\n");
+            writer.write("  var allOpen = true;\n");
+            writer.write("  rows.forEach(function(row) { if (row.style.display !== 'table-row') allOpen = false; });\n");
+            writer.write("  var open = !allOpen;\n");
+            writer.write("  rows.forEach(function(row) {\n");
+            writer.write("    row.style.display = open ? 'table-row' : 'none';\n");
+            writer.write("    var rowId = row.id;\n");
+            writer.write("    if (!rowId) return;\n");
+            writer.write("    var rowButton = document.querySelector('button.expand-btn[data-target=\\\"' + rowId + '\\\"]');\n");
+            writer.write("    if (rowButton) rowButton.textContent = open ? 'Hide details' : 'Show details';\n");
+            writer.write("  });\n");
+            writer.write("  if (button) button.textContent = open ? '▾' : '▸';\n");
             writer.write("}\n");
             writeCurrencyConversionScript(writer, ratesToNok);
             writer.write("</script>\n");
@@ -210,7 +228,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table>\n");
         writeHtmlRow(writer, true,
-                "Details", "Ticker", "Security", "Units", "Avg Cost", "Last Price",
+            buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Units", "Avg Cost", "Last Price",
                 "Market Value", "Cost Basis", "Unrealized", "Unrealized (%)",
                 "Realized (%)", "Realized", "Dividends", "Total Return", "Total Return (%)");
 
@@ -235,7 +253,7 @@ public class ReportWriter {
             Security security = securityByKey.get(row.securityKey);
 
             writeHtmlRowWithClass(writer, rowClass,
-                "<button class=\"expand-btn\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show details</button>",
+                "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show details</button>",
                     row.tickerText,
                     row.securityDisplayName,
                     HtmlFormatter.formatUnits(row.units),
@@ -251,7 +269,7 @@ public class ReportWriter {
                     HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2),
                     HtmlFormatter.formatPercent(row.totalReturnPct, 2));
 
-                    writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\">\n");
+                    writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
                     writer.write("    <td class=\"details-cell\" colspan=\"15\">\n");
                     writer.write(buildHoldingDetailsTableHtml(security, row));
                     writer.write("    </td>\n");
@@ -318,7 +336,7 @@ public class ReportWriter {
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table>\n");
-        writeHtmlRow(writer, true, "Details", "Ticker", "Security", "Sales Value", "Cost Basis", "Realized Gain/Loss", "Dividends", "Return (%)");
+        writeHtmlRow(writer, true, buildDetailsHeaderCell("realized-details"), "Ticker", "Security", "Sales Value", "Cost Basis", "Realized Gain/Loss", "Dividends", "Return (%)");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
@@ -344,8 +362,8 @@ public class ReportWriter {
             addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
                 String detailsRowId = "realized-details-" + detailsIndex;
 
-            writeHtmlRowWithClass(writer, rowClass,
-                    "<button class=\"expand-btn\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show details</button>",
+                writeHtmlRowWithClass(writer, rowClass,
+                    "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show details</button>",
                     security.getTicker(),
                     security.getDisplayName(),
                     HtmlFormatter.formatMoney(salesValue, currency, 2),
@@ -354,7 +372,7 @@ public class ReportWriter {
                     HtmlFormatter.formatMoney(realizedDividends, currency, 2),
                     HtmlFormatter.formatPercent(returnPct, 2));
 
-                writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\">\n");
+                writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
                 writer.write("    <td class=\"details-cell\" colspan=\"8\">\n");
                 writer.write(buildRealizedSaleTradesDetailsHtml(security));
                 writer.write("    </td>\n");
@@ -576,6 +594,12 @@ public class ReportWriter {
                 .thenComparing(Security::getRealizedSalesValue, Comparator.reverseOrder())
                 .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER));
         return sold;
+    }
+
+    private static String buildDetailsHeaderCell(String groupName) {
+        return "<span class=\"details-head\">Details"
+            + "<button class=\"detail-group-toggle\" onclick=\"toggleDetailGroup('" + groupName + "', this)\" title=\"Expand/collapse all details\">▸</button>"
+            + "</span>";
     }
 
     private static void writeHtmlRow(FileWriter writer, boolean isHeader, String... cells) throws IOException {
