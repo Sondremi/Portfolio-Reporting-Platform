@@ -376,7 +376,7 @@ public class ChartBuilder {
         return svg.toString();
     }
 
-    public static String buildAssetTypeAllocationSvg(List<OverviewRow> rows, double rawCashValue) {
+    public static String buildAssetTypeAllocationSvg(List<OverviewRow> rows, double rawCashValue, Map<String, Double> ratesToNok) {
         double stockValue = 0.0;
         double fundValue = 0.0;
         double cashValue = Math.max(0.0, rawCashValue);
@@ -389,18 +389,19 @@ public class ChartBuilder {
         int otherCount = 0;
 
         for (OverviewRow row : rows) {
-            if (row.marketValue <= 0.0) continue;
+            double marketValueNok = convertToNok(row.marketValue, row.currencyCode, ratesToNok);
+            if (marketValueNok <= 0.0) continue;
             switch (row.assetType) {
                 case "STOCK" -> {
-                    stockValue += row.marketValue;
+                    stockValue += marketValueNok;
                     stockCount++;
                 }
                 case "FUND" -> {
-                    fundValue += row.marketValue;
+                    fundValue += marketValueNok;
                     fundCount++;
                 }
                 default -> {
-                    otherValue += row.marketValue;
+                    otherValue += marketValueNok;
                     otherCount++;
                 }
             }
@@ -456,8 +457,10 @@ public class ChartBuilder {
         if (values.size() == 1) {
             svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
                     .append("\" r=\"").append(svgNumber(radius)).append("\" fill=\"").append(colors.get(0)).append("\">\n")
-                    .append("<title>")
-                    .append(escapeHtml(labels.get(0) + ": " + formatNumber(values.get(0), 2) + " kr (100.0%)"))
+                    .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(values.get(0))).append("\" data-decimals=\"2\" data-prefix=\"")
+                    .append(escapeHtml(labels.get(0) + ": "))
+                    .append("\" data-suffix=\" (100.0%)\">")
+                    .append(escapeHtml(labels.get(0) + ": " + formatNumber(values.get(0), 2) + " NOK (100.0%)"))
                     .append("</title></circle>\n");
         } else {
             double currentAngle = -Math.PI / 2.0;
@@ -479,9 +482,11 @@ public class ChartBuilder {
                         .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                         .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                         .append(" Z\" fill=\"").append(color).append("\">\n")
-                        .append("<title>")
-                        .append(escapeHtml(labels.get(i) + ": " + formatNumber(value, 2) + " kr (" + formatNumber(fraction * 100.0, 1) + "%)"))
-                        .append("</title></path>\n");
+                    .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(value)).append("\" data-decimals=\"2\" data-prefix=\"")
+                    .append(escapeHtml(labels.get(i) + ": "))
+                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
+                    .append(escapeHtml(labels.get(i) + ": " + formatNumber(value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                    .append("</title></path>\n");
 
                 currentAngle = endAngle;
             }
@@ -558,16 +563,17 @@ public class ChartBuilder {
         return svg.toString();
     }
 
-    public static String buildSectorAllocationSvg(List<OverviewRow> rows) {
-        return buildCategoricalAllocationSvg(rows, true, "Sector Mix", "No sector data");
+    public static String buildSectorAllocationSvg(List<OverviewRow> rows, Map<String, Double> ratesToNok) {
+        return buildCategoricalAllocationSvg(rows, true, "Sector Mix", "No sector data", ratesToNok);
     }
 
-    public static String buildRegionAllocationSvg(List<OverviewRow> rows) {
-        return buildCategoricalAllocationSvg(rows, false, "Region Mix", "No region data");
+    public static String buildRegionAllocationSvg(List<OverviewRow> rows, Map<String, Double> ratesToNok) {
+        return buildCategoricalAllocationSvg(rows, false, "Region Mix", "No region data", ratesToNok);
     }
 
     private static String buildCategoricalAllocationSvg(List<OverviewRow> rows, boolean sectorChart,
-                                                        String centerTitle, String emptyMessage) {
+                                                        String centerTitle, String emptyMessage,
+                                                        Map<String, Double> ratesToNok) {
         final double width = 440.0;
         final double height = 330.0;
         final double centerX = width / 2.0;
@@ -577,7 +583,8 @@ public class ChartBuilder {
         LinkedHashMap<String, Double> valueByCategory = new LinkedHashMap<>();
         double totalMarketValue = 0.0;
         for (OverviewRow row : rows) {
-            if (row.marketValue <= 0.0) {
+            double marketValueNok = convertToNok(row.marketValue, row.currencyCode, ratesToNok);
+            if (marketValueNok <= 0.0) {
                 continue;
             }
 
@@ -599,11 +606,11 @@ public class ChartBuilder {
                         String sectorLabel = entry.getKey() == null || entry.getKey().isBlank()
                                 ? "Other"
                                 : entry.getKey();
-                        double weightedValue = row.marketValue * (weight / totalWeight);
+                        double weightedValue = marketValueNok * (weight / totalWeight);
                         valueByCategory.merge(sectorLabel, weightedValue, Double::sum);
                     }
 
-                    totalMarketValue += row.marketValue;
+                    totalMarketValue += marketValueNok;
                     continue;
                 }
             }
@@ -626,18 +633,18 @@ public class ChartBuilder {
                         String regionLabel = entry.getKey() == null || entry.getKey().isBlank()
                                 ? "Global"
                                 : entry.getKey();
-                        double weightedValue = row.marketValue * (weight / totalWeight);
+                        double weightedValue = marketValueNok * (weight / totalWeight);
                         valueByCategory.merge(regionLabel, weightedValue, Double::sum);
                     }
 
-                    totalMarketValue += row.marketValue;
+                    totalMarketValue += marketValueNok;
                     continue;
                 }
             }
 
             String category = sectorChart ? classifySector(row) : classifyRegion(row);
-            valueByCategory.merge(category, row.marketValue, Double::sum);
-            totalMarketValue += row.marketValue;
+            valueByCategory.merge(category, marketValueNok, Double::sum);
+            totalMarketValue += marketValueNok;
         }
 
         int maxBuckets = sectorChart ? 12 : 10;
@@ -676,8 +683,10 @@ public class ChartBuilder {
                     .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                     .append(" Z\" fill=\"").append(color).append("\">\n")
-                    .append("<title>")
-                    .append(escapeHtml(bucket.label + ": " + formatNumber(bucket.value, 2) + " kr (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                    .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(bucket.value)).append("\" data-decimals=\"2\" data-prefix=\"")
+                    .append(escapeHtml(bucket.label + ": "))
+                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
+                    .append(escapeHtml(bucket.label + ": " + formatNumber(bucket.value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
                     .append("</title></path>\n");
 
             currentAngle = endAngle;

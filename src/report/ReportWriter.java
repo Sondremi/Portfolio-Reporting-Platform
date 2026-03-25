@@ -312,13 +312,13 @@ public class ReportWriter {
         writer.write("<div class=\"allocation-visuals\">\n");
         writer.write("<div class=\"allocation-row allocation-row-top\">\n");
         writer.write("<div class=\"allocation-panel asset-type-panel\"><h4 class=\"allocation-panel-title\">By Asset Type</h4>\n");
-        writer.write(ChartBuilder.buildAssetTypeAllocationSvg(rows, store.getCurrentCashHoldings()));
+        writer.write(ChartBuilder.buildAssetTypeAllocationSvg(rows, store.getCurrentCashHoldings(), ratesToNok));
         writer.write("</div>\n");
         writer.write("<div class=\"allocation-panel sector-panel\"><h4 class=\"allocation-panel-title\">By Sector</h4>\n");
-        writer.write(ChartBuilder.buildSectorAllocationSvg(rows));
+        writer.write(ChartBuilder.buildSectorAllocationSvg(rows, ratesToNok));
         writer.write("</div>\n");
         writer.write("<div class=\"allocation-panel region-panel\"><h4 class=\"allocation-panel-title\">By Region</h4>\n");
-        writer.write(ChartBuilder.buildRegionAllocationSvg(rows));
+        writer.write(ChartBuilder.buildRegionAllocationSvg(rows, ratesToNok));
         writer.write("</div>\n");
         writer.write("</div>\n");
 
@@ -833,11 +833,13 @@ public class ReportWriter {
         writer.write("    var valueNok = Number(node.getAttribute('data-value-nok') || '0');\n");
         writer.write("    var decimals = Number(node.getAttribute('data-decimals') || '0');\n");
         writer.write("    var prefix = node.getAttribute('data-prefix') || '';\n");
+        writer.write("    var suffix = node.getAttribute('data-suffix') || '';\n");
         writer.write("    var mode = node.getAttribute('data-format') || 'money';\n");
         writer.write("    var converted = valueNok / targetRate;\n");
         writer.write("    var text = mode === 'compact'\n");
         writer.write("      ? prefix + formatCompactMoney(converted, target)\n");
         writer.write("      : prefix + formatMoneyValue(converted, target, decimals);\n");
+        writer.write("    text += suffix;\n");
         writer.write("    node.textContent = text;\n");
         writer.write("  });\n");
         writer.write("  return true;\n");
