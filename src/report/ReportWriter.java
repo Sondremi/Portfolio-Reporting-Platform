@@ -66,6 +66,13 @@ public class ReportWriter {
             writer.write("        .hero-side { background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
             writer.write("        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin-bottom:8px; }\n");
             writer.write("        .hero-side-note { color:#d4e3f0; font-size:.92rem; }\n");
+            writer.write("        .sparkline-widget { display:block; }\n");
+            writer.write("        .sparkline-controls { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }\n");
+            writer.write("        .sparkline-range-btn { border:1px solid rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; border-radius:999px; padding:3px 8px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
+            writer.write("        .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n");
+            writer.write("        .sparkline-range-btn.is-active { background:#eaf4ff; color:#16344d; border-color:#ffffff; }\n");
+            writer.write("        .sparkline-panel { display:none; }\n");
+            writer.write("        .sparkline-panel.is-active { display:block; }\n");
             writer.write("        .overview-charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0 14px; }\n");
             writer.write("        .overview-chart { padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); overflow:hidden; }\n");
             writer.write("        .overview-chart h3 { margin:0 0 10px; font-size:1rem; }\n");
@@ -211,7 +218,7 @@ public class ReportWriter {
             + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
         writer.write("</div></div>\n");
-        writer.write("<aside class=\"hero-side\"><div class=\"hero-side-title\">Portfolio Value Last 12 Months</div>");
+        writer.write("<aside class=\"hero-side\"><div class=\"hero-side-title\">Portfolio Value Timeline</div>");
         if (s.sparklineSvg != null && !s.sparklineSvg.isBlank()) {
             writer.write(s.sparklineSvg);
         } else {
@@ -903,6 +910,30 @@ public class ReportWriter {
         writer.write("  });\n");
         writer.write("  window.addEventListener('scroll', hideTooltip, true);\n");
         writer.write("}\n");
+        writer.write("function initSparklineRangeControls() {\n");
+        writer.write("  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n");
+        writer.write("    var buttons = widget.querySelectorAll('.sparkline-range-btn');\n");
+        writer.write("    var panels = widget.querySelectorAll('.sparkline-panel');\n");
+        writer.write("    if (!buttons.length || !panels.length) return;\n");
+        writer.write("    function activate(range) {\n");
+        writer.write("      buttons.forEach(function(btn) {\n");
+        writer.write("        var on = btn.getAttribute('data-range') === range;\n");
+        writer.write("        btn.classList.toggle('is-active', on);\n");
+        writer.write("      });\n");
+        writer.write("      panels.forEach(function(panel) {\n");
+        writer.write("        var on = panel.getAttribute('data-range') === range;\n");
+        writer.write("        panel.classList.toggle('is-active', on);\n");
+        writer.write("      });\n");
+        writer.write("    }\n");
+        writer.write("    buttons.forEach(function(btn) {\n");
+        writer.write("      btn.addEventListener('click', function() {\n");
+        writer.write("        activate(btn.getAttribute('data-range'));\n");
+        writer.write("      });\n");
+        writer.write("    });\n");
+        writer.write("    var active = widget.querySelector('.sparkline-range-btn.is-active');\n");
+        writer.write("    activate(active ? active.getAttribute('data-range') : buttons[0].getAttribute('data-range'));\n");
+        writer.write("  });\n");
+        writer.write("}\n");
         writer.write("(function initReportCurrencyInput() {\n");
         writer.write("  var input = document.getElementById('portfolio-currency-input');\n");
         writer.write("  if (!input) return;\n");
@@ -922,6 +953,7 @@ public class ReportWriter {
         writer.write("  });\n");
         writer.write("  refreshReportTotalsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
         writer.write("  refreshReportChartsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
+        writer.write("  initSparklineRangeControls();\n");
         writer.write("  initChartHoverEffects();\n");
         writer.write("})();\n");
     }

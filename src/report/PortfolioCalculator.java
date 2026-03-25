@@ -147,7 +147,7 @@ public class PortfolioCalculator {
         }
 
         double totalReturnPct = totalHistoricalCostBasis > 0 ? (totalReturn / totalHistoricalCostBasis) * 100.0 : 0.0;
-        String sparklineSvg = buildPortfolioValueSparkline(store, ratesToNok);
+        String sparklineSvg = buildPortfolioValueSparklineWidget(store, ratesToNok);
 
         return new HeaderSummary(
                 LocalDate.now().format(DATE_FORMATTER),
@@ -171,9 +171,55 @@ public class PortfolioCalculator {
         );
     }
 
-    private static String buildPortfolioValueSparkline(TransactionStore store, Map<String, Double> ratesToNok) {
-        ArrayList<PortfolioValuePoint> points = buildPortfolioValueTimelineLast12Months(store, ratesToNok);
-        if (points.isEmpty()) {
+    private static String buildPortfolioValueSparklineWidget(TransactionStore store, Map<String, Double> ratesToNok) {
+        ArrayList<PortfolioValuePoint> allPoints = buildPortfolioValueTimeline(store, ratesToNok, 60);
+        if (allPoints.isEmpty()) {
+            return "";
+        }
+
+        LinkedHashMap<String, ArrayList<PortfolioValuePoint>> byRange = new LinkedHashMap<>();
+        byRange.put("1M", takeLastPoints(allPoints, 2));
+        byRange.put("3M", takeLastPoints(allPoints, 4));
+        byRange.put("6M", takeLastPoints(allPoints, 7));
+        byRange.put("1Y", takeLastPoints(allPoints, 12));
+        byRange.put("YTD", takeYearToDatePoints(allPoints));
+        byRange.put("3Y", takeLastPoints(allPoints, 36));
+        byRange.put("5Y", takeLastPoints(allPoints, 60));
+
+        String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"sparkline-widget\">\n");
+        html.append("<div class=\"sparkline-controls\">\n");
+        for (String range : byRange.keySet()) {
+            String active = range.equals(defaultRange) ? " is-active" : "";
+            html.append("<button type=\"button\" class=\"sparkline-range-btn")
+                .append(active)
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\">")
+                .append(range)
+                .append("</button>\n");
+        }
+        html.append("</div>\n");
+
+        for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
+            String range = entry.getKey();
+            ArrayList<PortfolioValuePoint> points = entry.getValue();
+            String active = range.equals(defaultRange) ? " is-active" : "";
+            html.append("<div class=\"sparkline-panel")
+                .append(active)
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\">\n")
+                .append(buildPortfolioValueSparkline(points))
+                .append("</div>\n");
+        }
+        html.append("</div>\n");
+        return html.toString();
+    }
+
+    private static String buildPortfolioValueSparkline(ArrayList<PortfolioValuePoint> points) {
+        if (points == null || points.isEmpty()) {
             return "";
         }
 
@@ -300,7 +346,44 @@ public class PortfolioCalculator {
         return prefix + String.format(Locale.US, "%.0f", absValue) + " NOK";
     }
 
-    private static ArrayList<PortfolioValuePoint> buildPortfolioValueTimelineLast12Months(TransactionStore store, Map<String, Double> ratesToNok) {
+    private static ArrayList<PortfolioValuePoint> takeLastPoints(ArrayList<PortfolioValuePoint> allPoints, int count) {
+        ArrayList<PortfolioValuePoint> selected = new ArrayList<>();
+        if (allPoints == null || allPoints.isEmpty()) {
+            return selected;
+        }
+
+        int safeCount = Math.max(2, count);
+        int from = Math.max(0, allPoints.size() - safeCount);
+        for (int i = from; i < allPoints.size(); i++) {
+            selected.add(allPoints.get(i));
+        }
+
+        if (selected.size() == 1 && allPoints.size() > 1) {
+            selected.add(0, allPoints.get(Math.max(0, from - 1)));
+        }
+        return selected;
+    }
+
+    private static ArrayList<PortfolioValuePoint> takeYearToDatePoints(ArrayList<PortfolioValuePoint> allPoints) {
+        ArrayList<PortfolioValuePoint> selected = new ArrayList<>();
+        if (allPoints == null || allPoints.isEmpty()) {
+            return selected;
+        }
+
+        int currentYear = LocalDate.now().getYear();
+        for (PortfolioValuePoint point : allPoints) {
+            if (point.monthEnd.getYear() == currentYear) {
+                selected.add(point);
+            }
+        }
+
+        if (selected.size() < 2) {
+            return takeLastPoints(allPoints, 2);
+        }
+        return selected;
+    }
+
+    private static ArrayList<PortfolioValuePoint> buildPortfolioValueTimeline(TransactionStore store, Map<String, Double> ratesToNok, int months) {
         ArrayList<PortfolioValuePoint> timeline = new ArrayList<>();
         List<Events.UnitEvent> unitEvents = store.getUnitEvents();
         List<Events.CashEvent> cashEvents = store.getCashEvents();
@@ -333,15 +416,16 @@ public class PortfolioCalculator {
         Map<String, Double> unitsBySecurity = new HashMap<>();
         Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache = new HashMap<>();
 
+        int monthCount = Math.max(2, months);
         YearMonth endMonth = YearMonth.now();
-        YearMonth startMonth = endMonth.minusMonths(11);
+        YearMonth startMonth = endMonth.minusMonths(monthCount - 1L);
         int unitEventIndex = 0;
         int cashEventIndex = 0;
         int[] cashSnapshotIndexRef = new int[]{0};
         double runningCash = 0.0;
         LinkedHashMap<String, Double> latestBalanceByPortfolio = new LinkedHashMap<>();
 
-        for (int monthOffset = 0; monthOffset < 12; monthOffset++) {
+        for (int monthOffset = 0; monthOffset < monthCount; monthOffset++) {
             YearMonth currentMonth = startMonth.plusMonths(monthOffset);
             LocalDate monthEnd = currentMonth.atEndOfMonth();
 
