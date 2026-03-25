@@ -126,7 +126,7 @@ public class ChartBuilder {
             String label = getOverviewRowLabel(row);
             String compactLabel = getCompactOverviewLabel(row);
 
-                svg.append("<rect x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(barY))
+                svg.append("<rect class=\"chart-hover-target chart-hover-bar\" x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(barY))
                     .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
                     .append("\" fill=\"").append(barColor).append("\" stroke=\"").append(barBorderColor)
                     .append("\" stroke-width=\"1.1\" rx=\"1\">\n");
@@ -242,7 +242,7 @@ public class ChartBuilder {
             String color = colors[i % colors.length];
             String label = getCompactBarLabel(row);
 
-            svg.append("<rect x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(y))
+                svg.append("<rect class=\"chart-hover-target chart-hover-bar\" x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(y))
                .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
                .append("\" fill=\"").append(color).append("\" rx=\"2\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(marketValueNok))
@@ -319,14 +319,16 @@ public class ChartBuilder {
             double y2 = centerY + radius * Math.sin(endAngle);
             int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
-            svg.append("<path d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                     .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                     .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                     .append(" Z\" fill=\"").append(color).append("\">\n")
-                    .append("<title>")
+                    .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(marketValueNok)).append("\" data-decimals=\"2\" data-prefix=\"")
+                    .append(escapeHtml(getOverviewRowLabel(row) + ": "))
+                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 2))).append("%)\">")
                     .append(escapeHtml(getOverviewRowLabel(row)
-                            + ": " + formatNumber(marketValueNok, 2) + " NOK (" + formatNumber(fraction * 100.0, 2) + "%)"))
+                        + ": " + formatNumber(marketValueNok, 2) + " NOK (" + formatNumber(fraction * 100.0, 2) + "%)"))
                     .append("</title></path>\n");
 
             double midAngle = currentAngle + (sliceAngle / 2.0);
@@ -455,7 +457,7 @@ public class ChartBuilder {
                 .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
 
         if (values.size() == 1) {
-            svg.append("<circle cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
+                svg.append("<circle class=\"chart-hover-target chart-hover-slice\" cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
                     .append("\" r=\"").append(svgNumber(radius)).append("\" fill=\"").append(colors.get(0)).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(values.get(0))).append("\" data-decimals=\"2\" data-prefix=\"")
                     .append(escapeHtml(labels.get(0) + ": "))
@@ -477,7 +479,7 @@ public class ChartBuilder {
                 double y2 = centerY + radius * Math.sin(endAngle);
                 int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
-                svg.append("<path d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                         .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                         .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                         .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
@@ -678,7 +680,7 @@ public class ChartBuilder {
             double y2 = centerY + radius * Math.sin(endAngle);
             int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
-            svg.append("<path d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                     .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                     .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))

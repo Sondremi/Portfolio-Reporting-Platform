@@ -242,8 +242,13 @@ public class PortfolioCalculator {
 
         DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
         for (int i = 0; i < n; i++) {
-            svg.append("<circle cx=\"").append(svgNumber(xValues[i])).append("\" cy=\"").append(svgNumber(yValues[i]))
-                    .append("\" r=\"2.2\" fill=\"#f1f6ff\"/>");
+            String monthLabel = points.get(i).monthEnd.format(axisMonthFormat);
+            svg.append("<circle class=\"chart-hover-target chart-hover-point\" cx=\"").append(svgNumber(xValues[i])).append("\" cy=\"").append(svgNumber(yValues[i]))
+                .append("\" r=\"2.2\" fill=\"#f1f6ff\">")
+                .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(points.get(i).value))
+                .append("\" data-format=\"compact\" data-prefix=\"").append(monthLabel).append(": \">")
+                .append(monthLabel).append(": ").append(formatCompactKroner(points.get(i).value))
+                .append("</title></circle>");
 
             svg.append("<line x1=\"").append(svgNumber(xValues[i])).append("\" y1=\"").append(svgNumber(axisY))
                     .append("\" x2=\"").append(svgNumber(xValues[i])).append("\" y2=\"").append(svgNumber(axisY + 2.8))
@@ -259,9 +264,9 @@ public class PortfolioCalculator {
                 tickLabelX = Math.min(tickLabelX, left + plotWidth - 1.0);
             }
 
-            svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 13.0))
+                svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 13.0))
                     .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"7\" fill=\"#eaf2ff\">")
-                    .append(points.get(i).monthEnd.format(axisMonthFormat))
+                    .append(monthLabel)
                     .append("</text>");
         }
 
@@ -284,15 +289,15 @@ public class PortfolioCalculator {
         double absValue = Math.abs(value);
         String prefix = value < 0.0 ? "-" : "";
         if (absValue >= 1_000_000_000.0) {
-            return prefix + String.format(Locale.US, "%.1f", absValue / 1_000_000_000.0) + "B kr";
+            return prefix + String.format(Locale.US, "%.1f", absValue / 1_000_000_000.0) + "B NOK";
         }
         if (absValue >= 1_000_000.0) {
-            return prefix + String.format(Locale.US, "%.1f", absValue / 1_000_000.0) + "M kr";
+            return prefix + String.format(Locale.US, "%.1f", absValue / 1_000_000.0) + "M NOK";
         }
         if (absValue >= 1_000.0) {
-            return prefix + String.format(Locale.US, "%.0f", absValue / 1_000.0) + "k kr";
+            return prefix + String.format(Locale.US, "%.0f", absValue / 1_000.0) + "k NOK";
         }
-        return prefix + String.format(Locale.US, "%.0f", absValue) + " kr";
+        return prefix + String.format(Locale.US, "%.0f", absValue) + " NOK";
     }
 
     private static ArrayList<PortfolioValuePoint> buildPortfolioValueTimelineLast12Months(TransactionStore store, Map<String, Double> ratesToNok) {
