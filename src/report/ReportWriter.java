@@ -80,7 +80,7 @@ public class ReportWriter {
             writer.write("        .allocation-panel-title { margin:0 0 6px; font-size:.84rem; text-transform:uppercase; color:#41576d; letter-spacing:.3px; }\n");
             writer.write("        .chart-svg { width:100%; height:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }\n");
             writer.write("        .allocation-panel .chart-svg { width:96%; margin:6px auto 10px; display:block; }\n");
-            writer.write("        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:98%; }\n");
+            writer.write("        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:100%; }\n");
             writer.write("        .expand-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; padding:4px 8px; font-size:.78rem; font-weight:600; cursor:pointer; }\n");
             writer.write("        .expand-btn:hover { background:#e6f1fb; }\n");
             writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");

@@ -177,10 +177,10 @@ public class PortfolioCalculator {
             return "";
         }
 
-        final double width = 540.0;
+        final double width = 500.0;
         final double height = 124.0;
-        final double left = 34.0;
-        final double right = 8.0;
+        final double left = 46.0;
+        final double right = 14.0;
         final double top = 8.0;
         final double bottom = 20.0;
         final double plotWidth = width - left - right;

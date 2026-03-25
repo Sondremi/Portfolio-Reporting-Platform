@@ -41,10 +41,10 @@ public class ChartBuilder {
     }
 
     public static String buildOverviewBarChartSvg(List<OverviewRow> rows, boolean percentChart, Map<String, Double> ratesToNok) {
-        final double width = 1100.0;
+        final double width = percentChart ? 1100.0 : 1040.0;
         final double height = 450.0;
-        final double left = 68.0;
-        final double right = 22.0;
+        final double left = percentChart ? 68.0 : 92.0;
+        final double right = percentChart ? 22.0 : 38.0;
         final double top = 14.0;
         final double bottom = 118.0;
         final double plotWidth = width - left - right;
@@ -164,10 +164,10 @@ public class ChartBuilder {
     }
 
     public static String buildMarketValueBarChartSvg(List<OverviewRow> rows, Map<String, Double> ratesToNok) {
-        final double width = 620.0;
+        final double width = 760.0;
         final double height = 390.0;
-        final double left = 60.0;
-        final double right = 32.0;
+        final double left = 74.0;
+        final double right = 20.0;
         final double top = 16.0;
         final double bottom = 108.0;
         final double plotWidth = width - left - right;
@@ -271,11 +271,11 @@ public class ChartBuilder {
     }
 
     public static String buildMarketValueAllocationSvg(List<OverviewRow> rows, Map<String, Double> ratesToNok) {
-        final double width = 620.0;
+        final double width = 760.0;
         final double height = 390.0;
         final double centerX = width / 2.0;
         final double centerY = 162.0;
-        final double radius = 82.0;
+        final double radius = 112.0;
 
         List<OverviewRow> rowsWithValue = new ArrayList<>();
         List<Double> marketValuesNok = new ArrayList<>();
@@ -346,8 +346,8 @@ public class ChartBuilder {
         adjustPieLabelPositions(pieLabels, true, 22.0, 318.0, 15.0);
 
         for (PieSliceLabel label : pieLabels) {
-            double textX = label.rightSide ? (width - 176.0) : 176.0;
-            double lineEndX = label.rightSide ? (width - 184.0) : 184.0;
+            double textX = label.rightSide ? (width - 186.0) : 186.0;
+            double lineEndX = label.rightSide ? (width - 198.0) : 198.0;
             String textAnchor = label.rightSide ? "start" : "end";
 
             svg.append("<polyline points=\"")
