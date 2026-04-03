@@ -12,10 +12,14 @@ import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +31,8 @@ public class PortfolioCalculator {
     private static final String DEFAULT_CURRENCY_CODE = "NOK";
     private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
+    private static final Path HISTORY_CACHE_DIR = Path.of(".cache", "history-series");
+    private static final Duration HISTORY_CACHE_TTL = Duration.ofHours(12);
 
     private static final class PortfolioValuePoint {
         private final LocalDate monthEnd;
@@ -575,6 +581,11 @@ public class PortfolioCalculator {
             return series;
         }
 
+        NavigableMap<LocalDate, Double> cachedSeries = loadHistoricalSeriesFromCache(ticker);
+        if (!cachedSeries.isEmpty()) {
+            return cachedSeries;
+        }
+
         HttpURLConnection connection = null;
         try {
             long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
@@ -644,7 +655,91 @@ public class PortfolioCalculator {
             }
         }
 
+        if (!series.isEmpty()) {
+            saveHistoricalSeriesToCache(ticker, series);
+        }
+
         return series;
+    }
+
+    private static NavigableMap<LocalDate, Double> loadHistoricalSeriesFromCache(String ticker) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        Path cacheFile = resolveHistoryCacheFile(ticker);
+        if (cacheFile == null || !Files.exists(cacheFile)) {
+            return series;
+        }
+
+        try {
+            Instant lastModified = Files.getLastModifiedTime(cacheFile).toInstant();
+            if (lastModified.plus(HISTORY_CACHE_TTL).isBefore(Instant.now())) {
+                return series;
+            }
+
+            List<String> lines = Files.readAllLines(cacheFile, StandardCharsets.UTF_8);
+            for (String line : lines) {
+                String trimmed = line == null ? "" : line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                    continue;
+                }
+
+                String[] parts = trimmed.split(",");
+                if (parts.length != 2) {
+                    continue;
+                }
+
+                try {
+                    LocalDate date = LocalDate.parse(parts[0]);
+                    double close = Double.parseDouble(parts[1]);
+                    if (Double.isFinite(close) && close > 0.0) {
+                        series.put(date, close);
+                    }
+                } catch (Exception ignored) {
+                    // Ignore malformed cache rows.
+                }
+            }
+        } catch (IOException ignored) {
+            return new TreeMap<>();
+        }
+
+        return series;
+    }
+
+    private static void saveHistoricalSeriesToCache(String ticker, NavigableMap<LocalDate, Double> series) {
+        if (series == null || series.isEmpty()) {
+            return;
+        }
+
+        Path cacheFile = resolveHistoryCacheFile(ticker);
+        if (cacheFile == null) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(HISTORY_CACHE_DIR);
+            List<String> lines = new ArrayList<>();
+            lines.add("# date,close");
+            for (Map.Entry<LocalDate, Double> entry : series.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0.0) {
+                    continue;
+                }
+                lines.add(entry.getKey().toString() + "," + String.format(Locale.US, "%.8f", entry.getValue()));
+            }
+            Files.write(cacheFile, lines, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        } catch (IOException ignored) {
+            // Cache persistence should not fail report generation.
+        }
+    }
+
+    private static Path resolveHistoryCacheFile(String ticker) {
+        if (ticker == null || ticker.isBlank()) {
+            return null;
+        }
+        String safe = ticker.trim().replaceAll("[^a-zA-Z0-9._-]", "_");
+        if (safe.isBlank()) {
+            return null;
+        }
+        return HISTORY_CACHE_DIR.resolve(safe + ".csv");
     }
 
     private static String getTickerText(Security security) {

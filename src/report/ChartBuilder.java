@@ -145,9 +145,9 @@ public class ChartBuilder {
 
             double labelAnchorX = x + (barWidth / 2.0);
                 double labelAnchorY = height - bottom + 16.0;
-            svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
+                svg.append("<text class=\"chart-total-return-label\" x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                     .append("\" transform=\"rotate(").append(svgNumber(labelRotation)).append(" ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
-                    .append(")\" text-anchor=\"end\" font-size=\"").append(svgNumber(labelFontSize)).append("\" font-weight=\"700\" fill=\"#1f2933\" paint-order=\"stroke\" stroke=\"#ffffff\" stroke-width=\"2.2\" stroke-linejoin=\"round\">")
+                    .append(")\" text-anchor=\"end\" font-size=\"").append(svgNumber(labelFontSize)).append("\" font-weight=\"700\" fill=\"#1f2933\">")
                     .append(escapeHtml(compactLabel))
                     .append("</text>\n");
         }
@@ -260,9 +260,9 @@ public class ChartBuilder {
 
             double labelAnchorX = x + (barWidth / 2.0);
             double labelAnchorY = height - bottom + 16.0;
-            svg.append("<text x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
+                svg.append("<text class=\"chart-security-bar-label\" x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                .append("\" transform=\"rotate(-30 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY)).append(")\" ")
-               .append("text-anchor=\"end\" font-size=\"10\" font-weight=\"600\" fill=\"#1f2933\" paint-order=\"stroke\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-linejoin=\"round\">")
+                    .append("text-anchor=\"end\" font-size=\"10\" font-weight=\"600\" fill=\"#1f2933\">")
                .append(escapeHtml(label)).append("</text>\n");
         }
 
@@ -366,9 +366,9 @@ public class ChartBuilder {
                     .append(" fill=\"none\" stroke=\"").append(label.color)
                     .append("\" stroke-width=\"0.9\" opacity=\"0.85\"/>\n");
 
-            svg.append("<text x=\"").append(svgNumber(textX)).append("\" y=\"").append(svgNumber(label.labelY))
+            svg.append("<text class=\"chart-security-label\" x=\"").append(svgNumber(textX)).append("\" y=\"").append(svgNumber(label.labelY))
                     .append("\" text-anchor=\"").append(textAnchor)
-                        .append("\" dominant-baseline=\"middle\" font-size=\"10\" fill=\"#2f2f2f\" paint-order=\"stroke\" stroke=\"#ffffff\" stroke-width=\"1.8\" stroke-linejoin=\"round\">")
+                        .append("\" dominant-baseline=\"middle\" font-size=\"10\" fill=\"#2f2f2f\">")
                     .append(escapeHtml(label.text))
                     .append("</text>\n");
         }
