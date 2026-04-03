@@ -341,8 +341,8 @@ public class ChartBuilder {
             double midAngle = currentAngle + (sliceAngle / 2.0);
             double anchorX = centerX + radius * Math.cos(midAngle);
             double anchorY = centerY + radius * Math.sin(midAngle);
-            double bendX = centerX + (radius + 20.0) * Math.cos(midAngle);
-            double bendY = centerY + (radius + 12.0) * Math.sin(midAngle);
+            double bendX = centerX + (radius + 14.0) * Math.cos(midAngle);
+            double bendY = centerY + (radius + 8.0) * Math.sin(midAngle);
             boolean rightSide = Math.cos(midAngle) >= 0.0;
 
             String labelText = getCompactPieLabel(row) + " " + formatNumber(fraction * 100.0, 1) + "%";
@@ -355,8 +355,8 @@ public class ChartBuilder {
         adjustPieLabelPositions(pieLabels, true, 22.0, 318.0, 15.0);
 
         for (PieSliceLabel label : pieLabels) {
-            double textX = label.rightSide ? (width - 186.0) : 186.0;
-            double lineEndX = label.rightSide ? (width - 198.0) : 198.0;
+            double textX = label.rightSide ? (width - 224.0) : 224.0;
+            double lineEndX = label.rightSide ? (width - 236.0) : 236.0;
             String textAnchor = label.rightSide ? "start" : "end";
 
             svg.append("<polyline points=\"")
