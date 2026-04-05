@@ -35,6 +35,8 @@ public class PortfolioCalculator {
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Path HISTORY_CACHE_DIR = Path.of(".cache", "history-series-adjclose");
     private static final Duration HISTORY_CACHE_TTL = Duration.ofHours(12);
+    private static final int BENCHMARK_FETCH_BUFFER_DAYS = 45;
+    private static final int BENCHMARK_BOUNDARY_TOLERANCE_DAYS = 21;
 
     private static final class PortfolioValuePoint {
         private final LocalDate monthEnd;
@@ -856,30 +858,87 @@ public class PortfolioCalculator {
 
     private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeries(String ticker, LocalDate fromDate, LocalDate toDate) {
         NavigableMap<LocalDate, Double> series = new TreeMap<>();
-        if (ticker == null || ticker.isBlank()) {
+        if (ticker == null || ticker.isBlank() || fromDate == null || toDate == null) {
             return series;
         }
 
+        LocalDate safeFrom = fromDate;
+        LocalDate safeTo = toDate;
+        if (safeFrom.isAfter(safeTo)) {
+            LocalDate tmp = safeFrom;
+            safeFrom = safeTo;
+            safeTo = tmp;
+        }
+
         NavigableMap<LocalDate, Double> cachedSeries = loadHistoricalSeriesFromCache(ticker);
+        if (!cachedSeries.isEmpty() && hasSeriesCoverage(cachedSeries, safeFrom, safeTo)) {
+            return cachedSeries;
+        }
+
+        NavigableMap<LocalDate, Double> fetchedSeries = fetchHistoricalCloseSeriesFromYahoo(ticker, safeFrom, safeTo);
+        if (!fetchedSeries.isEmpty()) {
+            if (!cachedSeries.isEmpty()) {
+                cachedSeries.putAll(fetchedSeries);
+                fetchedSeries = cachedSeries;
+            }
+            saveHistoricalSeriesToCache(ticker, fetchedSeries);
+            return fetchedSeries;
+        }
+
         if (!cachedSeries.isEmpty()) {
             return cachedSeries;
         }
 
-        HttpURLConnection connection = null;
-        try {
-            long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
-            long period2 = toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
-            String encodedTicker = URLEncoder.encode(ticker, StandardCharsets.UTF_8);
-            String urlText = "https://query1.finance.yahoo.com/v8/finance/chart/" + encodedTicker
+        return series;
+    }
+
+    private static boolean hasSeriesCoverage(
+            NavigableMap<LocalDate, Double> series,
+            LocalDate fromDate,
+            LocalDate toDate) {
+        if (series == null || series.isEmpty() || fromDate == null || toDate == null) {
+            return false;
+        }
+        LocalDate first = series.firstKey();
+        LocalDate last = series.lastKey();
+        return !first.isAfter(fromDate) && !last.isBefore(toDate);
+    }
+
+    private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeriesFromYahoo(
+            String ticker,
+            LocalDate fromDate,
+            LocalDate toDate) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        String encodedTicker = URLEncoder.encode(ticker, StandardCharsets.UTF_8);
+        long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+        long period2 = toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+        String[] hosts = {"query1.finance.yahoo.com", "query2.finance.yahoo.com"};
+
+        for (String host : hosts) {
+            String urlText = "https://" + host + "/v8/finance/chart/" + encodedTicker
                     + "?period1=" + period1
                     + "&period2=" + period2
                     + "&interval=1d&events=history";
+            series = fetchHistoricalCloseSeriesFromUrl(urlText);
+            if (!series.isEmpty()) {
+                return series;
+            }
+        }
 
+        return series;
+    }
+
+    private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeriesFromUrl(String urlText) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        HttpURLConnection connection = null;
+        try {
             URL url = URI.create(urlText).toURL();
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(7000);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
 
             if (connection.getResponseCode() != 200) {
                 return series;
@@ -944,11 +1003,29 @@ public class PortfolioCalculator {
             }
         }
 
-        if (!series.isEmpty()) {
-            saveHistoricalSeriesToCache(ticker, series);
+        return series;
+    }
+
+    private static List<String> buildBenchmarkTickerCandidates(String benchmarkTicker) {
+        String baseTicker = (benchmarkTicker == null || benchmarkTicker.isBlank())
+                ? "^OSEAX"
+                : benchmarkTicker.trim();
+
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(baseTicker);
+
+        String withoutCaret = baseTicker.startsWith("^") ? baseTicker.substring(1) : baseTicker;
+        if (!withoutCaret.isBlank()) {
+            candidates.add(withoutCaret);
+            candidates.add("^" + withoutCaret);
+
+            String upper = withoutCaret.toUpperCase(Locale.ROOT);
+            if (!upper.endsWith(".OL")) {
+                candidates.add(withoutCaret + ".OL");
+            }
         }
 
-        return series;
+        return new ArrayList<>(candidates);
     }
 
     private static NavigableMap<LocalDate, Double> loadHistoricalSeriesFromCache(String ticker) {
@@ -1164,29 +1241,46 @@ public class PortfolioCalculator {
         double realizedTotalNok = realizedGainNok + dividendsNok;
 
         String safeBenchmarkTicker = (benchmarkTicker == null || benchmarkTicker.isBlank())
-                ? "^OSEAX"
-                : benchmarkTicker.trim();
+            ? "^OSEAX"
+            : benchmarkTicker.trim();
 
         boolean hasBenchmarkData = false;
         double benchmarkReturnPct = 0.0;
 
         LocalDate from = LocalDate.of(safeYear, 1, 1);
         LocalDate to = LocalDate.of(safeYear, 12, 31);
-        NavigableMap<LocalDate, Double> benchmarkSeries = fetchHistoricalCloseSeries(
-                safeBenchmarkTicker,
-                from.minusDays(7),
-                to.plusDays(7)
-        );
-        double startValue = resolveBoundaryValue(benchmarkSeries, from, true);
-        double endValue = resolveBoundaryValue(benchmarkSeries, to, false);
-        if (startValue > 0.0 && endValue > 0.0) {
+        String resolvedBenchmarkTicker = safeBenchmarkTicker;
+        for (String candidateTicker : buildBenchmarkTickerCandidates(safeBenchmarkTicker)) {
+            NavigableMap<LocalDate, Double> benchmarkSeries = fetchHistoricalCloseSeries(
+                candidateTicker,
+                from.minusDays(BENCHMARK_FETCH_BUFFER_DAYS),
+                to.plusDays(BENCHMARK_FETCH_BUFFER_DAYS)
+            );
+
+            double startValue = resolveBoundaryValue(
+                benchmarkSeries,
+                from,
+                true,
+                BENCHMARK_BOUNDARY_TOLERANCE_DAYS
+            );
+            double endValue = resolveBoundaryValue(
+                benchmarkSeries,
+                to,
+                false,
+                BENCHMARK_BOUNDARY_TOLERANCE_DAYS
+            );
+
+            if (startValue > 0.0 && endValue > 0.0) {
             benchmarkReturnPct = ((endValue - startValue) / startValue) * 100.0;
             hasBenchmarkData = true;
+            resolvedBenchmarkTicker = candidateTicker;
+            break;
+            }
         }
 
         return new AnnualPerformanceSummary(
                 safeYear,
-                safeBenchmarkTicker,
+            resolvedBenchmarkTicker,
                 hasPortfolioData,
                 startValueNok,
                 endValueNok,
@@ -1309,10 +1403,12 @@ public class PortfolioCalculator {
     private static double resolveBoundaryValue(
             NavigableMap<LocalDate, Double> series,
             LocalDate targetDate,
-            boolean preferForwardFromTarget) {
+            boolean preferForwardFromTarget,
+            long maxDistanceDays) {
         if (series == null || series.isEmpty() || targetDate == null) {
             return 0.0;
         }
+        long safeMaxDistance = Math.max(0L, maxDistanceDays);
 
         LocalDate bestDate = null;
         double bestValue = 0.0;
@@ -1323,7 +1419,7 @@ public class PortfolioCalculator {
             }
 
             long distanceDays = Math.abs(ChronoUnit.DAYS.between(targetDate, entry.getKey()));
-            if (distanceDays > 7) {
+            if (distanceDays > safeMaxDistance) {
                 continue;
             }
 
