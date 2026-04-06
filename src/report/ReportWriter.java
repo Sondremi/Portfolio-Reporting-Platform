@@ -1,6 +1,7 @@
 package report;
 
 import csv.TransactionStore;
+import model.Events;
 import model.Security;
 
 import java.io.FileWriter;
@@ -15,17 +16,42 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
 
 public class ReportWriter {
 
     private static final DateTimeFormatter DETAIL_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final String DEFAULT_TOTAL_CURRENCY = "NOK";
+    private static final String REPORT_TYPE_STANDARD = "standard";
+    private static final String REPORT_TYPE_ANNUAL = "annual";
+    private static final double EPSILON = 0.0000001;
+
+    private static final class ReportConfig {
+        private final String reportType;
+        private final int reportYear;
+        private final String benchmarkTicker;
+
+        private ReportConfig(String reportType, int reportYear, String benchmarkTicker) {
+            this.reportType = reportType;
+            this.reportYear = reportYear;
+            this.benchmarkTicker = benchmarkTicker;
+        }
+    }
 
     public static void writeHtmlReport(TransactionStore store, String outputFile) throws IOException {
         List<OverviewRow> overviewRows = PortfolioCalculator.buildOverviewRows(store);
         Map<String, Double> ratesToNok = CurrencyConversionService.loadRatesToNok(collectCurrencies(store, overviewRows));
         HeaderSummary headerSummary = PortfolioCalculator.buildHeaderSummary(store, overviewRows, ratesToNok);
+        ReportConfig reportConfig = resolveReportConfig();
+        AnnualPerformanceSummary annualSummary = REPORT_TYPE_ANNUAL.equals(reportConfig.reportType)
+            ? PortfolioCalculator.buildAnnualPerformanceSummary(store, ratesToNok, reportConfig.reportYear, reportConfig.benchmarkTicker)
+            : null;
+        List<AnnualSnapshotRow> annualSnapshotRows = new ArrayList<>();
+        if (REPORT_TYPE_ANNUAL.equals(reportConfig.reportType)) {
+            int snapshotYear = Math.max(2000, Math.min(2100, reportConfig.reportYear));
+            annualSnapshotRows = buildAnnualSnapshotRows(store, LocalDate.of(snapshotYear, 12, 31));
+        }
 
         try (FileWriter writer = new FileWriter(outputFile)) {
             writer.write("<!DOCTYPE html>\n");
@@ -35,8 +61,8 @@ public class ReportWriter {
             writer.write("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
             writer.write("    <title>Portfolio Report</title>\n");
             writer.write("    <style>\n");
-            writer.write("        :root { --bg:#eef3f7; --line:#d8e0e9; --card:#ffffff; --ink:#16202a; --muted:#5a6877; --good:#1f8b4d; --bad:#b23a31; }\n");
-            writer.write("        body.theme-dark { --bg:#0f1722; --line:#253245; --card:#162231; --ink:#e5edf7; --muted:#aebdce; --good:#59c887; --bad:#f07f7f; }\n");
+            writer.write("        :root { --bg:#eef3f7; --line:#d8e0e9; --card:#ffffff; --ink:#16202a; --muted:#5a6877; --good:#1f8b4d; --bad:#b23a31; --spark-text:#5c7187; --spark-axis:#9eb1c3; --spark-axis-soft:#b8c7d6; --spark-grid:#cfdbe6; --spark-line:#223c55; --spark-point:#223c55; }\n");
+            writer.write("        body.theme-dark { --bg:#0f1722; --line:#253245; --card:#162231; --ink:#e5edf7; --muted:#aebdce; --good:#59c887; --bad:#f07f7f; --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n");
             writer.write("        * { box-sizing: border-box; }\n");
             writer.write("        body { font-family: 'Segoe UI','Avenir Next','Helvetica Neue',Arial,sans-serif; margin:0; background: radial-gradient(circle at top,#f8fbfe 0%,var(--bg) 58%); color:var(--ink); }\n");
             writer.write("        body.theme-dark { background: radial-gradient(circle at top,#1c2b3f 0%, var(--bg) 62%); }\n");
@@ -44,55 +70,92 @@ public class ReportWriter {
             writer.write("        h2 { margin:26px 2px 12px; font-size:1.14rem; color:var(--ink); }\n");
             writer.write("        table { width:100%; border-collapse:collapse; min-width:0; table-layout:fixed; background:var(--card); }\n");
             writer.write("        th, td { padding:5px 5px; border-bottom:1px solid #edf2f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }\n");
-            writer.write("        th { background:#f5f8fb; text-align:left; font-size:.70rem; text-transform:uppercase; letter-spacing:.2px; color:#374556; border-bottom:1px solid var(--line); }\n");
-            writer.write("        td { font-size:.70rem; }\n");
+            writer.write("        th { background:#f5f8fb; text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.2px; color:#374556; border-bottom:1px solid var(--line); }\n");
+            writer.write("        td { font-size:.72rem; }\n");
             writer.write("        td.num, th.num { text-align:right; }\n");
-            writer.write("        .table-wrap { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow-x:hidden; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-gutter:stable both-edges; box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
+            writer.write("        .table-wrap { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-gutter:stable both-edges; box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
             writer.write("        .table-wrap::-webkit-scrollbar { height:12px; }\n");
             writer.write("        .table-wrap::-webkit-scrollbar-track { background:#e7eef5; border-radius:999px; }\n");
             writer.write("        .table-wrap::-webkit-scrollbar-thumb { background:#9db0c3; border-radius:999px; border:2px solid #e7eef5; }\n");
-            writer.write("        .overview-table { table-layout:auto; }\n");
-            writer.write("        .overview-table tr > *:nth-child(1) { width:72px; max-width:72px; min-width:72px; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .overview-table tr > *:nth-child(2) { width:10ch; max-width:10ch; min-width:10ch; }\n");
-            writer.write("        .overview-table tr > *:nth-child(3) { width:12ch; max-width:12ch; min-width:12ch; }\n");
-            writer.write("        .overview-table tr > *:nth-child(n+4) { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .realized-table { table-layout:auto; }\n");
-            writer.write("        .realized-table tr > *:nth-child(1) { width:106px; max-width:106px; min-width:106px; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .realized-table tr > *:nth-child(8) { width:160px; max-width:160px; }\n");
-            writer.write("        .ticker-scroll, .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
-            writer.write("        .ticker-scroll::-webkit-scrollbar, .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
-            writer.write("        .ticker-scroll::after, .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
-            writer.write("        .ticker-scroll:hover::after, .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
-            writer.write("        .ticker-scroll.is-dragging::after, .security-scroll.is-dragging::after { opacity:.85; background:rgba(120,145,168,.45); }\n");
-            writer.write("        .ticker-scroll.is-dragging, .security-scroll.is-dragging { cursor:grabbing; }\n");
+            writer.write("        .report-standard .overview-table { table-layout:auto; width:100%; }\n");
+            writer.write("        .report-standard .overview-table th, .report-standard .overview-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(1)  { width:72px; min-width:72px; max-width:72px; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(2)  { max-width:120px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(3)  { max-width:220px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
+            writer.write("        .report-standard .ticker-scroll::-webkit-scrollbar, .report-standard .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
+            writer.write("        .report-standard .ticker-scroll::after, .report-standard .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
+            writer.write("        .report-standard .ticker-scroll:hover::after, .report-standard .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
+            writer.write("        @media (max-width:1060px) { .report-standard .overview-table tr > *:nth-child(n+4), .report-standard .realized-table tr > *:nth-child(n+4) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
+            writer.write("        .report-annual .realized-table { table-layout:auto; }\n");
+            writer.write("        .report-annual .realized-table tr > *:nth-child(1) { width:106px; max-width:106px; min-width:106px; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .report-annual .realized-table tr > *:nth-child(8) { width:160px; max-width:160px; }\n");
+            writer.write("        .report-standard .realized-table { table-layout:auto; width:100%; }\n");
+            writer.write("        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .report-standard .realized-table tr > *:nth-child(1)  { width:72px; min-width:72px; max-width:72px; }\n");
+            writer.write("        .report-standard .realized-table tr > *:nth-child(2)  { max-width:120px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .realized-table tr > *:nth-child(3)  { max-width:220px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .ticker-scroll { display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-bottom:0; }\n");
+            writer.write("        .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
+            writer.write("        .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
+            writer.write("        .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
+            writer.write("        .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
+            writer.write("        .security-scroll.is-dragging::after { opacity:.85; background:rgba(120,145,168,.45); }\n");
+            writer.write("        .security-scroll.is-dragging { cursor:grabbing; }\n");
             writer.write("        body.inline-cell-dragging { user-select:none; cursor:grabbing; }\n");
             writer.write("        .total-row { font-weight:700; background:#f3f7fb; color:#1a2b3a; }\n");
             writer.write("        .asset-split td { border-top:3px solid #8a9eb3 !important; }\n");
             writer.write("        .positive { color:var(--good); } .negative { color:var(--bad); }\n");
             writer.write("        .report-hero { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; background:linear-gradient(120deg,#0f2238 0%,#18344f 60%,#164663 100%); border-radius:18px; padding:22px; color:#f4f8fc; box-shadow:0 14px 26px rgba(10,24,38,.2); margin-bottom:18px; }\n");
+            writer.write("        .annual-hero { grid-template-columns:1fr; gap:14px; margin-bottom:12px; }\n");
+            writer.write("        .annual-hero-header { display:flex; flex-direction:column; gap:2px; }\n");
             writer.write("        .hero-title h1 { margin:0; font-size:1.75rem; letter-spacing:.4px; }\n");
             writer.write("        .hero-meta { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }\n");
             writer.write("        .meta-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; border:1px solid rgba(235,245,255,.28); background:rgba(255,255,255,.1); color:#d7e6f4; font-size:.84rem; font-weight:600; }\n");
             writer.write("        .meta-chip strong { color:#ffffff; font-weight:700; }\n");
             writer.write("        .currency-input { width:56px; border:1px solid rgba(235,245,255,.45); border-radius:6px; background:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; padding:2px 6px; outline:none; }\n");
             writer.write("        .currency-input:focus { border-color:#fff; background:rgba(255,255,255,.26); }\n");
-            writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }\n");
+            writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n");
+            writer.write("        .annual-headline-grid { margin-top:0; }\n");
             writer.write("        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n");
+            writer.write("        .annual-headline-grid .kpi-card { min-height:116px; }\n");
             writer.write("        .kpi-label { color:#c8d9eb; font-size:.8rem; text-transform:uppercase; }\n");
             writer.write("        .kpi-value { margin-top:2px; font-size:1.02rem; font-weight:700; color:#fff; }\n");
             writer.write("        .performer { margin-top:6px; font-size:.84rem; color:#dce8f3; }\n");
             writer.write("        .performer strong { display:block; font-size:.9rem; margin-bottom:2px; }\n");
             writer.write("        .performer-metrics { display:block; }\n");
-            writer.write("        .hero-side { background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
-            writer.write("        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin-bottom:8px; }\n");
+            writer.write("        .hero-side { position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
+            writer.write("        .timeline-title-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }\n");
+            writer.write("        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin:0; }\n");
+            writer.write("        .timeline-info-btn { width:18px; height:18px; border-radius:999px; border:1px solid rgba(235,245,255,.55); background:rgba(255,255,255,.14); color:#e8f2fb; font-size:.72rem; font-weight:800; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }\n");
+            writer.write("        .timeline-info-btn:hover { background:rgba(255,255,255,.24); }\n");
+            writer.write("        .timeline-info-overlay[hidden] { display:none !important; }\n");
+            writer.write("        .timeline-info-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12000; display:flex; align-items:center; justify-content:center; padding:18px; }\n");
+            writer.write("        .timeline-info-dialog { width:min(560px,92vw); background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); }\n");
+            writer.write("        .timeline-info-header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid #d5e3ef; }\n");
+            writer.write("        .timeline-info-header h4 { margin:0; font-size:.95rem; letter-spacing:.2px; }\n");
+            writer.write("        .timeline-info-close { border:1px solid #9cb5ca; background:#eef5fb; color:#20405a; border-radius:8px; width:26px; height:26px; cursor:pointer; font-size:1rem; line-height:1; padding:0; }\n");
+            writer.write("        .timeline-info-body { padding:12px 14px 14px; font-size:.86rem; line-height:1.45; }\n");
+            writer.write("        .timeline-info-body p { margin:0 0 8px; }\n");
+            writer.write("        .timeline-info-body ul { margin:0; padding-left:18px; }\n");
+            writer.write("        .timeline-info-body li { margin:0 0 6px; }\n");
             writer.write("        .hero-side-note { color:#d4e3f0; font-size:.92rem; }\n");
+            writer.write("        .app-shell-note { color:#3b5570; font-size:.86rem; font-weight:600; line-height:1.35; }\n");
             writer.write("        .sparkline-widget { display:block; }\n");
+            writer.write("        .sparkline-metric-controls { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 8px; }\n");
+            writer.write("        .sparkline-metric-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
+            writer.write("        .sparkline-metric-btn:hover { background:#e8f0f8; }\n");
+            writer.write("        .sparkline-metric-btn.is-active { background:#24425b; color:#f4f9ff; border-color:#24425b; }\n");
             writer.write("        .sparkline-controls { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }\n");
-            writer.write("        .sparkline-range-btn { border:1px solid rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; border-radius:999px; padding:3px 8px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
-            writer.write("        .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n");
-            writer.write("        .sparkline-range-btn.is-active { background:#eaf4ff; color:#16344d; border-color:#ffffff; }\n");
+            writer.write("        .sparkline-range-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
+            writer.write("        .sparkline-range-btn:hover { background:#e8f0f8; }\n");
+            writer.write("        .sparkline-range-btn.is-active { background:#dbe9f8; color:#1f3f5b; border-color:#9eb9d5; }\n");
+            writer.write("        .hero-side { --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n");
+            writer.write("        .hero-side .sparkline-metric-btn, .hero-side .sparkline-range-btn { border-color:rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; }\n");
+            writer.write("        .hero-side .sparkline-metric-btn:hover, .hero-side .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n");
+            writer.write("        .hero-side .sparkline-metric-btn.is-active, .hero-side .sparkline-range-btn.is-active { background:#eaf4ff; color:#16344d; border-color:#ffffff; }\n");
             writer.write("        .sparkline-panel { display:none; }\n");
             writer.write("        .sparkline-panel.is-active { display:block; }\n");
             writer.write("        .overview-charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0 14px; }\n");
@@ -101,6 +164,32 @@ public class ReportWriter {
             writer.write("        .overview-chart .chart-svg { display:block; width:100%; margin:0 auto 12px; }\n");
             writer.write("        .allocation-card { margin:16px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
             writer.write("        .allocation-card h3 { margin:0 0 10px; font-size:1rem; }\n");
+            writer.write("        .annual-summary { margin:14px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
+            writer.write("        .annual-summary h3 { margin:0 0 10px; font-size:1rem; }\n");
+            writer.write("        .annual-kpi-deck { margin:0 0 14px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
+            writer.write("        .annual-kpi-deck-title { margin:0 0 9px; font-size:.9rem; font-weight:700; letter-spacing:.12px; color:var(--muted); text-transform:uppercase; }\n");
+            writer.write("        .annual-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }\n");
+            writer.write("        .annual-summary-card { border:1px solid #d4dfeb; border-radius:11px; padding:11px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); }\n");
+            writer.write("        .annual-summary-card h4 { margin:0 0 4px; font-size:.82rem; color:#40576c; text-transform:uppercase; }\n");
+            writer.write("        .annual-summary-value { font-size:1.05rem; font-weight:700; }\n");
+            writer.write("        .annual-summary-sub { margin-top:4px; font-size:.78rem; color:#5f7488; }\n");
+            writer.write("        .annual-value-warning { margin-top:6px; padding:6px 7px; font-size:.74rem; line-height:1.35; border:1px solid #f0d8a8; border-radius:8px; background:#fff5df; color:#7b4a00; }\n");
+            writer.write("        .annual-summary-card .performer { margin-top:5px; color:#253d53; font-size:.82rem; }\n");
+            writer.write("        .annual-summary-card .performer strong { margin-bottom:1px; font-size:.88rem; color:#1f3345; }\n");
+            writer.write("        .annual-graphs-section { margin:0 0 18px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
+            writer.write("        .annual-graphs-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; margin:0 0 10px; }\n");
+            writer.write("        .annual-graphs-heading h2 { margin:0; font-size:1.02rem; color:var(--ink); }\n");
+            writer.write("        .annual-graphs-heading p { margin:0; font-size:.8rem; color:var(--muted); }\n");
+            writer.write("        .annual-graphs-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0; }\n");
+            writer.write("        .annual-graph-card { display:flex; flex-direction:column; min-height:332px; padding:14px; border:1px solid #d4dfeb; border-radius:13px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
+            writer.write("        .annual-graph-card h3 { margin:0 0 8px; font-size:1rem; color:#1e3448; }\n");
+            writer.write("        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n");
+            writer.write("        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-end; min-height:0; }\n");
+            writer.write("        .annual-graph-content > svg { display:block; width:100%; margin-top:auto; }\n");
+            writer.write("        .annual-graph-content .sparkline-widget { display:flex; flex-direction:column; min-height:100%; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel { flex:1; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel.is-active { display:flex; align-items:flex-end; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel > svg { display:block; width:100%; }\n");
             writer.write("        .allocation-visuals { display:grid; gap:10px; }\n");
             writer.write("        .allocation-row { display:grid; gap:10px; }\n");
             writer.write("        .allocation-row-top { grid-template-columns:repeat(3,minmax(0,1fr)); }\n");
@@ -137,7 +226,7 @@ public class ReportWriter {
             writer.write("        .chart-svg.is-panning { cursor:grabbing; }\n");
             writer.write("        .hero-theme-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n");
             writer.write("        .hero-theme-btn:hover { background:rgba(255,255,255,.2); }\n");
-            writer.write("        body.theme-dark .table-wrap, body.theme-dark .overview-chart, body.theme-dark .allocation-card, body.theme-dark .allocation-panel, body.theme-dark .details-table { border-color:#2a3a4f; box-shadow:none; }\n");
+            writer.write("        body.theme-dark .table-wrap, body.theme-dark .overview-chart, body.theme-dark .allocation-card, body.theme-dark .allocation-panel, body.theme-dark .details-table, body.theme-dark .annual-kpi-deck, body.theme-dark .annual-graphs-section { border-color:#2a3a4f; box-shadow:none; }\n");
             writer.write("        body.theme-dark .total-row { background:#1a2a3b; color:#ecf3fb; }\n");
             writer.write("        body.theme-dark td, body.theme-dark th { border-bottom-color:#2a3a4d; }\n");
             writer.write("        body.theme-dark th { background:#1d2a3a; color:#d8e4f2; }\n");
@@ -149,6 +238,26 @@ public class ReportWriter {
             writer.write("        body.theme-dark .details-table td { color:#dbe7f4; border-bottom-color:#2a3a4d; }\n");
             writer.write("        body.theme-dark .allocation-panel { background:#132235; }\n");
             writer.write("        body.theme-dark .allocation-panel-title { color:#c8d8e8; }\n");
+            writer.write("        body.theme-dark .timeline-info-dialog { background:#122437; color:#d8e7f5; border-color:#2b4360; }\n");
+            writer.write("        body.theme-dark .timeline-info-header { border-bottom-color:#2b4360; }\n");
+            writer.write("        body.theme-dark .timeline-info-close { background:#1a3149; border-color:#3a5879; color:#d8e7f5; }\n");
+            writer.write("        body.theme-dark .annual-summary { border-color:#2a3a4f; box-shadow:none; }\n");
+            writer.write("        body.theme-dark .annual-kpi-deck-title { color:#bdd1e4; }\n");
+            writer.write("        body.theme-dark .annual-summary-card { border-color:#2e4258; background:#1a2d42; }\n");
+            writer.write("        body.theme-dark .annual-summary-card h4 { color:#c8d9eb; }\n");
+            writer.write("        body.theme-dark .annual-summary-sub { color:#d6e4f1; }\n");
+            writer.write("        body.theme-dark .annual-value-warning { background:#3d2e19; border-color:#8e6a33; color:#ffdca8; }\n");
+            writer.write("        body.theme-dark .annual-summary-card .performer { color:#d4e3f2; }\n");
+            writer.write("        body.theme-dark .annual-summary-card .performer strong { color:#e9f2fc; }\n");
+            writer.write("        body.theme-dark .annual-graphs-heading h2 { color:#e5edf7; }\n");
+            writer.write("        body.theme-dark .annual-graphs-heading p { color:#bad0e5; }\n");
+            writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
+            writer.write("        body.theme-dark .annual-graph-card h3 { color:#e5edf7; }\n");
+            writer.write("        body.theme-dark .annual-graph-note { color:#bad0e5; }\n");
+            writer.write("        body.theme-dark .sparkline-metric-btn, body.theme-dark .sparkline-range-btn { border-color:#45627f; background:#22374d; color:#cfe0f2; }\n");
+            writer.write("        body.theme-dark .sparkline-metric-btn:hover, body.theme-dark .sparkline-range-btn:hover { background:#2b4560; }\n");
+            writer.write("        body.theme-dark .sparkline-metric-btn.is-active { background:#dceafb; color:#173047; border-color:#dceafb; }\n");
+            writer.write("        body.theme-dark .sparkline-range-btn.is-active { background:#c3d7ed; color:#173047; border-color:#9bb7d3; }\n");
             writer.write("        body.theme-dark .chart-title-row > h3, body.theme-dark .chart-title-row > h4, body.theme-dark .chart-title-row > .hero-side-title { color:#dce8f5; }\n");
             writer.write("        body.theme-dark .chart-svg { background:#162231; border-color:#2b3a4d; }\n");
             writer.write("        body.theme-dark .chart-svg text { fill:#d4e1ee !important; }\n");
@@ -156,7 +265,7 @@ public class ReportWriter {
             writer.write("        body.theme-dark .chart-security-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.05; }\n");
             writer.write("        body.theme-dark .market-value-bar-chart line[stroke='#495057'] { stroke:#dce8f4 !important; }\n");
             writer.write("        body.theme-dark .market-value-bar-chart text[fill='#495057'] { fill:#dce8f4 !important; }\n");
-            writer.write("        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#bed0e3; }\n");
+            writer.write("        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#d1e0ef; }\n");
             writer.write("        .expand-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:62px; padding:2px 8px; font-size:.66rem; font-weight:700; cursor:pointer; text-align:center; }\n");
             writer.write("        .expand-btn:hover { background:#e6f1fb; }\n");
             writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");
@@ -165,27 +274,32 @@ public class ReportWriter {
             writer.write("        .details-row { display:none; }\n");
             writer.write("        .details-cell { padding:0 !important; background:#f9fcff; }\n");
             writer.write("        .details-wrap { padding:10px 12px 12px; overflow-x:auto; overflow-y:hidden; }\n");
-            writer.write("        .details-wrap h4 { margin:0 0 8px; font-size:.85rem; color:#31495f; text-transform:uppercase; letter-spacing:.25px; }\n");
+            writer.write("        .details-wrap h4 { margin:0 0 8px; font-size:.88rem; color:#2b4358; text-transform:uppercase; letter-spacing:.25px; }\n");
             writer.write("        .details-table { width:max-content; min-width:100%; border-collapse:collapse; background:#fff; border:1px solid #dfe7ef; }\n");
-            writer.write("        .details-table th, .details-table td { padding:6px 7px; border-bottom:1px solid #edf2f7; font-size:.70rem; white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
+            writer.write("        .details-table th, .details-table td { padding:6px 7px; border-bottom:1px solid #edf2f7; font-size:.72rem; white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .details-table th { background:#f4f8fc; color:#405a70; }\n");
             writer.write("        .details-buy { color:#1d5d92; font-weight:600; }\n");
             writer.write("        .details-dividend { color:#1f8b4d; font-weight:600; }\n");
-            writer.write("        @media (max-width:1200px) { .allocation-row-top{grid-template-columns:1fr 1fr;} }\n");
-            writer.write("        @media (max-width:1060px) { .report-hero{grid-template-columns:1fr;} .hero-kpis{grid-template-columns:1fr;} .overview-charts{grid-template-columns:1fr;} .allocation-row-top,.allocation-row-bottom{grid-template-columns:1fr;} .page{width:100vw; padding:16px 8px 22px;} .table-wrap{overflow-x:auto;} .table-wrap table{min-width:980px;} .ticker-scroll,.security-scroll{max-width:none;} }\n");
+            writer.write("        @media (max-width:1200px) { .allocation-row-top{grid-template-columns:1fr 1fr;} .annual-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }\n");
+            writer.write("        @media (max-width:1060px) { .report-hero{grid-template-columns:1fr;} .hero-kpis,.annual-headline-grid{grid-template-columns:1fr;} .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .annual-graphs-row{grid-template-columns:1fr;} .overview-charts{grid-template-columns:1fr;} .allocation-row-top,.allocation-row-bottom{grid-template-columns:1fr;} .page{width:100vw; padding:16px 8px 22px;} .table-wrap{overflow-x:auto;} .report-standard .overview-table{min-width:0;} .report-standard .realized-table{min-width:0;} .report-annual .table-wrap table{min-width:980px;} }\n");
+            writer.write("        @media (max-width:760px) { .annual-summary-grid{grid-template-columns:1fr;} .annual-graphs-heading{flex-direction:column; align-items:flex-start;} }\n");
             writer.write("    </style>\n");
             writer.write("</head>\n");
-            writer.write("<body>\n");
+            writer.write("<body class=\"report-" + reportConfig.reportType + "\">\n");
             writer.write("<main class=\"page\">\n");
 
-            // Header Summary
-            writeHeaderSummaryHtml(writer, headerSummary, overviewRows, store, ratesToNok);
-
-            // Overview Section
-            writeOverviewTableHtml(writer, overviewRows, store, ratesToNok);
-
-            // Realized Overview
-            writeRealizedSummaryTableHtml(writer, store, ratesToNok);
+            if (REPORT_TYPE_ANNUAL.equals(reportConfig.reportType)) {
+                writeAnnualHeaderSummaryHtml(writer, store, ratesToNok, reportConfig.reportYear);
+                writeAnnualSummarySectionHtml(writer, store, ratesToNok, reportConfig.reportYear, annualSummary, annualSnapshotRows);
+                writeAnnualTimelineChartsHtml(writer, store, ratesToNok, reportConfig.reportYear);
+                writeAnnualPortfolioSnapshotTableHtml(writer, annualSnapshotRows, ratesToNok, reportConfig.reportYear);
+                writeAnnualRealizedSummaryTableHtml(writer, store, ratesToNok, reportConfig.reportYear);
+            } else {
+                // Standard portfolio report
+                writeHeaderSummaryHtml(writer, headerSummary, overviewRows, store, ratesToNok);
+                writeOverviewTableHtml(writer, overviewRows, store, ratesToNok);
+                writeRealizedSummaryTableHtml(writer, store, ratesToNok);
+            }
 
             writer.write("</main>\n");
             writer.write("<script>\n");
@@ -217,6 +331,739 @@ public class ReportWriter {
             writer.write("</body>\n");
             writer.write("</html>\n");
         }
+    }
+
+    private static void writeAnnualSummaryCardsHtml(
+            FileWriter writer,
+            AnnualPerformanceSummary summary,
+            AnnualHeroMetrics metrics,
+            Map<String, Double> ratesToNok,
+            List<AnnualSnapshotRow> snapshotRows) throws IOException {
+
+        if (summary == null || metrics == null) {
+            return;
+        }
+
+        LinkedHashMap<String, Double> cashBuckets = new LinkedHashMap<>();
+        cashBuckets.put(DEFAULT_TOTAL_CURRENCY, metrics.cashHoldingsNok);
+        LinkedHashMap<String, Double> valueBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.endValueNok);
+        LinkedHashMap<String, Double> portfolioReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.portfolioReturnNok);
+        LinkedHashMap<String, Double> realizedGainBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.realizedGainNok);
+        LinkedHashMap<String, Double> dividendsBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.dividendsNok);
+        LinkedHashMap<String, Double> realizedTotalBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.realizedTotalNok);
+        LinkedHashMap<String, Double> bestReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.best.returnNok);
+        LinkedHashMap<String, Double> worstReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.worst.returnNok);
+
+        String portfolioClass = summary.portfolioReturnNok >= 0 ? "positive" : "negative";
+        double benchmarkDelta = summary.hasBenchmarkData ? (summary.portfolioReturnPct - summary.benchmarkReturnPct) : 0.0;
+        String deltaClass = benchmarkDelta >= 0 ? "positive" : "negative";
+        String bestClass = metrics.best.returnNok >= 0.0 ? "positive" : "negative";
+        String worstClass = metrics.worst.returnNok >= 0.0 ? "positive" : "negative";
+        String valueWarningHtml = buildAnnualValueWarningHtml(snapshotRows);
+
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Value</h4><div class=\"annual-summary-value\">"
+            + renderConvertibleMoneyCell(valueBuckets, 2, ratesToNok)
+            + "</div><div class=\"annual-summary-sub\">Portfolio value at end of year</div>"
+            + valueWarningHtml
+            + "</article>\n");
+
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Cash Holdings</h4><div class=\"annual-summary-value\">"
+            + renderConvertibleMoneyCell(cashBuckets, 0, ratesToNok)
+            + "</div><div class=\"annual-summary-sub\">Available cash at year end</div></article>\n");
+
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Portfolio Return</h4><div class=\"annual-summary-value " + portfolioClass + "\">"
+            + renderConvertibleMoneyCell(portfolioReturnBuckets, 2, ratesToNok)
+            + "</div><div class=\"annual-summary-sub " + portfolioClass + "\">"
+            + HtmlFormatter.formatPercent(summary.portfolioReturnPct)
+            + "</div><div class=\"annual-summary-sub\">Time-weighted annual return, adjusted for external cash flows.</div></article>\n");
+
+        String realizedGainClass = summary.realizedGainNok >= 0 ? "positive" : "negative";
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Realized Gain/Loss</h4><div class=\"annual-summary-value " + realizedGainClass + "\">"
+            + renderConvertibleMoneyCell(realizedGainBuckets, 2, ratesToNok)
+            + "</div><div class=\"annual-summary-sub\">Closed sales in selected year</div></article>\n");
+
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Dividends</h4><div class=\"annual-summary-value\">"
+            + renderConvertibleMoneyCell(dividendsBuckets, 2, ratesToNok)
+            + "</div><div class=\"annual-summary-sub\">Dividend cash flows in selected year</div></article>\n");
+
+        String realizedTotalClass = summary.realizedTotalNok >= 0 ? "positive" : "negative";
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Total Realized</h4><div class=\"annual-summary-value " + realizedTotalClass + "\">"
+            + renderConvertibleMoneyCell(realizedTotalBuckets, 2, ratesToNok)
+            + "</div><div class=\"annual-summary-sub\">Realized gain/loss plus dividends</div></article>\n");
+
+        if (summary.hasBenchmarkData) {
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value\">"
+                + HtmlFormatter.formatPercent(summary.benchmarkReturnPct)
+                + "</div><div class=\"annual-summary-sub\">Selected year performance</div></article>\n");
+
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Relative vs Benchmark</h4><div class=\"annual-summary-value " + deltaClass + "\">"
+                + HtmlFormatter.formatPercent(benchmarkDelta)
+                + "</div><div class=\"annual-summary-sub\">Portfolio minus benchmark</div></article>\n");
+        } else {
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value\">0.00%</div><div class=\"annual-summary-sub\">No benchmark data available for this year.</div></article>\n");
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Relative vs Benchmark</h4><div class=\"annual-summary-value " + portfolioClass + "\">"
+                + HtmlFormatter.formatPercent(summary.portfolioReturnPct)
+                + "</div><div class=\"annual-summary-sub\">Portfolio minus 0.00% fallback benchmark</div></article>\n");
+        }
+
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Best / Worst</h4><div class=\"performer " + bestClass + "\"><strong>"
+            + escapeHtml(metrics.best.label)
+            + "</strong><span class=\"performer-metrics\">"
+            + renderConvertibleMoneyCell(bestReturnBuckets, 0, ratesToNok)
+            + " | " + HtmlFormatter.formatPercent(metrics.best.returnPct)
+            + "</span></div><div class=\"performer " + worstClass + "\"><strong>"
+            + escapeHtml(metrics.worst.label)
+            + "</strong><span class=\"performer-metrics\">"
+            + renderConvertibleMoneyCell(worstReturnBuckets, 0, ratesToNok)
+            + " | " + HtmlFormatter.formatPercent(metrics.worst.returnPct)
+            + "</span></div></article>\n");
+
+    }
+
+    private static String buildAnnualValueWarningHtml(List<AnnualSnapshotRow> snapshotRows) {
+        if (snapshotRows == null || snapshotRows.isEmpty()) {
+            return "";
+        }
+
+        for (AnnualSnapshotRow row : snapshotRows) {
+            if (row != null && row.hasEstimatedPrice) {
+                return "<div class=\"annual-value-warning\">Estimated value: prices closest to 31.12 were used where exact year-end closes were unavailable.</div>";
+            }
+        }
+        return "";
+    }
+
+    private static final class AnnualSecurityPerformance {
+        private final String label;
+        private final double returnNok;
+        private final double returnPct;
+
+        private AnnualSecurityPerformance(String label, double returnNok, double returnPct) {
+            this.label = label;
+            this.returnNok = returnNok;
+            this.returnPct = returnPct;
+        }
+    }
+
+    private static final class AnnualHeroMetrics {
+        private final int transactionCount;
+        private final int holdingsCount;
+        private final double cashHoldingsNok;
+        private final AnnualSecurityPerformance best;
+        private final AnnualSecurityPerformance worst;
+
+        private AnnualHeroMetrics(
+                int transactionCount,
+                int holdingsCount,
+                double cashHoldingsNok,
+                AnnualSecurityPerformance best,
+                AnnualSecurityPerformance worst) {
+            this.transactionCount = transactionCount;
+            this.holdingsCount = holdingsCount;
+            this.cashHoldingsNok = cashHoldingsNok;
+            this.best = best;
+            this.worst = worst;
+        }
+    }
+
+        private static void writeAnnualHeaderSummaryHtml(
+            FileWriter writer,
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int reportYear) throws IOException {
+
+        int safeYear = Math.max(2000, Math.min(2100, reportYear));
+        AnnualHeroMetrics metrics = buildAnnualHeroMetrics(store, ratesToNok, safeYear);
+
+        writer.write("<section class=\"report-hero annual-hero\">\n");
+        writer.write("<div class=\"hero-title annual-hero-header\">\n");
+        writer.write("<h1>Annual Report - " + safeYear + "</h1>\n");
+        writer.write("<div class=\"hero-meta\">\n");
+        writer.write("<span class=\"meta-chip\">Files: <strong>" + store.getLoadedCsvFileCount() + "</strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Transactions: <strong>" + metrics.transactionCount + "</strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Holdings: <strong>" + metrics.holdingsCount + "</strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Currency: <strong><input id=\"portfolio-currency-input\" class=\"currency-input\" type=\"text\" value=\"" + DEFAULT_TOTAL_CURRENCY + "\" maxlength=\"3\" autocomplete=\"off\" spellcheck=\"false\" title=\"Skriv valutakode (f.eks. NOK, USD) og trykk Enter\"></strong></span>\n");
+        writer.write("<button id=\"report-theme-toggle\" class=\"hero-theme-btn\" type=\"button\">Dark mode</button>\n");
+        writer.write("</div>\n");
+
+        writer.write("</div>\n");
+        writer.write("</section>\n");
+    }
+
+    private static void writeAnnualSummarySectionHtml(
+            FileWriter writer,
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int reportYear,
+            AnnualPerformanceSummary annualSummary,
+            List<AnnualSnapshotRow> snapshotRows) throws IOException {
+
+        if (annualSummary == null) {
+            return;
+        }
+
+        int safeYear = Math.max(2000, Math.min(2100, reportYear));
+        AnnualHeroMetrics metrics = buildAnnualHeroMetrics(store, ratesToNok, safeYear);
+
+        writer.write("<section class=\"annual-kpi-deck\">\n");
+        writer.write("<h2 class=\"annual-kpi-deck-title\">Annual Performance</h2>\n");
+        writer.write("<div class=\"annual-summary-grid\">\n");
+        writeAnnualSummaryCardsHtml(writer, annualSummary, metrics, ratesToNok, snapshotRows);
+        writer.write("</div>\n");
+        writer.write("</section>\n");
+    }
+
+    private static void writeAnnualTimelineChartsHtml(
+            FileWriter writer,
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int reportYear) throws IOException {
+
+        int safeYear = Math.max(2000, Math.min(2100, reportYear));
+        String valueChartSvg = PortfolioCalculator.buildAnnualPortfolioValueSparklineSvg(store, ratesToNok, safeYear);
+        String returnChartSvg = PortfolioCalculator.buildAnnualPortfolioReturnSparklineSvg(store, ratesToNok, safeYear);
+
+        writer.write("<section class=\"annual-graphs-section\">\n");
+        writer.write("<div class=\"annual-graphs-heading\"><h2>Yearly Trend</h2><p>Value and return development month by month for " + safeYear + ".</p></div>\n");
+        writer.write("<div class=\"annual-graphs-row\">\n");
+
+        writer.write("<article class=\"annual-graph-card\">\n");
+        writer.write("<h3>Portfolio Value</h3>\n");
+        writer.write("<p class=\"annual-graph-note\">Month-end portfolio value in selected year.</p>\n");
+        writer.write("<div class=\"annual-graph-content\">\n");
+        if (valueChartSvg == null || valueChartSvg.isBlank()) {
+            writer.write("<div class=\"app-shell-note\">Timeline data is not available for the selected year.</div>\n");
+        } else {
+            writer.write(valueChartSvg + "\n");
+        }
+        writer.write("</div>\n");
+        writer.write("</article>\n");
+
+        writer.write("<article class=\"annual-graph-card\">\n");
+        writer.write("<h3>Portfolio Return</h3>\n");
+        writer.write("<p class=\"annual-graph-note\">Month-end portfolio return in selected year.</p>\n");
+        writer.write("<div class=\"annual-graph-content\">\n");
+        if (returnChartSvg == null || returnChartSvg.isBlank()) {
+            writer.write("<div class=\"app-shell-note\">Return timeline is not available for the selected year.</div>\n");
+        } else {
+            writer.write(returnChartSvg + "\n");
+        }
+        writer.write("</div>\n");
+        writer.write("</article>\n");
+
+        writer.write("</div>\n");
+        writer.write("</section>\n");
+    }
+
+    private static AnnualHeroMetrics buildAnnualHeroMetrics(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int reportYear) {
+
+        LocalDate snapshotDate = LocalDate.of(reportYear, 12, 31);
+        List<AnnualSnapshotRow> snapshotRows = buildAnnualSnapshotRows(store, snapshotDate);
+        int holdingsCount = snapshotRows.size();
+        int transactionCount = countAnnualTransactions(store, reportYear);
+        double cashHoldingsNok = computeCashHoldingsAtDate(store, snapshotDate);
+
+        AnnualSecurityPerformance best = new AnnualSecurityPerformance("No yearly realized data", 0.0, 0.0);
+        AnnualSecurityPerformance worst = best;
+        boolean hasBestWorst = false;
+
+        for (Security security : store.getSecurities()) {
+            if (security == null) {
+                continue;
+            }
+
+            String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
+            double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
+            if (rateToNok <= 0.0) {
+                rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_TOTAL_CURRENCY, 1.0);
+            }
+                final double rateToNokFinal = rateToNok;
+
+            double yearGainNok = security.getSaleTradesSortedByDate().stream()
+                    .filter(trade -> trade != null && trade.getTradeDate() != null && trade.getTradeDate().getYear() == reportYear)
+                    .mapToDouble(trade -> trade.getGainLoss() * rateToNokFinal)
+                    .sum();
+
+            double yearCostNok = security.getSaleTradesSortedByDate().stream()
+                    .filter(trade -> trade != null && trade.getTradeDate() != null && trade.getTradeDate().getYear() == reportYear)
+                    .mapToDouble(trade -> trade.getCostBasis() * rateToNokFinal)
+                    .sum();
+
+            double yearDividendsNok = security.getAllDividendEventsSortedByDate().stream()
+                    .filter(event -> event != null && event.getTradeDate() != null && event.getTradeDate().getYear() == reportYear)
+                    .mapToDouble(event -> event.getAmount() * rateToNokFinal)
+                    .sum();
+
+            double yearReturnNok = yearGainNok + yearDividendsNok;
+            if (Math.abs(yearReturnNok) < 1e-9 && Math.abs(yearCostNok) < 1e-9) {
+                continue;
+            }
+
+            double yearReturnPct = yearCostNok > 0.0
+                    ? (yearReturnNok / yearCostNok) * 100.0
+                    : (yearReturnNok > 0.0 ? 100.0 : 0.0);
+
+            AnnualSecurityPerformance current = new AnnualSecurityPerformance(
+                    security.getDisplayName(),
+                    yearReturnNok,
+                    yearReturnPct
+            );
+
+            if (!hasBestWorst || current.returnNok > best.returnNok) {
+                best = current;
+            }
+            if (!hasBestWorst || current.returnNok < worst.returnNok) {
+                worst = current;
+            }
+            hasBestWorst = true;
+        }
+
+        return new AnnualHeroMetrics(
+                transactionCount,
+                holdingsCount,
+                cashHoldingsNok,
+                best,
+            worst
+        );
+    }
+
+    private static int countAnnualTransactions(TransactionStore store, int reportYear) {
+        int unitEventCount = 0;
+        for (Events.UnitEvent event : store.getUnitEvents()) {
+            if (event != null && event.tradeDate() != null && event.tradeDate().getYear() == reportYear) {
+                unitEventCount++;
+            }
+        }
+
+        int externalCashCount = 0;
+        for (Events.CashEvent event : store.getCashEvents()) {
+            if (event != null
+                    && event.tradeDate() != null
+                    && event.tradeDate().getYear() == reportYear
+                    && event.externalFlow()) {
+                externalCashCount++;
+            }
+        }
+
+        int dividendCount = 0;
+        for (Security security : store.getSecurities()) {
+            if (security == null) {
+                continue;
+            }
+            for (Security.DividendEvent event : security.getAllDividendEventsSortedByDate()) {
+                if (event != null && event.getTradeDate() != null && event.getTradeDate().getYear() == reportYear) {
+                    dividendCount++;
+                }
+            }
+        }
+
+        return unitEventCount + externalCashCount + dividendCount;
+    }
+
+    private static double computeCashHoldingsAtDate(TransactionStore store, LocalDate snapshotDate) {
+        List<Events.PortfolioCashSnapshot> snapshots = store.getPortfolioCashSnapshots();
+        if (!snapshots.isEmpty()) {
+            LinkedHashMap<String, Events.PortfolioCashSnapshot> latestByPortfolio = new LinkedHashMap<>();
+            for (Events.PortfolioCashSnapshot snapshot : snapshots) {
+                if (snapshot == null
+                        || snapshot.tradeDate() == null
+                        || snapshot.tradeDate().isAfter(snapshotDate)
+                        || snapshot.portfolioId() == null
+                        || snapshot.portfolioId().isBlank()) {
+                    continue;
+                }
+
+                Events.PortfolioCashSnapshot existing = latestByPortfolio.get(snapshot.portfolioId());
+                if (existing == null
+                        || snapshot.tradeDate().isAfter(existing.tradeDate())
+                        || (snapshot.tradeDate().equals(existing.tradeDate()) && snapshot.sortId() >= existing.sortId())) {
+                    latestByPortfolio.put(snapshot.portfolioId(), snapshot);
+                }
+            }
+
+            double total = 0.0;
+            for (Events.PortfolioCashSnapshot snapshot : latestByPortfolio.values()) {
+                total += snapshot.balance();
+            }
+            return total;
+        }
+
+        double total = 0.0;
+        for (Events.CashEvent event : store.getCashEvents()) {
+            if (event != null && event.tradeDate() != null && !event.tradeDate().isAfter(snapshotDate)) {
+                total += event.cashDelta();
+            }
+        }
+        return total;
+    }
+
+    private static final class AnnualSnapshotRow {
+        private final String ticker;
+        private final String securityName;
+        private final String assetType;
+        private final String currencyCode;
+        private final double units;
+        private final double averageCost;
+        private final double latestPrice;
+        private final double costBasis;
+        private final double marketValue;
+        private final double unrealized;
+        private final double unrealizedPct;
+        private final boolean hasPrice;
+        private final boolean hasEstimatedPrice;
+
+        private AnnualSnapshotRow(
+                String ticker,
+                String securityName,
+                String assetType,
+                String currencyCode,
+                double units,
+                double averageCost,
+                double latestPrice,
+                double costBasis,
+                double marketValue,
+                double unrealized,
+                double unrealizedPct,
+                boolean hasPrice,
+                boolean hasEstimatedPrice) {
+            this.ticker = ticker;
+            this.securityName = securityName;
+            this.assetType = assetType;
+            this.currencyCode = currencyCode;
+            this.units = units;
+            this.averageCost = averageCost;
+            this.latestPrice = latestPrice;
+            this.costBasis = costBasis;
+            this.marketValue = marketValue;
+            this.unrealized = unrealized;
+            this.unrealizedPct = unrealizedPct;
+            this.hasPrice = hasPrice;
+            this.hasEstimatedPrice = hasEstimatedPrice;
+        }
+    }
+
+    private static void writeAnnualPortfolioSnapshotTableHtml(
+            FileWriter writer,
+            List<AnnualSnapshotRow> rows,
+            Map<String, Double> ratesToNok,
+            int reportYear) throws IOException {
+
+        int safeYear = Math.max(2000, Math.min(2100, reportYear));
+
+        writer.write("<h2>PORTFOLIO OVERVIEW - 31.12." + safeYear + "</h2>\n");
+        if (rows.isEmpty()) {
+            writer.write("<p class=\"app-shell-note\">No holdings found at 31.12." + safeYear + ".</p>\n");
+            return;
+        }
+
+        writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
+        writeHtmlRow(writer, true,
+                "Ticker", "Security", "Units", "Avg Cost", "Price", "Cost Basis", "Market Value", "Unrealized");
+
+        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalUnrealizedBuckets = new LinkedHashMap<>();
+        String previousAssetType = null;
+
+        for (AnnualSnapshotRow row : rows) {
+            addToCurrencyBuckets(totalCostBasisBuckets, row.currencyCode, row.costBasis);
+            addToCurrencyBuckets(totalMarketValueBuckets, row.currencyCode, row.marketValue);
+            addToCurrencyBuckets(totalUnrealizedBuckets, row.currencyCode, row.unrealized);
+
+            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
+            String unrealizedText = row.hasPrice
+                    ? HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")"
+                    : "-";
+
+            writeHtmlRowWithClass(writer, rowClass,
+                    "<span class=\"ticker-scroll\">" + escapeHtml(row.ticker) + "</span>",
+                    "<span class=\"security-scroll\">" + escapeHtml(row.securityName) + "</span>",
+                    HtmlFormatter.formatUnits(row.units),
+                    HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
+                    row.hasPrice ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-",
+                    HtmlFormatter.formatMoney(row.costBasis, row.currencyCode, 2),
+                    row.hasPrice ? HtmlFormatter.formatMoney(row.marketValue, row.currencyCode, 2) : "-",
+                    unrealizedText);
+
+            previousAssetType = row.assetType;
+        }
+
+        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalUnrealizedForPct = convertBucketsToTarget(totalUnrealizedBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalUnrealizedPct = totalCostBasisForPct > 0.0 ? (totalUnrealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
+
+        writer.write("<tr class=\"total-row\">\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalUnrealizedBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + ")</td>\n");
+        writer.write("</tr>\n");
+        writer.write("</table>\n</div>\n\n");
+    }
+
+    private static List<AnnualSnapshotRow> buildAnnualSnapshotRows(TransactionStore store, LocalDate snapshotDate) {
+        Map<String, Security> securityByKey = buildSecurityLookupByKey(store);
+        LinkedHashMap<String, Double> unitsBySecurity = new LinkedHashMap<>();
+        HashMap<String, NavigableMap<LocalDate, Double>> priceSeriesCache = new HashMap<>();
+
+        for (Events.UnitEvent event : store.getUnitEvents()) {
+            if (event == null || event.tradeDate() == null || event.tradeDate().isAfter(snapshotDate)) {
+                continue;
+            }
+            unitsBySecurity.merge(event.securityKey(), event.unitsDelta(), Double::sum);
+        }
+
+        ArrayList<AnnualSnapshotRow> rows = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : unitsBySecurity.entrySet()) {
+            double units = entry.getValue();
+            if (units <= EPSILON) {
+                continue;
+            }
+
+            Security security = securityByKey.get(entry.getKey());
+            if (security == null) {
+                continue;
+            }
+            if (isTemporaryRightsSecurity(security)) {
+                continue;
+            }
+
+            double averageCost = resolveAnnualSnapshotAverageCost(security, snapshotDate, units, priceSeriesCache);
+            double costBasis = units * averageCost;
+        PortfolioCalculator.PriceResolution priceResolution = PortfolioCalculator.resolvePriceAtDateDetailed(security, snapshotDate, priceSeriesCache);
+        double price = priceResolution.getPrice();
+            boolean hasPrice = price > 0.0;
+            double marketValue = hasPrice ? units * price : 0.0;
+            double unrealized = hasPrice ? marketValue - costBasis : 0.0;
+            double unrealizedPct = costBasis > 0.0 ? (unrealized / costBasis) * 100.0 : 0.0;
+        boolean hasEstimatedPrice = !hasPrice || priceResolution.isEstimated();
+
+            rows.add(new AnnualSnapshotRow(
+                    security.getTicker(),
+                    security.getDisplayName(),
+                    security.getAssetType().name(),
+                    security.getCurrencyCode(),
+                    units,
+                    averageCost,
+                    price,
+                    costBasis,
+                    marketValue,
+                    unrealized,
+                    unrealizedPct,
+                    hasPrice,
+                    hasEstimatedPrice
+            ));
+        }
+
+        rows.sort(Comparator
+                .comparingInt((AnnualSnapshotRow row) -> getAssetPriority(row.assetType))
+                .thenComparing((AnnualSnapshotRow row) -> row.marketValue, Comparator.reverseOrder())
+                .thenComparing(row -> row.securityName, String.CASE_INSENSITIVE_ORDER));
+
+        return rows;
+    }
+
+    private static double resolveAnnualSnapshotAverageCost(
+            Security security,
+            LocalDate snapshotDate,
+            double snapshotUnits,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+        if (security == null || snapshotDate == null || snapshotUnits <= EPSILON) {
+            return 0.0;
+        }
+
+        double reconstructedUnits = 0.0;
+        double reconstructedCost = 0.0;
+
+        for (Security.CurrentHoldingLot lot : security.getCurrentHoldingLotsSortedByDate()) {
+            if (lot == null || lot.getTradeDate() == null || lot.getUnits() <= EPSILON) {
+                continue;
+            }
+            if (lot.getTradeDate().isAfter(snapshotDate)) {
+                continue;
+            }
+
+            reconstructedUnits += lot.getUnits();
+            reconstructedCost += lot.getCostBasis();
+        }
+
+        double missingUnits = Math.max(0.0, snapshotUnits - reconstructedUnits);
+        if (missingUnits > EPSILON) {
+            for (Security.SaleTrade saleTrade : security.getSaleTradesSortedByDate()) {
+                if (saleTrade == null || saleTrade.getTradeDate() == null || !saleTrade.getTradeDate().isAfter(snapshotDate)) {
+                    continue;
+                }
+
+                double soldUnits = Math.max(0.0, saleTrade.getUnits());
+                if (soldUnits <= EPSILON) {
+                    continue;
+                }
+
+                double soldCostBasis = Math.max(0.0, saleTrade.getCostBasis());
+                double restoredUnits = Math.min(missingUnits, soldUnits);
+                double unitCost = soldCostBasis / soldUnits;
+
+                reconstructedUnits += restoredUnits;
+                reconstructedCost += restoredUnits * unitCost;
+                missingUnits -= restoredUnits;
+
+                if (missingUnits <= EPSILON) {
+                    break;
+                }
+            }
+        }
+
+        if (reconstructedUnits > EPSILON && reconstructedCost > 0.0) {
+            double reconstructedAvg = reconstructedCost / reconstructedUnits;
+            if (reconstructedUnits + EPSILON < snapshotUnits) {
+                reconstructedCost += (snapshotUnits - reconstructedUnits) * reconstructedAvg;
+                reconstructedUnits = snapshotUnits;
+            }
+            return Math.max(0.0, reconstructedCost / Math.max(snapshotUnits, EPSILON));
+        }
+
+        double currentAverageCost = Math.max(0.0, security.getAverageCost());
+        if (currentAverageCost > 0.0) {
+            return currentAverageCost;
+        }
+
+        double fallbackPrice = PortfolioCalculator.resolvePriceAtDate(security, snapshotDate, priceSeriesCache);
+        if (fallbackPrice > 0.0) {
+            return fallbackPrice;
+        }
+
+        return 0.0;
+    }
+
+    private static void writeAnnualRealizedSummaryTableHtml(
+            FileWriter writer,
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int reportYear) throws IOException {
+
+        int safeYear = Math.max(2000, Math.min(2100, reportYear));
+        writer.write("<h2>REALIZED OVERVIEW - SALES IN " + safeYear + "</h2>\n");
+        writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
+        writeHtmlRow(writer, true, buildDetailsHeaderCell("realized-details-year"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+
+        LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedGainBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedDividendsBuckets = new LinkedHashMap<>();
+
+        ArrayList<Security> sortedSecurities = new ArrayList<>(store.getSecurities());
+        sortedSecurities.sort(Comparator
+                .comparingInt((Security s) -> getAssetPriority(s.getAssetType().name()))
+                .thenComparing(Security::getDisplayName, String.CASE_INSENSITIVE_ORDER));
+
+        String previousAssetType = null;
+        int detailsIndex = 0;
+        int includedRows = 0;
+
+        for (Security security : sortedSecurities) {
+            List<Security.SaleTrade> yearlySales = security.getSaleTradesSortedByDate().stream()
+                    .filter(trade -> trade != null && trade.getTradeDate() != null && trade.getTradeDate().getYear() == safeYear)
+                    .toList();
+
+            double realizedDividends = security.getAllDividendEventsSortedByDate().stream()
+                    .filter(event -> event != null && event.getTradeDate() != null && event.getTradeDate().getYear() == safeYear)
+                    .mapToDouble(Security.DividendEvent::getAmount)
+                    .sum();
+
+            if (yearlySales.isEmpty() && Math.abs(realizedDividends) < EPSILON) {
+                continue;
+            }
+
+            double salesValue = yearlySales.stream().mapToDouble(Security.SaleTrade::getSaleValue).sum();
+            double costBasis = yearlySales.stream().mapToDouble(Security.SaleTrade::getCostBasis).sum();
+            double gain = yearlySales.stream().mapToDouble(Security.SaleTrade::getGainLoss).sum();
+
+            double totalReturnValue = gain + realizedDividends;
+            double rowTotalReturnPct = costBasis > 0.0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
+            String currency = security.getCurrencyCode();
+            String currentAssetType = security.getAssetType().name();
+            String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
+            String totalReturnCombined = HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
+                    + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")";
+
+            addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
+            addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
+            addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
+            addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
+
+            String detailsRowId = "realized-year-details-" + detailsIndex;
+            writeHtmlRowWithClass(writer, rowClass,
+                    "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
+                    "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
+                    "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
+                    HtmlFormatter.formatMoney(costBasis, currency, 2),
+                    HtmlFormatter.formatMoney(salesValue, currency, 2),
+                    HtmlFormatter.formatMoney(gain, currency, 2),
+                    HtmlFormatter.formatMoney(realizedDividends, currency, 2),
+                    totalReturnCombined);
+
+            writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details-year\">\n");
+            writer.write("    <td class=\"details-cell\" colspan=\"8\">\n");
+            writer.write(buildRealizedSaleTradesDetailsHtml(security, safeYear));
+            writer.write("    </td>\n");
+            writer.write("</tr>\n");
+
+            previousAssetType = currentAssetType;
+            detailsIndex++;
+            includedRows++;
+        }
+
+        if (includedRows == 0) {
+            writer.write("<tr><td colspan=\"8\" class=\"app-shell-note\">No sales or dividends were recorded for " + safeYear + ".</td></tr>\n");
+            writer.write("</table>\n</div>\n\n");
+            return;
+        }
+
+        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedGainForPct = convertBucketsToTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedDividendsForPct = convertBucketsToTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        LinkedHashMap<String, Double> totalRealizedReturnBuckets = sumCurrencyBuckets(totalRealizedGainBuckets, totalRealizedDividendsBuckets);
+        double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
+        double totalReturnPct = totalCostBasisForPct > 0
+            ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
+            : 0.0;
+
+        writer.write("<tr class=\"total-row\">\n");
+        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")</td>\n");
+        writer.write("</tr>\n");
+        writer.write("</table>\n</div>\n\n");
+    }
+
+    private static ReportConfig resolveReportConfig() {
+        String rawType = System.getProperty("portfolio.report.type", REPORT_TYPE_STANDARD);
+        String reportType = rawType == null ? REPORT_TYPE_STANDARD : rawType.trim().toLowerCase(Locale.ROOT);
+        if (!REPORT_TYPE_ANNUAL.equals(reportType)) {
+            reportType = REPORT_TYPE_STANDARD;
+        }
+
+        int defaultYear = LocalDate.now().getYear();
+        int reportYear;
+        try {
+            reportYear = Integer.parseInt(System.getProperty("portfolio.report.year", String.valueOf(defaultYear)).trim());
+        } catch (Exception ignored) {
+            reportYear = defaultYear;
+        }
+        reportYear = Math.max(2000, Math.min(2100, reportYear));
+
+        String benchmarkTicker = System.getProperty("portfolio.report.benchmark", "^OSEAX");
+        if (benchmarkTicker == null || benchmarkTicker.isBlank()) {
+            benchmarkTicker = "^OSEAX";
+        }
+
+        return new ReportConfig(reportType, reportYear, benchmarkTicker.trim());
     }
 
     private static void writeHeaderSummaryHtml(FileWriter writer, HeaderSummary s, List<OverviewRow> overviewRows, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
@@ -303,12 +1150,13 @@ public class ReportWriter {
             + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
         writer.write("</div></div>\n");
-        writer.write("<aside class=\"hero-side\"><div class=\"hero-side-title\">Portfolio Value Timeline</div>");
+        writer.write("<aside class=\"hero-side\"><div class=\"timeline-title-row\"><div class=\"hero-side-title\">Portfolio Value Timeline</div><button type=\"button\" class=\"timeline-info-btn\" aria-label=\"Show calculation info\" title=\"Show calculation info\">i</button></div>");
         if (s.sparklineSvg != null && !s.sparklineSvg.isBlank()) {
             writer.write(s.sparklineSvg);
         } else {
             writer.write("<div class=\"hero-side-note\">Timeline data not available yet for this dataset.</div>");
         }
+        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio timeline info\"><div class=\"timeline-info-header\"><h4>Portfolio Value Timeline - Info</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>This chart is an indicative estimate based on imported transactions, cash snapshots, and historical prices.</p><ul><li><strong>Value:</strong> Estimated portfolio value at each month-end in the selected display currency.</li><li><strong>Return (NOK):</strong> Cumulative cashflow-adjusted return (TWR-based) for the selected range, expressed in NOK from the range start value.</li><li><strong>Return (%):</strong> Cumulative time-weighted return (TWR) from the selected range start.</li><li><strong>External cash flows:</strong> Deposits, withdrawals, and transfers are neutralized in return calculations so contributions/withdrawals do not count as performance.</li><li><strong>Pricing:</strong> Historical close prices are primarily fetched from Yahoo Finance. If data points are missing, transaction-derived fallback pricing is used.</li><li><strong>Disclaimer:</strong> Values are for analysis and may differ from official broker reporting.</li></ul></div></div></div>");
         writer.write("</aside>\n");
         writer.write("</section>\n");
     }
@@ -453,7 +1301,7 @@ public class ReportWriter {
             double gain = security.getRealizedGain();
             double realizedDividends = security.isFullyRealized() ? security.getDividends() : 0.0;
             double totalReturnValue = gain + realizedDividends;
-            double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : (totalReturnValue > 0 ? 100.0 : 0.0);
+            double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
             String totalReturnCombined = HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
@@ -492,7 +1340,7 @@ public class ReportWriter {
         double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
         double totalReturnPct = totalCostBasisForPct > 0
             ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
-            : (totalRealizedReturnForPct > 0 ? 100.0 : 0.0);
+            : 0.0;
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
@@ -506,56 +1354,70 @@ public class ReportWriter {
     }
 
     private static String buildRealizedSaleTradesDetailsHtml(Security security) {
+        return buildRealizedSaleTradesDetailsHtml(security, null);
+    }
+
+    private static String buildRealizedSaleTradesDetailsHtml(Security security, Integer filterYear) {
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"details-wrap\">\n");
         html.append("<h4>Sale Trades - ").append(escapeHtml(security.getDisplayName())).append("</h4>\n");
 
         List<Security.SaleTrade> saleTrades = security.getSaleTradesSortedByDate();
+        if (filterYear != null) {
+            int safeYear = filterYear;
+            saleTrades = saleTrades.stream()
+                    .filter(trade -> trade != null && trade.getTradeDate() != null && trade.getTradeDate().getYear() == safeYear)
+                    .toList();
+        }
         String currency = security.getCurrencyCode();
         if (saleTrades.isEmpty()) {
-            html.append("<div class=\"hero-side-note\">No sale trades available.</div>\n");
-            html.append("</div>\n");
-            return html.toString();
-        }
+            html.append("<div class=\"app-shell-note\">No sale trades available.</div>\n");
+        } else {
+            html.append("<table class=\"details-table\">\n");
+            html.append("<tr><th>Sale Date</th><th>Units</th><th>Price/Unit</th><th>Cost Basis</th><th>Sale Value</th><th>Gain/Loss</th><th>Return (%)</th></tr>\n");
 
-        html.append("<table class=\"details-table\">\n");
-        html.append("<tr><th>Sale Date</th><th>Units</th><th>Price/Unit</th><th>Cost Basis</th><th>Sale Value</th><th>Gain/Loss</th><th>Return (%)</th></tr>\n");
+            double totalUnits = 0.0;
+            double totalSaleValue = 0.0;
+            double totalCostBasis = 0.0;
+            double totalGainLoss = 0.0;
+            for (Security.SaleTrade trade : saleTrades) {
+                totalUnits += trade.getUnits();
+                totalSaleValue += trade.getSaleValue();
+                totalCostBasis += trade.getCostBasis();
+                totalGainLoss += trade.getGainLoss();
 
-        double totalUnits = 0.0;
-        double totalSaleValue = 0.0;
-        double totalCostBasis = 0.0;
-        double totalGainLoss = 0.0;
-        for (Security.SaleTrade trade : saleTrades) {
-            totalUnits += trade.getUnits();
-            totalSaleValue += trade.getSaleValue();
-            totalCostBasis += trade.getCostBasis();
-            totalGainLoss += trade.getGainLoss();
+                html.append("<tr>");
+                html.append("<td>").append(escapeHtml(trade.getTradeDateAsCsv())).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(trade.getUnits()))).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getUnitPrice(), currency, 2))).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getCostBasis(), currency, 0))).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getSaleValue(), currency, 0))).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
+                html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
+                html.append("</tr>\n");
+            }
 
-            html.append("<tr>");
-            html.append("<td>").append(escapeHtml(trade.getTradeDateAsCsv())).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(trade.getUnits()))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getUnitPrice(), currency, 2))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getCostBasis(), currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getSaleValue(), currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
+            double totalReturnPct = totalCostBasis > 0.0 ? (totalGainLoss / totalCostBasis) * 100.0 : 0.0;
+            html.append("<tr class=\"total-row\">");
+            html.append("<td><strong>TOTAL</strong></td>");
+            html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(totalUnits))).append("</td>");
+            html.append("<td></td>");
+            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalCostBasis, currency, 0))).append("</td>");
+            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalSaleValue, currency, 0))).append("</td>");
+            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
+            html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
             html.append("</tr>\n");
+
+            html.append("</table>\n");
         }
-
-        double totalReturnPct = totalCostBasis > 0.0 ? (totalGainLoss / totalCostBasis) * 100.0 : 0.0;
-        html.append("<tr class=\"total-row\">");
-        html.append("<td><strong>TOTAL</strong></td>");
-        html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(totalUnits))).append("</td>");
-        html.append("<td></td>");
-        html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalCostBasis, currency, 0))).append("</td>");
-        html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalSaleValue, currency, 0))).append("</td>");
-        html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
-        html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
-        html.append("</tr>\n");
-
-        html.append("</table>\n");
 
         List<Security.DividendEvent> dividendEvents = security.getAllDividendEventsSortedByDate();
+        if (filterYear != null) {
+            int safeYear = filterYear;
+            dividendEvents = dividendEvents.stream()
+                    .filter(event -> event != null && event.getTradeDate() != null && event.getTradeDate().getYear() == safeYear)
+                    .toList();
+        }
         if (!dividendEvents.isEmpty()) {
             html.append("<h4 style=\"margin-top:10px;\">Dividend Events</h4>\n");
             html.append("<table class=\"details-table\">\n");
@@ -607,13 +1469,25 @@ public class ReportWriter {
         return "NAME:" + name.trim().toUpperCase(Locale.ROOT);
     }
 
+    private static boolean isTemporaryRightsSecurity(Security security) {
+        if (security == null) {
+            return false;
+        }
+
+        String name = security.getName() == null ? "" : security.getName();
+        String displayName = security.getDisplayName() == null ? "" : security.getDisplayName();
+        String ticker = security.getTicker() == null ? "" : security.getTicker();
+        String upper = (name + " " + displayName + " " + ticker).toUpperCase(Locale.ROOT);
+        return upper.contains("T-RETT") || upper.contains("TEGNINGSRETT");
+    }
+
     private static String buildHoldingDetailsTableHtml(Security security, OverviewRow row) {
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"details-wrap\">\n");
         html.append("<h4>Transaction Details - ").append(escapeHtml(row.securityDisplayName)).append("</h4>\n");
 
         if (security == null) {
-            html.append("<div class=\"hero-side-note\">Details are not available for this security.</div>\n");
+            html.append("<div class=\"app-shell-note\">Details are not available for this security.</div>\n");
             html.append("</div>\n");
             return html.toString();
         }
@@ -685,7 +1559,7 @@ public class ReportWriter {
                 .thenComparingInt(e -> e.order));
 
         if (entries.isEmpty()) {
-            html.append("<div class=\"hero-side-note\">No active buy/dividend entries for current holdings.</div>\n");
+            html.append("<div class=\"app-shell-note\">No active buy/dividend entries for current holdings.</div>\n");
             html.append("</div>\n");
             return html.toString();
         }
@@ -975,6 +1849,9 @@ public class ReportWriter {
         writer.write("  document.querySelectorAll('.js-total-return-money-title').forEach(function (node) {\n");
         writer.write("    node.textContent = 'Total Return (' + target + ')';\n");
         writer.write("  });\n");
+        writer.write("  document.querySelectorAll('.js-return-amount-label').forEach(function (node) {\n");
+        writer.write("    node.textContent = 'Return (' + target + ')';\n");
+        writer.write("  });\n");
         writer.write("  document.querySelectorAll('.js-chart-money').forEach(function (node) {\n");
         writer.write("    var valueNok = Number(node.getAttribute('data-value-nok') || '0');\n");
         writer.write("    var decimals = Number(node.getAttribute('data-decimals') || '0');\n");
@@ -1212,26 +2089,57 @@ public class ReportWriter {
         writer.write("}\n");
         writer.write("function initSparklineRangeControls() {\n");
         writer.write("  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n");
-        writer.write("    var buttons = widget.querySelectorAll('.sparkline-range-btn');\n");
+        writer.write("    var rangeButtons = widget.querySelectorAll('.sparkline-range-btn');\n");
+        writer.write("    var metricButtons = widget.querySelectorAll('.sparkline-metric-btn');\n");
         writer.write("    var panels = widget.querySelectorAll('.sparkline-panel');\n");
-        writer.write("    if (!buttons.length || !panels.length) return;\n");
-        writer.write("    function activate(range) {\n");
-        writer.write("      buttons.forEach(function(btn) {\n");
-        writer.write("        var on = btn.getAttribute('data-range') === range;\n");
-        writer.write("        btn.classList.toggle('is-active', on);\n");
+        writer.write("    if (!metricButtons.length || !panels.length) return;\n");
+        writer.write("    var defaultRangeSource = widget.querySelector('.sparkline-range-btn.is-active') || rangeButtons[0] || panels[0];\n");
+        writer.write("    var activeRange = defaultRangeSource ? defaultRangeSource.getAttribute('data-range') : '';\n");
+        writer.write("    var activeMetric = (widget.querySelector('.sparkline-metric-btn.is-active') || metricButtons[0]).getAttribute('data-metric');\n");
+        writer.write("    function refresh() {\n");
+        writer.write("      rangeButtons.forEach(function(btn) {\n");
+        writer.write("        btn.classList.toggle('is-active', btn.getAttribute('data-range') === activeRange);\n");
+        writer.write("      });\n");
+        writer.write("      metricButtons.forEach(function(btn) {\n");
+        writer.write("        btn.classList.toggle('is-active', btn.getAttribute('data-metric') === activeMetric);\n");
         writer.write("      });\n");
         writer.write("      panels.forEach(function(panel) {\n");
-        writer.write("        var on = panel.getAttribute('data-range') === range;\n");
-        writer.write("        panel.classList.toggle('is-active', on);\n");
+        writer.write("        var matchRange = panel.getAttribute('data-range') === activeRange;\n");
+        writer.write("        var matchMetric = panel.getAttribute('data-metric') === activeMetric;\n");
+        writer.write("        panel.classList.toggle('is-active', matchRange && matchMetric);\n");
         writer.write("      });\n");
         writer.write("    }\n");
-        writer.write("    buttons.forEach(function(btn) {\n");
+        writer.write("    rangeButtons.forEach(function(btn) {\n");
         writer.write("      btn.addEventListener('click', function() {\n");
-        writer.write("        activate(btn.getAttribute('data-range'));\n");
+        writer.write("        activeRange = btn.getAttribute('data-range');\n");
+        writer.write("        refresh();\n");
         writer.write("      });\n");
         writer.write("    });\n");
-        writer.write("    var active = widget.querySelector('.sparkline-range-btn.is-active');\n");
-        writer.write("    activate(active ? active.getAttribute('data-range') : buttons[0].getAttribute('data-range'));\n");
+        writer.write("    metricButtons.forEach(function(btn) {\n");
+        writer.write("      btn.addEventListener('click', function() {\n");
+        writer.write("        activeMetric = btn.getAttribute('data-metric');\n");
+        writer.write("        refresh();\n");
+        writer.write("      });\n");
+        writer.write("    });\n");
+        writer.write("    refresh();\n");
+        writer.write("  });\n");
+        writer.write("}\n");
+        writer.write("function initTimelineInfoPopup() {\n");
+        writer.write("  document.querySelectorAll('.hero-side').forEach(function(side) {\n");
+        writer.write("    var openBtn = side.querySelector('.timeline-info-btn');\n");
+        writer.write("    var overlay = side.querySelector('.timeline-info-overlay');\n");
+        writer.write("    if (!openBtn || !overlay) return;\n");
+        writer.write("    var closeBtn = overlay.querySelector('.timeline-info-close');\n");
+        writer.write("    function closeDialog() { overlay.hidden = true; }\n");
+        writer.write("    function openDialog() { overlay.hidden = false; }\n");
+        writer.write("    openBtn.addEventListener('click', openDialog);\n");
+        writer.write("    if (closeBtn) closeBtn.addEventListener('click', closeDialog);\n");
+        writer.write("    overlay.addEventListener('click', function(event) {\n");
+        writer.write("      if (event.target === overlay) closeDialog();\n");
+        writer.write("    });\n");
+        writer.write("    window.addEventListener('keydown', function(event) {\n");
+        writer.write("      if (!overlay.hidden && event.key === 'Escape') closeDialog();\n");
+        writer.write("    });\n");
         writer.write("  });\n");
         writer.write("}\n");
         writer.write("function initInlineCellDragHandles() {\n");
@@ -1251,7 +2159,7 @@ public class ReportWriter {
         writer.write("  });\n");
         writer.write("  window.addEventListener('mouseup', stopDrag);\n");
         writer.write("  window.addEventListener('mouseleave', stopDrag);\n");
-        writer.write("  document.querySelectorAll('.ticker-scroll, .security-scroll').forEach(function (node) {\n");
+        writer.write("  document.querySelectorAll('.security-scroll, .ticker-scroll').forEach(function (node) {\n");
         writer.write("    if (node.dataset.dragHandleInit === '1') return;\n");
         writer.write("    node.dataset.dragHandleInit = '1';\n");
         writer.write("    node.addEventListener('mousedown', function (event) {\n");
@@ -1374,6 +2282,7 @@ public class ReportWriter {
         writer.write("  refreshReportTotalsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
         writer.write("  refreshReportChartsCurrency('" + DEFAULT_TOTAL_CURRENCY + "');\n");
         writer.write("  initSparklineRangeControls();\n");
+        writer.write("  initTimelineInfoPopup();\n");
         writer.write("  initInlineCellDragHandles();\n");
         writer.write("  initChartDownloadButtons();\n");
         writer.write("  initChartHoverEffects();\n");

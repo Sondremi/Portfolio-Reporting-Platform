@@ -171,14 +171,14 @@ public class CsvLoader {
     private static void processStandaloneCashTransaction(ArrayList<String> row, HeaderIndexes indexes,
                                                          String transactionType, LocalDate tradeDate,
                                                          boolean balanceBackedRow, TransactionStore store) {
-        if (balanceBackedRow || !isCashAccountEventType(transactionType)) return;
+        if (!isCashAccountEventType(transactionType)) return;
 
         double amount = parseDoubleOrZero(getCell(row, indexes.amount));
         double totalFees = parseDoubleOrZero(getCell(row, indexes.totalFees));
         double cashDelta = resolveCashAccountEventDelta(transactionType, amount, totalFees);
 
         if (Math.abs(cashDelta) > 1e-9) {
-            store.addCashEvent(new Events.CashEvent(tradeDate, cashDelta));
+            store.addCashEvent(new Events.CashEvent(tradeDate, cashDelta, isExternalCashFlowEventType(transactionType)));
         }
     }
 
@@ -206,7 +206,15 @@ public class CsvLoader {
         if (isTradeLikeTransaction(transactionType)) {
             double tradeCashDelta = resolveTradeCashDelta(transactionType, amount, quantity, price, totalFees);
             if (!balanceBackedRow && Math.abs(tradeCashDelta) > 1e-9) {
-                store.addCashEvent(new Events.CashEvent(tradeDate, tradeCashDelta));
+                boolean sourceTracksBrokerCash = indexes.cashBalance >= 0;
+                if (sourceTracksBrokerCash) {
+                    // Trade settles against tracked broker cash account.
+                    store.addCashEvent(new Events.CashEvent(tradeDate, tradeCashDelta, false));
+                } else {
+                    // Source has no broker cash ledger (e.g. bank-funded trade exports).
+                    // Treat principal as external contribution/withdrawal instead.
+                    store.addCashEvent(new Events.CashEvent(tradeDate, -tradeCashDelta, true));
+                }
             }
             if (Math.abs(quantity) > 0.0) {
                 double unitsDelta = isBuyLikeTransaction(transactionType, amount) ? Math.abs(quantity) : -Math.abs(quantity);
@@ -226,7 +234,7 @@ public class CsvLoader {
 
         if (isDividendCashTransaction(transactionType)) {
             if (!balanceBackedRow && Math.abs(amount) > 1e-9) {
-                store.addCashEvent(new Events.CashEvent(tradeDate, Math.abs(amount)));
+                store.addCashEvent(new Events.CashEvent(tradeDate, Math.abs(amount), false));
             }
             security.addDividend(Math.abs(amount), getCell(row, indexes.tradeDate), Math.abs(quantity));
             return;
@@ -236,15 +244,15 @@ public class CsvLoader {
             double refundAmount = totalFees > 0.0 ? totalFees : Math.abs(amount);
             security.applyCostRefund(refundAmount);
             if (!balanceBackedRow && Math.abs(refundAmount) > 0.0) {
-                store.addCashEvent(new Events.CashEvent(tradeDate, refundAmount));
+                store.addCashEvent(new Events.CashEvent(tradeDate, refundAmount, false));
             }
             return;
         }
 
         if (isCashAccountEventType(transactionType)) {
             double cashDelta = resolveCashAccountEventDelta(transactionType, amount, totalFees);
-            if (!balanceBackedRow && Math.abs(cashDelta) > 1e-9) {
-                store.addCashEvent(new Events.CashEvent(tradeDate, cashDelta));
+            if (Math.abs(cashDelta) > 1e-9) {
+                store.addCashEvent(new Events.CashEvent(tradeDate, cashDelta, isExternalCashFlowEventType(transactionType)));
             }
         }
     }
@@ -341,7 +349,12 @@ public class CsvLoader {
                 case "kurs", "kurs per andel" -> indexes.price = i;
                 case "resultat" -> indexes.result = i;
                 case "totale avgifter", "omkostninger" -> indexes.totalFees = i;
-                case "handelsdag", "handelsdato" -> indexes.tradeDate = i;
+                case "bokforingsdag", "bokføringsdag" -> {
+                    if (indexes.tradeDate < 0) indexes.tradeDate = i;
+                }
+                case "handelsdag", "handelsdato" -> {
+                    if (indexes.tradeDate < 0) indexes.tradeDate = i;
+                }
                 case "makuleringsdato" -> indexes.cancellationDate = i;
                 case "portefolje", "portefølje", "konto" -> indexes.portfolioId = i;
                 case "saldo" -> indexes.cashBalance = i;
@@ -461,8 +474,17 @@ public class CsvLoader {
         String n = transactionType.toUpperCase(Locale.ROOT);
         return n.contains("INNSKUDD") || n.contains("INNBETAL") || n.contains("DEPOSIT") ||
                n.contains("UTTAK") || n.contains("UTBETAL") || n.contains("WITHDRAW") ||
+               n.contains("OVERF") || n.contains("TRANSFER") || n.contains("TRUSTLY") ||
                n.contains("GEBYR") || n.contains("FEE") || n.contains("KOSTNAD") ||
                n.contains("RENTE") || n.contains("OVERBEL") || n.contains("PLATTFORMAVG");
+    }
+
+    private static boolean isExternalCashFlowEventType(String transactionType) {
+        if (transactionType == null || transactionType.isBlank()) return false;
+        String n = transactionType.toUpperCase(Locale.ROOT);
+        return n.contains("INNSKUDD") || n.contains("INNBETAL") || n.contains("DEPOSIT") ||
+               n.contains("UTTAK") || n.contains("UTBETAL") || n.contains("WITHDRAW") ||
+               n.contains("OVERF") || n.contains("TRANSFER") || n.contains("TRUSTLY");
     }
 
     private static double resolveTradeCashDelta(String transactionType, double amount,
@@ -490,6 +512,9 @@ public class CsvLoader {
         }
         if (n.contains("UTTAK") || n.contains("UTBETAL") || n.contains("WITHDRAW")) {
             return Math.abs(amount) > 1e-9 ? -Math.abs(amount) : -Math.max(0.0, totalFees);
+        }
+        if (n.contains("OVERF") || n.contains("TRANSFER") || n.contains("TRUSTLY")) {
+            return amount;
         }
         if (n.contains("GEBYR") || n.contains("FEE") || n.contains("KOSTNAD") || n.contains("RENTE") || n.contains("OVERBEL")) {
             return amount;

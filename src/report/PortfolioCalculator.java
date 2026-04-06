@@ -21,6 +21,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.*;
@@ -30,17 +31,49 @@ public class PortfolioCalculator {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final String DEFAULT_CURRENCY_CODE = "NOK";
     private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
+    private static final Pattern YAHOO_ADJ_CLOSE_ARRAY = Pattern.compile("\\\"adjclose\\\"\\s*:\\s*\\[\\s*\\{\\s*\\\"adjclose\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
-    private static final Path HISTORY_CACHE_DIR = Path.of(".cache", "history-series");
+    private static final Path HISTORY_CACHE_DIR = Path.of(".cache", "history-series-adjclose");
     private static final Duration HISTORY_CACHE_TTL = Duration.ofHours(12);
+    private static final int BENCHMARK_FETCH_BUFFER_DAYS = 45;
+    private static final int BENCHMARK_BOUNDARY_TOLERANCE_DAYS = 21;
 
     private static final class PortfolioValuePoint {
         private final LocalDate monthEnd;
         private final double value;
+        private final double twrCumulativeReturnPct;
 
-        private PortfolioValuePoint(LocalDate monthEnd, double value) {
+        private PortfolioValuePoint(
+                LocalDate monthEnd,
+                double value,
+                double twrCumulativeReturnPct) {
             this.monthEnd = monthEnd;
             this.value = value;
+            this.twrCumulativeReturnPct = twrCumulativeReturnPct;
+        }
+    }
+
+    private enum SparklineMetric {
+        VALUE,
+        RETURN_NOK,
+        RETURN_PCT
+    }
+
+    public static final class PriceResolution {
+        private final double price;
+        private final boolean estimated;
+
+        private PriceResolution(double price, boolean estimated) {
+            this.price = price;
+            this.estimated = estimated;
+        }
+
+        public double getPrice() {
+            return price;
+        }
+
+        public boolean isEstimated() {
+            return estimated;
         }
     }
 
@@ -193,8 +226,16 @@ public class PortfolioCalculator {
         byRange.put("5Y", takeLastPoints(allPoints, 60));
 
         String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
+        String defaultMetric = "value";
+
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"sparkline-widget\">\n");
+        html.append("<div class=\"sparkline-metric-controls\">\n");
+        html.append("<button type=\"button\" class=\"sparkline-metric-btn is-active\" data-metric=\"value\">Value</button>\n");
+        html.append("<button type=\"button\" class=\"sparkline-metric-btn js-return-amount-label\" data-metric=\"return-nok\">Return (NOK)</button>\n");
+        html.append("<button type=\"button\" class=\"sparkline-metric-btn\" data-metric=\"return-pct\">Return (%)</button>\n");
+        html.append("</div>\n");
+
         html.append("<div class=\"sparkline-controls\">\n");
         for (String range : byRange.keySet()) {
             String active = range.equals(defaultRange) ? " is-active" : "";
@@ -211,23 +252,47 @@ public class PortfolioCalculator {
         for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
             String range = entry.getKey();
             ArrayList<PortfolioValuePoint> points = entry.getValue();
-            String active = range.equals(defaultRange) ? " is-active" : "";
+
             html.append("<div class=\"sparkline-panel")
-                .append(active)
+                .append(range.equals(defaultRange) && "value".equals(defaultMetric) ? " is-active" : "")
                 .append("\" data-range=\"")
                 .append(range)
-                .append("\">\n")
-                .append(buildPortfolioValueSparkline(points))
+                .append("\" data-metric=\"value\">\n")
+                .append(buildPortfolioValueSparkline(points, SparklineMetric.VALUE))
+                .append("</div>\n");
+
+            html.append("<div class=\"sparkline-panel")
+                .append(range.equals(defaultRange) && "return-nok".equals(defaultMetric) ? " is-active" : "")
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\" data-metric=\"return-nok\">\n")
+                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_NOK))
+                .append("</div>\n");
+
+            html.append("<div class=\"sparkline-panel")
+                .append(range.equals(defaultRange) && "return-pct".equals(defaultMetric) ? " is-active" : "")
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\" data-metric=\"return-pct\">\n")
+                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_PCT))
                 .append("</div>\n");
         }
+
         html.append("</div>\n");
         return html.toString();
     }
 
-    private static String buildPortfolioValueSparkline(ArrayList<PortfolioValuePoint> points) {
+    private static String buildPortfolioValueSparkline(ArrayList<PortfolioValuePoint> points, SparklineMetric metric) {
         if (points == null || points.isEmpty()) {
             return "";
         }
+
+        final String axisColor = "var(--spark-axis,#9eb1c3)";
+        final String axisSoftColor = "var(--spark-axis-soft,#b8c7d6)";
+        final String textColor = "var(--spark-text,#5c7187)";
+        final String gridColor = "var(--spark-grid,#cfdbe6)";
+        final String lineColor = "var(--spark-line,#223c55)";
+        final String pointColor = "var(--spark-point,#223c55)";
 
         final double width = 500.0;
         final double height = 124.0;
@@ -238,12 +303,41 @@ public class PortfolioCalculator {
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
+        double[] displayValues = new double[points.size()];
+        double baselineValue = points.get(0).value;
+        double baselineTwrFactor = 1.0 + (points.get(0).twrCumulativeReturnPct / 100.0);
+        if (!Double.isFinite(baselineTwrFactor) || Math.abs(baselineTwrFactor) < 1e-12) {
+            baselineTwrFactor = 1.0;
+        }
+        for (int i = 0; i < points.size(); i++) {
+            PortfolioValuePoint point = points.get(i);
+            if (metric == SparklineMetric.RETURN_NOK) {
+                double currentTwrFactor = 1.0 + (point.twrCumulativeReturnPct / 100.0);
+                if (!Double.isFinite(currentTwrFactor)) {
+                    currentTwrFactor = baselineTwrFactor;
+                }
+                displayValues[i] = baselineValue * ((currentTwrFactor / baselineTwrFactor) - 1.0);
+            } else if (metric == SparklineMetric.RETURN_PCT) {
+                double currentTwrFactor = 1.0 + (point.twrCumulativeReturnPct / 100.0);
+                if (!Double.isFinite(currentTwrFactor)) {
+                    currentTwrFactor = baselineTwrFactor;
+                }
+                displayValues[i] = ((currentTwrFactor / baselineTwrFactor) - 1.0) * 100.0;
+            } else {
+                displayValues[i] = point.value;
+            }
+        }
+
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         int n = points.size();
-        for (PortfolioValuePoint point : points) {
-            min = Math.min(min, point.value);
-            max = Math.max(max, point.value);
+        for (double value : displayValues) {
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+        }
+        if (metric != SparklineMetric.VALUE) {
+            min = Math.min(min, 0.0);
+            max = Math.max(max, 0.0);
         }
         if (!Double.isFinite(min) || !Double.isFinite(max) || Math.abs(max - min) < 1e-9) {
             max += 1.0;
@@ -254,7 +348,7 @@ public class PortfolioCalculator {
         double[] yValues = new double[n];
         for (int i = 0; i < n; i++) {
             double x = left + (plotWidth * i / Math.max(1.0, n - 1.0));
-            double y = mapValueToY(points.get(i).value, min, max, top, plotHeight);
+            double y = mapValueToY(displayValues[i], min, max, top, plotHeight);
             xValues[i] = x;
             yValues[i] = y;
         }
@@ -266,23 +360,34 @@ public class PortfolioCalculator {
         double axisY = top + plotHeight;
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
                 .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(axisY))
-                .append("\" stroke=\"#c7d2df\" stroke-width=\"1\"/>");
+            .append("\" stroke=\"").append(axisColor).append("\" stroke-width=\"1\"/>");
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(axisY))
                 .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(axisY))
-                .append("\" stroke=\"#c7d2df\" stroke-width=\"1\"/>");
+            .append("\" stroke=\"").append(axisColor).append("\" stroke-width=\"1\"/>");
 
-        svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(top + 1.0))
-            .append("\" class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(max)).append("\" data-format=\"compact\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"8\" fill=\"#eaf2ff\">")
+        if (metric == SparklineMetric.RETURN_PCT) {
+            svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(top + 1.0))
+                .append("\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"8\" fill=\"").append(textColor).append("\">")
+                .append(formatCompactPercent(max))
+                .append("</text>");
+            svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(axisY))
+                .append("\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"8\" fill=\"").append(textColor).append("\">")
+                .append(formatCompactPercent(min))
+                .append("</text>");
+        } else {
+            svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(top + 1.0))
+                .append("\" class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(max)).append("\" data-format=\"compact\" text-anchor=\"end\" dominant-baseline=\"hanging\" font-size=\"8\" fill=\"").append(textColor).append("\">")
                 .append(formatCompactKroner(max))
                 .append("</text>");
-        svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(axisY))
-            .append("\" class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(min)).append("\" data-format=\"compact\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"8\" fill=\"#eaf2ff\">")
+            svg.append("<text x=\"").append(svgNumber(left - 4.0)).append("\" y=\"").append(svgNumber(axisY))
+                .append("\" class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(min)).append("\" data-format=\"compact\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"8\" fill=\"").append(textColor).append("\">")
                 .append(formatCompactKroner(min))
                 .append("</text>");
+        }
 
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
                 .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(top))
-                .append("\" stroke=\"#eaf2ff\" stroke-width=\"0.8\" opacity=\"0.45\" stroke-dasharray=\"3 3\"/>");
+                .append("\" stroke=\"").append(gridColor).append("\" stroke-width=\"0.8\" opacity=\"0.7\" stroke-dasharray=\"3 3\"/>");
 
         StringBuilder path = new StringBuilder();
         for (int i = 0; i < n; i++) {
@@ -290,18 +395,26 @@ public class PortfolioCalculator {
                     .append(svgNumber(xValues[i])).append(" ").append(svgNumber(yValues[i]));
         }
 
-        svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"#f1f6ff\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>");
+        svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(lineColor).append("\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>");
 
         DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
         int labelStep = Math.max(1, (int) Math.ceil(n / 10.0));
         for (int i = 0; i < n; i++) {
             String monthLabel = points.get(i).monthEnd.format(axisMonthFormat);
             svg.append("<circle class=\"chart-hover-target chart-hover-point\" cx=\"").append(svgNumber(xValues[i])).append("\" cy=\"").append(svgNumber(yValues[i]))
-                .append("\" r=\"2.2\" fill=\"#f1f6ff\">")
-                .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(points.get(i).value))
-                .append("\" data-format=\"compact\" data-prefix=\"").append(monthLabel).append(": \">")
-                .append(monthLabel).append(": ").append(formatCompactKroner(points.get(i).value))
-                .append("</title></circle>");
+                .append("\" r=\"2.2\" fill=\"").append(pointColor).append("\">");
+            if (metric == SparklineMetric.RETURN_PCT) {
+                svg.append("<title>")
+                    .append(monthLabel).append(": ").append(formatSparklineTooltipValue(metric, displayValues[i]))
+                    .append("</title>");
+            } else {
+                String prefix = escapeHtmlAttribute(monthLabel + ": ");
+                svg.append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(displayValues[i]))
+                    .append("\" data-format=\"compact\" data-prefix=\"").append(prefix).append("\">")
+                    .append(monthLabel).append(": ").append(formatCompactKroner(displayValues[i]))
+                    .append("</title>");
+            }
+            svg.append("</circle>");
 
             boolean isFirst = i == 0;
             boolean isLast = i == n - 1;
@@ -310,7 +423,7 @@ public class PortfolioCalculator {
             if (showXAxisLabel) {
                 svg.append("<line x1=\"").append(svgNumber(xValues[i])).append("\" y1=\"").append(svgNumber(axisY))
                         .append("\" x2=\"").append(svgNumber(xValues[i])).append("\" y2=\"").append(svgNumber(axisY + 2.8))
-                        .append("\" stroke=\"#eaf2ff\" stroke-width=\"0.8\"/>");
+                        .append("\" stroke=\"").append(axisSoftColor).append("\" stroke-width=\"0.8\"/>");
             }
 
             String tickAnchor = "middle";
@@ -325,7 +438,7 @@ public class PortfolioCalculator {
 
             if (showXAxisLabel) {
                 svg.append("<text x=\"").append(svgNumber(tickLabelX)).append("\" y=\"").append(svgNumber(axisY + 13.0))
-                        .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"7\" fill=\"#eaf2ff\">")
+                        .append("\" text-anchor=\"").append(tickAnchor).append("\" font-size=\"7\" fill=\"").append(textColor).append("\">")
                         .append(monthLabel)
                         .append("</text>");
             }
@@ -359,6 +472,28 @@ public class PortfolioCalculator {
             return prefix + String.format(Locale.US, "%.0f", absValue / 1_000.0) + "k NOK";
         }
         return prefix + String.format(Locale.US, "%.0f", absValue) + " NOK";
+    }
+
+    private static String formatCompactPercent(double value) {
+        return String.format(Locale.US, "%.1f%%", value);
+    }
+
+    private static String formatSparklineTooltipValue(SparklineMetric metric, double value) {
+        if (metric == SparklineMetric.RETURN_PCT) {
+            return String.format(Locale.US, "%.2f%%", value);
+        }
+        return formatCompactKroner(value);
+    }
+
+    private static String escapeHtmlAttribute(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text
+                .replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     private static ArrayList<PortfolioValuePoint> takeLastPoints(ArrayList<PortfolioValuePoint> allPoints, int count) {
@@ -413,11 +548,8 @@ public class PortfolioCalculator {
         sortedUnitEvents.sort(Comparator.comparing(Events.UnitEvent::tradeDate)
                 .thenComparing(Events.UnitEvent::securityKey));
 
-        ArrayList<Events.CashEvent> sortedCashEvents = new ArrayList<>();
-        if (!useAuthoritativeSnapshots) {
-            sortedCashEvents.addAll(cashEvents);
-            sortedCashEvents.sort(Comparator.comparing(Events.CashEvent::tradeDate));
-        }
+        ArrayList<Events.CashEvent> sortedCashEvents = new ArrayList<>(cashEvents);
+        sortedCashEvents.sort(Comparator.comparing(Events.CashEvent::tradeDate));
 
         ArrayList<Events.PortfolioCashSnapshot> sortedCashSnapshots = new ArrayList<>(portfolioCashSnapshots);
         sortedCashSnapshots.sort(Comparator.comparing(Events.PortfolioCashSnapshot::tradeDate)
@@ -434,70 +566,209 @@ public class PortfolioCalculator {
         int monthCount = Math.max(2, months);
         YearMonth endMonth = YearMonth.now();
         YearMonth startMonth = endMonth.minusMonths(monthCount - 1L);
+
+        ArrayList<LocalDate> monthEnds = new ArrayList<>(monthCount);
+        for (int monthOffset = 0; monthOffset < monthCount; monthOffset++) {
+            monthEnds.add(startMonth.plusMonths(monthOffset).atEndOfMonth());
+        }
+
+        LocalDate startDate = startMonth.atDay(1);
+        LocalDate endDate = monthEnds.get(monthEnds.size() - 1);
+
         int unitEventIndex = 0;
         int cashEventIndex = 0;
         int[] cashSnapshotIndexRef = new int[]{0};
         double runningCash = 0.0;
         LinkedHashMap<String, Double> latestBalanceByPortfolio = new LinkedHashMap<>();
 
-        for (int monthOffset = 0; monthOffset < monthCount; monthOffset++) {
-            YearMonth currentMonth = startMonth.plusMonths(monthOffset);
-            LocalDate monthEnd = currentMonth.atEndOfMonth();
+        while (unitEventIndex < sortedUnitEvents.size()
+                && sortedUnitEvents.get(unitEventIndex).tradeDate().isBefore(startDate)) {
+            Events.UnitEvent event = sortedUnitEvents.get(unitEventIndex);
+            unitsBySecurity.merge(event.securityKey(), event.unitsDelta(), Double::sum);
+            unitEventIndex++;
+        }
 
+        while (cashEventIndex < sortedCashEvents.size()
+                && sortedCashEvents.get(cashEventIndex).tradeDate().isBefore(startDate)) {
+            Events.CashEvent cashEvent = sortedCashEvents.get(cashEventIndex);
+            if (!useAuthoritativeSnapshots) {
+                runningCash += cashEvent.cashDelta();
+            }
+            cashEventIndex++;
+        }
+
+        if (useAuthoritativeSnapshots) {
+            sumPortfolioBalancesOnOrBefore(
+                    startDate.minusDays(1),
+                    sortedCashSnapshots,
+                    cashSnapshotIndexRef,
+                    latestBalanceByPortfolio
+            );
+        }
+
+        int monthEndIndex = 0;
+        double previousDayValue = Double.NaN;
+        double previousSnapshotCash = Double.NaN;
+        double twrFactor = 1.0;
+
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            double estimatedTradeCashDeltaToday = 0.0;
             while (unitEventIndex < sortedUnitEvents.size()
-                    && !sortedUnitEvents.get(unitEventIndex).tradeDate().isAfter(monthEnd)) {
+                    && !sortedUnitEvents.get(unitEventIndex).tradeDate().isAfter(date)) {
                 Events.UnitEvent event = sortedUnitEvents.get(unitEventIndex);
+                Security security = securitiesByTrackingKey.get(event.securityKey());
+                if (security != null) {
+                    estimatedTradeCashDeltaToday += estimateUnitEventCashDeltaNok(
+                            event,
+                            security,
+                            ratesToNok,
+                            priceSeriesCache
+                    );
+                }
                 unitsBySecurity.merge(event.securityKey(), event.unitsDelta(), Double::sum);
                 unitEventIndex++;
             }
 
+            double externalFlowToday = 0.0;
+            double cashEventDeltaToday = 0.0;
+            double nonExternalCashEventDeltaToday = 0.0;
             while (cashEventIndex < sortedCashEvents.size()
-                    && !sortedCashEvents.get(cashEventIndex).tradeDate().isAfter(monthEnd)) {
+                    && !sortedCashEvents.get(cashEventIndex).tradeDate().isAfter(date)) {
                 Events.CashEvent cashEvent = sortedCashEvents.get(cashEventIndex);
-                runningCash += cashEvent.cashDelta();
+                if (!useAuthoritativeSnapshots) {
+                    runningCash += cashEvent.cashDelta();
+                }
+                cashEventDeltaToday += cashEvent.cashDelta();
+                if (cashEvent.externalFlow()) {
+                    externalFlowToday += cashEvent.cashDelta();
+                } else {
+                    nonExternalCashEventDeltaToday += cashEvent.cashDelta();
+                }
                 cashEventIndex++;
             }
 
+            double uncoveredTradeCashDelta = estimatedTradeCashDeltaToday - nonExternalCashEventDeltaToday;
+            double tradeInferenceThreshold = Math.max(250.0, Math.abs(estimatedTradeCashDeltaToday) * 0.02);
+            if (Double.isFinite(uncoveredTradeCashDelta) && Math.abs(uncoveredTradeCashDelta) > tradeInferenceThreshold) {
+                externalFlowToday += -uncoveredTradeCashDelta;
+            }
+
             double balanceSnapshotCash = sumPortfolioBalancesOnOrBefore(
-                    monthEnd,
+                    date,
                     sortedCashSnapshots,
                     cashSnapshotIndexRef,
                     latestBalanceByPortfolio
             );
 
-            double totalValue = useAuthoritativeSnapshots
-                    ? balanceSnapshotCash
-                    : runningCash + balanceSnapshotCash;
-
-            for (Map.Entry<String, Double> entry : unitsBySecurity.entrySet()) {
-                double units = entry.getValue();
-                if (units <= 0.0000001) {
-                    continue;
+            if (useAuthoritativeSnapshots && Double.isFinite(previousSnapshotCash)) {
+                double snapshotDelta = balanceSnapshotCash - previousSnapshotCash;
+                double inferredExternalFlow = snapshotDelta - cashEventDeltaToday;
+                double inferenceThreshold = Math.max(100.0, Math.abs(balanceSnapshotCash) * 0.0005);
+                if (Double.isFinite(inferredExternalFlow) && Math.abs(inferredExternalFlow) > inferenceThreshold) {
+                    externalFlowToday += inferredExternalFlow;
                 }
-
-                Security security = securitiesByTrackingKey.get(entry.getKey());
-                if (security == null) {
-                    continue;
-                }
-
-                double price = resolveHistoricalPrice(security, monthEnd, priceSeriesCache);
-                if (price <= 0.0) {
-                    continue;
-                }
-
-                double positionValue = units * price;
-                String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
-                double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
-                if (rateToNok <= 0.0) {
-                    rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
-                }
-                totalValue += positionValue * rateToNok;
             }
 
-            timeline.add(new PortfolioValuePoint(monthEnd, totalValue));
+                        double holdingsValue = calculateHoldingsMarketValueNok(
+                        unitsBySecurity,
+                        securitiesByTrackingKey,
+                        ratesToNok,
+                        date,
+                        priceSeriesCache
+                    );
+
+                    double totalValue = useAuthoritativeSnapshots
+                        ? balanceSnapshotCash
+                        : runningCash + balanceSnapshotCash;
+                    totalValue += holdingsValue;
+
+            if (Double.isFinite(previousDayValue)) {
+                if (previousDayValue > 1e-9) {
+                    double periodReturn = (totalValue - previousDayValue - externalFlowToday) / previousDayValue;
+                    if (Double.isFinite(periodReturn) && periodReturn > -0.999999999) {
+                        twrFactor *= (1.0 + periodReturn);
+                    }
+                }
+            }
+
+            previousDayValue = totalValue;
+            if (useAuthoritativeSnapshots) {
+                previousSnapshotCash = balanceSnapshotCash;
+            }
+
+            if (monthEndIndex < monthEnds.size() && date.equals(monthEnds.get(monthEndIndex))) {
+                double twrPct = (twrFactor - 1.0) * 100.0;
+                timeline.add(new PortfolioValuePoint(date, totalValue, twrPct));
+                monthEndIndex++;
+            }
         }
 
         return timeline;
+    }
+
+    private static double calculateHoldingsMarketValueNok(
+            Map<String, Double> unitsBySecurity,
+            Map<String, Security> securitiesByTrackingKey,
+            Map<String, Double> ratesToNok,
+            LocalDate valuationDate,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        double totalValue = 0.0;
+        for (Map.Entry<String, Double> entry : unitsBySecurity.entrySet()) {
+            double units = entry.getValue();
+            if (units <= 0.0000001) {
+                continue;
+            }
+
+            Security security = securitiesByTrackingKey.get(entry.getKey());
+            if (security == null) {
+                continue;
+            }
+
+            double price = resolveHistoricalPrice(security, valuationDate, priceSeriesCache);
+            if (price <= 0.0) {
+                continue;
+            }
+
+            double positionValue = units * price;
+            String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
+            double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
+            if (rateToNok <= 0.0) {
+                rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
+            }
+            totalValue += positionValue * rateToNok;
+        }
+        return totalValue;
+    }
+
+    private static double estimateUnitEventCashDeltaNok(
+            Events.UnitEvent unitEvent,
+            Security security,
+            Map<String, Double> ratesToNok,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        if (unitEvent == null || security == null) {
+            return 0.0;
+        }
+
+        double price = resolveHistoricalPrice(security, unitEvent.tradeDate(), priceSeriesCache);
+        if (price <= 0.0 || !Double.isFinite(price)) {
+            return 0.0;
+        }
+
+        String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
+        double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
+        if (rateToNok <= 0.0 || !Double.isFinite(rateToNok)) {
+            rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
+        }
+
+        double tradeNotionalNok = unitEvent.unitsDelta() * price * rateToNok;
+        if (!Double.isFinite(tradeNotionalNok)) {
+            return 0.0;
+        }
+
+        // Buying units should reduce cash, selling units should increase cash.
+        return -tradeNotionalNok;
     }
 
     private static double sumPortfolioBalancesOnOrBefore(
@@ -544,63 +815,189 @@ public class PortfolioCalculator {
 
     private static double resolveHistoricalPrice(Security security, LocalDate monthEnd,
                                                  Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
-        if (security == null) {
-            return 0.0;
+        return resolveHistoricalPriceDetailed(security, monthEnd, priceSeriesCache).getPrice();
+    }
+
+    private static PriceResolution resolveHistoricalPriceDetailed(
+            Security security,
+            LocalDate monthEnd,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        if (security == null || monthEnd == null) {
+            return new PriceResolution(0.0, true);
         }
 
         String ticker = security.getTicker();
         if (ticker == null || ticker.isBlank() || "-".equals(ticker)) {
-            return Math.max(0.0, security.getLatestPrice());
+            double latestPrice = Math.max(0.0, security.getLatestPrice());
+            if (latestPrice > 0.0) {
+                return new PriceResolution(latestPrice, true);
+            }
+            return new PriceResolution(0.0, true);
         }
 
         NavigableMap<LocalDate, Double> series = priceSeriesCache.computeIfAbsent(
                 ticker,
-                t -> fetchHistoricalCloseSeries(t, LocalDate.now().minusMonths(18), LocalDate.now())
+            t -> fetchHistoricalCloseSeries(t, LocalDate.now().minusMonths(180), LocalDate.now())
         );
 
         if (series.isEmpty()) {
-            return Math.max(0.0, security.getLatestPrice());
+            return resolveFallbackPriceDetailed(security, monthEnd);
         }
 
         Map.Entry<LocalDate, Double> floor = series.floorEntry(monthEnd);
-        if (floor != null && floor.getValue() != null && floor.getValue() > 0.0) {
-            return floor.getValue();
+        if (floor != null && floor.getKey() != null && floor.getValue() != null && floor.getValue() > 0.0) {
+            long daysGap = java.time.temporal.ChronoUnit.DAYS.between(floor.getKey(), monthEnd);
+            if (daysGap >= 0 && daysGap <= 10) {
+                return new PriceResolution(floor.getValue(), false);
+            }
         }
 
         Map.Entry<LocalDate, Double> first = series.firstEntry();
-        if (first != null && first.getValue() != null && first.getValue() > 0.0) {
-            return first.getValue();
+        if (first != null && first.getKey() != null && first.getValue() != null && first.getValue() > 0.0) {
+            long daysGap = java.time.temporal.ChronoUnit.DAYS.between(monthEnd, first.getKey());
+            if (daysGap >= 0 && daysGap <= 10) {
+                return new PriceResolution(first.getValue(), true);
+            }
         }
 
-        return Math.max(0.0, security.getLatestPrice());
+        return resolveFallbackPriceDetailed(security, monthEnd);
+    }
+
+    private static PriceResolution resolveFallbackPriceDetailed(Security security, LocalDate monthEnd) {
+        if (security == null || monthEnd == null) {
+            return new PriceResolution(0.0, true);
+        }
+
+        double nearestObservedPrice = security.getClosestObservedTradePriceAround(monthEnd);
+        if (nearestObservedPrice > 0.0) {
+            return new PriceResolution(nearestObservedPrice, true);
+        }
+
+        double tradePriceOnOrBefore = security.getLatestObservedTradePriceOnOrBefore(monthEnd);
+        if (tradePriceOnOrBefore > 0.0) {
+            return new PriceResolution(tradePriceOnOrBefore, true);
+        }
+
+        double tradePriceAfter = security.getEarliestObservedTradePriceAfter(monthEnd);
+        if (tradePriceAfter > 0.0) {
+            return new PriceResolution(tradePriceAfter, true);
+        }
+
+        List<Security.SaleTrade> sales = security.getSaleTradesSortedByDate();
+        double latestPastSalePrice = 0.0;
+        LocalDate latestPastSaleDate = null;
+        for (Security.SaleTrade sale : sales) {
+            if (sale == null || sale.getUnitPrice() <= 0.0) {
+                continue;
+            }
+            if (sale.getTradeDate() != null && !sale.getTradeDate().isAfter(monthEnd)) {
+                if (latestPastSaleDate == null || sale.getTradeDate().isAfter(latestPastSaleDate)) {
+                    latestPastSaleDate = sale.getTradeDate();
+                    latestPastSalePrice = sale.getUnitPrice();
+                }
+            }
+        }
+        if (latestPastSalePrice > 0.0) {
+            return new PriceResolution(latestPastSalePrice, true);
+        }
+
+        double averageCost = security.getAverageCost();
+        if (averageCost > 0.0) {
+            return new PriceResolution(averageCost, true);
+        }
+
+        double latestPrice = security.getLatestPrice();
+        if (latestPrice > 0.0) {
+            return new PriceResolution(latestPrice, true);
+        }
+
+        return new PriceResolution(0.0, true);
     }
 
     private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeries(String ticker, LocalDate fromDate, LocalDate toDate) {
         NavigableMap<LocalDate, Double> series = new TreeMap<>();
-        if (ticker == null || ticker.isBlank()) {
+        if (ticker == null || ticker.isBlank() || fromDate == null || toDate == null) {
             return series;
         }
 
+        LocalDate safeFrom = fromDate;
+        LocalDate safeTo = toDate;
+        if (safeFrom.isAfter(safeTo)) {
+            LocalDate tmp = safeFrom;
+            safeFrom = safeTo;
+            safeTo = tmp;
+        }
+
         NavigableMap<LocalDate, Double> cachedSeries = loadHistoricalSeriesFromCache(ticker);
+        if (!cachedSeries.isEmpty() && hasSeriesCoverage(cachedSeries, safeFrom, safeTo)) {
+            return cachedSeries;
+        }
+
+        NavigableMap<LocalDate, Double> fetchedSeries = fetchHistoricalCloseSeriesFromYahoo(ticker, safeFrom, safeTo);
+        if (!fetchedSeries.isEmpty()) {
+            if (!cachedSeries.isEmpty()) {
+                cachedSeries.putAll(fetchedSeries);
+                fetchedSeries = cachedSeries;
+            }
+            saveHistoricalSeriesToCache(ticker, fetchedSeries);
+            return fetchedSeries;
+        }
+
         if (!cachedSeries.isEmpty()) {
             return cachedSeries;
         }
 
-        HttpURLConnection connection = null;
-        try {
-            long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
-            long period2 = toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
-            String encodedTicker = URLEncoder.encode(ticker, StandardCharsets.UTF_8);
-            String urlText = "https://query1.finance.yahoo.com/v8/finance/chart/" + encodedTicker
+        return series;
+    }
+
+    private static boolean hasSeriesCoverage(
+            NavigableMap<LocalDate, Double> series,
+            LocalDate fromDate,
+            LocalDate toDate) {
+        if (series == null || series.isEmpty() || fromDate == null || toDate == null) {
+            return false;
+        }
+        LocalDate first = series.firstKey();
+        LocalDate last = series.lastKey();
+        return !first.isAfter(fromDate) && !last.isBefore(toDate);
+    }
+
+    private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeriesFromYahoo(
+            String ticker,
+            LocalDate fromDate,
+            LocalDate toDate) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        String encodedTicker = URLEncoder.encode(ticker, StandardCharsets.UTF_8);
+        long period1 = fromDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+        long period2 = toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+        String[] hosts = {"query1.finance.yahoo.com", "query2.finance.yahoo.com"};
+
+        for (String host : hosts) {
+            String urlText = "https://" + host + "/v8/finance/chart/" + encodedTicker
                     + "?period1=" + period1
                     + "&period2=" + period2
                     + "&interval=1d&events=history";
+            series = fetchHistoricalCloseSeriesFromUrl(urlText);
+            if (!series.isEmpty()) {
+                return series;
+            }
+        }
 
+        return series;
+    }
+
+    private static NavigableMap<LocalDate, Double> fetchHistoricalCloseSeriesFromUrl(String urlText) {
+        NavigableMap<LocalDate, Double> series = new TreeMap<>();
+        HttpURLConnection connection = null;
+        try {
             URL url = URI.create(urlText).toURL();
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(7000);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
 
             if (connection.getResponseCode() != 200) {
                 return series;
@@ -615,13 +1012,23 @@ public class PortfolioCalculator {
             }
 
             Matcher timestampMatcher = YAHOO_TIMESTAMP_ARRAY.matcher(body);
+            if (!timestampMatcher.find()) {
+                return series;
+            }
+
+            Matcher adjCloseMatcher = YAHOO_ADJ_CLOSE_ARRAY.matcher(body);
             Matcher closeMatcher = YAHOO_CLOSE_ARRAY.matcher(body);
-            if (!timestampMatcher.find() || !closeMatcher.find()) {
+            String closeValues;
+            if (adjCloseMatcher.find()) {
+                closeValues = adjCloseMatcher.group(1);
+            } else if (closeMatcher.find()) {
+                closeValues = closeMatcher.group(1);
+            } else {
                 return series;
             }
 
             String[] timestamps = timestampMatcher.group(1).split(",");
-            String[] closes = closeMatcher.group(1).split(",");
+            String[] closes = closeValues.split(",");
             int length = Math.min(timestamps.length, closes.length);
 
             for (int i = 0; i < length; i++) {
@@ -655,11 +1062,29 @@ public class PortfolioCalculator {
             }
         }
 
-        if (!series.isEmpty()) {
-            saveHistoricalSeriesToCache(ticker, series);
+        return series;
+    }
+
+    private static List<String> buildBenchmarkTickerCandidates(String benchmarkTicker) {
+        String baseTicker = (benchmarkTicker == null || benchmarkTicker.isBlank())
+                ? "^OSEAX"
+                : benchmarkTicker.trim();
+
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(baseTicker);
+
+        String withoutCaret = baseTicker.startsWith("^") ? baseTicker.substring(1) : baseTicker;
+        if (!withoutCaret.isBlank()) {
+            candidates.add(withoutCaret);
+            candidates.add("^" + withoutCaret);
+
+            String upper = withoutCaret.toUpperCase(Locale.ROOT);
+            if (!upper.endsWith(".OL")) {
+                candidates.add(withoutCaret + ".OL");
+            }
         }
 
-        return series;
+        return new ArrayList<>(candidates);
     }
 
     private static NavigableMap<LocalDate, Double> loadHistoricalSeriesFromCache(String ticker) {
@@ -809,6 +1234,220 @@ public class PortfolioCalculator {
         return normalized;
     }
 
+    public static AnnualPerformanceSummary buildAnnualPerformanceSummary(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int year,
+            String benchmarkTicker) {
+
+        int safeYear = Math.max(2000, Math.min(2100, year));
+        ArrayList<PortfolioValuePoint> timeline = buildPortfolioValueTimeline(store, ratesToNok, 120);
+
+        PortfolioValuePoint firstInYear = null;
+        PortfolioValuePoint lastInYear = null;
+        for (PortfolioValuePoint point : timeline) {
+            if (point.monthEnd.getYear() != safeYear) {
+                continue;
+            }
+            if (firstInYear == null) {
+                firstInYear = point;
+            }
+            lastInYear = point;
+        }
+
+        boolean hasPortfolioData = firstInYear != null && lastInYear != null;
+        double startValueNok = hasPortfolioData ? firstInYear.value : 0.0;
+        double endValueNok = hasPortfolioData ? lastInYear.value : 0.0;
+        double portfolioReturnPct = 0.0;
+        double portfolioReturnNok = 0.0;
+        if (hasPortfolioData) {
+            double startFactor = 1.0 + (firstInYear.twrCumulativeReturnPct / 100.0);
+            double endFactor = 1.0 + (lastInYear.twrCumulativeReturnPct / 100.0);
+            if (Math.abs(startFactor) > 1e-9 && Double.isFinite(startFactor) && Double.isFinite(endFactor)) {
+                double yearFactor = endFactor / startFactor;
+                portfolioReturnPct = (yearFactor - 1.0) * 100.0;
+                portfolioReturnNok = startValueNok * (yearFactor - 1.0);
+            }
+        }
+
+        double realizedGainNok = 0.0;
+        double dividendsNok = 0.0;
+        for (Security security : store.getSecurities()) {
+            if (security == null) {
+                continue;
+            }
+
+            String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
+            double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
+            if (rateToNok <= 0.0) {
+                rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
+            }
+
+            for (Security.SaleTrade saleTrade : security.getSaleTradesSortedByDate()) {
+                if (saleTrade == null || saleTrade.getTradeDate() == null || saleTrade.getTradeDate().getYear() != safeYear) {
+                    continue;
+                }
+                realizedGainNok += saleTrade.getGainLoss() * rateToNok;
+            }
+
+            for (Security.DividendEvent dividendEvent : security.getAllDividendEventsSortedByDate()) {
+                if (dividendEvent == null || dividendEvent.getTradeDate() == null || dividendEvent.getTradeDate().getYear() != safeYear) {
+                    continue;
+                }
+                dividendsNok += dividendEvent.getAmount() * rateToNok;
+            }
+        }
+        double realizedTotalNok = realizedGainNok + dividendsNok;
+
+        String safeBenchmarkTicker = (benchmarkTicker == null || benchmarkTicker.isBlank())
+            ? "^OSEAX"
+            : benchmarkTicker.trim();
+
+        boolean hasBenchmarkData = false;
+        double benchmarkReturnPct = 0.0;
+
+        LocalDate from = LocalDate.of(safeYear, 1, 1);
+        LocalDate to = LocalDate.of(safeYear, 12, 31);
+        String resolvedBenchmarkTicker = safeBenchmarkTicker;
+        for (String candidateTicker : buildBenchmarkTickerCandidates(safeBenchmarkTicker)) {
+            NavigableMap<LocalDate, Double> benchmarkSeries = fetchHistoricalCloseSeries(
+                candidateTicker,
+                from.minusDays(BENCHMARK_FETCH_BUFFER_DAYS),
+                to.plusDays(BENCHMARK_FETCH_BUFFER_DAYS)
+            );
+
+            double startValue = resolveBoundaryValue(
+                benchmarkSeries,
+                from,
+                true,
+                BENCHMARK_BOUNDARY_TOLERANCE_DAYS
+            );
+            double endValue = resolveBoundaryValue(
+                benchmarkSeries,
+                to,
+                false,
+                BENCHMARK_BOUNDARY_TOLERANCE_DAYS
+            );
+
+            if (startValue > 0.0 && endValue > 0.0) {
+            benchmarkReturnPct = ((endValue - startValue) / startValue) * 100.0;
+            hasBenchmarkData = true;
+            resolvedBenchmarkTicker = candidateTicker;
+            break;
+            }
+        }
+
+        return new AnnualPerformanceSummary(
+                safeYear,
+            resolvedBenchmarkTicker,
+                hasPortfolioData,
+                startValueNok,
+                endValueNok,
+                portfolioReturnNok,
+                portfolioReturnPct,
+            realizedGainNok,
+            dividendsNok,
+            realizedTotalNok,
+                hasBenchmarkData,
+                benchmarkReturnPct
+        );
+    }
+
+    public static String buildAnnualPortfolioValueSparklineSvg(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int year) {
+
+        ArrayList<PortfolioValuePoint> yearPoints = buildAnnualYearPoints(store, ratesToNok, year);
+        if (yearPoints.isEmpty()) {
+            return "";
+        }
+
+        return buildPortfolioValueSparkline(yearPoints, SparklineMetric.VALUE);
+    }
+
+    public static String buildAnnualPortfolioReturnSparklineSvg(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int year) {
+
+        int safeYear = Math.max(2000, Math.min(2100, year));
+        ArrayList<PortfolioValuePoint> yearPoints = buildAnnualYearPoints(store, ratesToNok, safeYear);
+        if (yearPoints.isEmpty()) {
+            return "";
+        }
+
+        String yearRangeKey = "YEAR";
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"sparkline-widget\">\n");
+        html.append("<div class=\"sparkline-metric-controls\">\n");
+        html.append("<button type=\"button\" class=\"sparkline-metric-btn js-return-amount-label is-active\" data-metric=\"return-nok\">Return (NOK)</button>\n");
+        html.append("<button type=\"button\" class=\"sparkline-metric-btn\" data-metric=\"return-pct\">Return (%)</button>\n");
+        html.append("</div>\n");
+
+        html.append("<div class=\"sparkline-panel is-active\" data-range=\"")
+            .append(yearRangeKey)
+            .append("\" data-metric=\"return-nok\">\n")
+            .append(buildPortfolioValueSparkline(yearPoints, SparklineMetric.RETURN_NOK))
+            .append("</div>\n");
+
+        html.append("<div class=\"sparkline-panel\" data-range=\"")
+            .append(yearRangeKey)
+            .append("\" data-metric=\"return-pct\">\n")
+            .append(buildPortfolioValueSparkline(yearPoints, SparklineMetric.RETURN_PCT))
+            .append("</div>\n");
+
+        html.append("</div>\n");
+        return html.toString();
+    }
+
+    public static double resolvePriceAtDate(
+            Security security,
+            LocalDate date,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        return resolvePriceAtDateDetailed(security, date, priceSeriesCache).getPrice();
+    }
+
+    public static PriceResolution resolvePriceAtDateDetailed(
+            Security security,
+            LocalDate date,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        if (security == null || date == null) {
+            return new PriceResolution(0.0, true);
+        }
+
+        Map<String, NavigableMap<LocalDate, Double>> safeCache =
+                priceSeriesCache == null ? new HashMap<>() : priceSeriesCache;
+        return resolveHistoricalPriceDetailed(security, date, safeCache);
+    }
+
+    private static ArrayList<PortfolioValuePoint> buildAnnualYearPoints(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            int year) {
+
+        int safeYear = Math.max(2000, Math.min(2100, year));
+        YearMonth yearStart = YearMonth.of(safeYear, 1);
+        long monthsFromStart = ChronoUnit.MONTHS.between(yearStart, YearMonth.now()) + 1L;
+        int months = (int) Math.max(24L, monthsFromStart);
+
+        ArrayList<PortfolioValuePoint> timeline = buildPortfolioValueTimeline(store, ratesToNok, months);
+        ArrayList<PortfolioValuePoint> yearPoints = new ArrayList<>();
+        for (PortfolioValuePoint point : timeline) {
+            if (point != null && point.monthEnd != null && point.monthEnd.getYear() == safeYear) {
+                yearPoints.add(point);
+            }
+        }
+
+        if (yearPoints.isEmpty()) {
+            return yearPoints;
+        }
+
+        return yearPoints;
+    }
+
     private static int getAssetPriority(String assetType) {
         if (assetType == null) {
             return 0;
@@ -818,5 +1457,61 @@ public class PortfolioCalculator {
             case "FUND" -> 1;
             default -> 2;
         };
+    }
+
+    private static double resolveBoundaryValue(
+            NavigableMap<LocalDate, Double> series,
+            LocalDate targetDate,
+            boolean preferForwardFromTarget,
+            long maxDistanceDays) {
+        if (series == null || series.isEmpty() || targetDate == null) {
+            return 0.0;
+        }
+        long safeMaxDistance = Math.max(0L, maxDistanceDays);
+
+        LocalDate bestDate = null;
+        double bestValue = 0.0;
+
+        for (Map.Entry<LocalDate, Double> entry : series.entrySet()) {
+            if (entry == null || entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0.0) {
+                continue;
+            }
+
+            long distanceDays = Math.abs(ChronoUnit.DAYS.between(targetDate, entry.getKey()));
+            if (distanceDays > safeMaxDistance) {
+                continue;
+            }
+
+            if (bestDate == null) {
+                bestDate = entry.getKey();
+                bestValue = entry.getValue();
+                continue;
+            }
+
+            long currentDistance = Math.abs(ChronoUnit.DAYS.between(targetDate, bestDate));
+            if (distanceDays < currentDistance) {
+                bestDate = entry.getKey();
+                bestValue = entry.getValue();
+                continue;
+            }
+
+            if (distanceDays == currentDistance) {
+                boolean candidateIsAfter = !entry.getKey().isBefore(targetDate);
+                boolean bestIsAfter = !bestDate.isBefore(targetDate);
+                if (preferForwardFromTarget) {
+                    if (candidateIsAfter && !bestIsAfter) {
+                        bestDate = entry.getKey();
+                        bestValue = entry.getValue();
+                    }
+                } else {
+                    if (!candidateIsAfter && bestIsAfter) {
+                        bestDate = entry.getKey();
+                        bestValue = entry.getValue();
+                    }
+                }
+            }
+        }
+
+        return bestValue;
     }
 }

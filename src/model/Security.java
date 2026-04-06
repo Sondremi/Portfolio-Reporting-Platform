@@ -82,6 +82,7 @@ public class Security {
 
     private final ArrayDeque<BuyLot> buyLots = new ArrayDeque<>();
     private final ArrayList<SaleTrade> saleTrades = new ArrayList<>();
+    private final ArrayList<PriceObservation> priceObservations = new ArrayList<>();
     private final ArrayList<DividendEvent> currentDividendEvents = new ArrayList<>();
     private final ArrayList<DividendEvent> allDividendEvents = new ArrayList<>();
 
@@ -103,6 +104,16 @@ public class Security {
             this.tradeDate = tradeDate;
             this.remainingUnits = remainingUnits;
             this.unitCost = unitCost;
+        }
+    }
+
+    private static class PriceObservation {
+        private final LocalDate tradeDate;
+        private final double unitPrice;
+
+        private PriceObservation(LocalDate tradeDate, double unitPrice) {
+            this.tradeDate = tradeDate;
+            this.unitPrice = unitPrice;
         }
     }
 
@@ -255,6 +266,88 @@ public class Security {
         ArrayList<SaleTrade> sorted = new ArrayList<>(saleTrades);
         sorted.sort(Comparator.comparing(SaleTrade::getTradeDate));
         return sorted;
+    }
+
+    public double getLatestObservedTradePriceOnOrBefore(LocalDate date) {
+        if (date == null || priceObservations.isEmpty()) {
+            return 0.0;
+        }
+
+        LocalDate bestDate = null;
+        double bestPrice = 0.0;
+        for (PriceObservation observation : priceObservations) {
+            if (observation == null || observation.tradeDate == null || observation.tradeDate.equals(LocalDate.MIN)) {
+                continue;
+            }
+            if (observation.unitPrice <= EPSILON || observation.tradeDate.isAfter(date)) {
+                continue;
+            }
+            if (bestDate == null || observation.tradeDate.isAfter(bestDate)) {
+                bestDate = observation.tradeDate;
+                bestPrice = observation.unitPrice;
+            }
+        }
+
+        return bestPrice;
+    }
+
+    public double getEarliestObservedTradePriceAfter(LocalDate date) {
+        if (date == null || priceObservations.isEmpty()) {
+            return 0.0;
+        }
+
+        LocalDate bestDate = null;
+        double bestPrice = 0.0;
+        for (PriceObservation observation : priceObservations) {
+            if (observation == null || observation.tradeDate == null || observation.tradeDate.equals(LocalDate.MIN)) {
+                continue;
+            }
+            if (observation.unitPrice <= EPSILON || !observation.tradeDate.isAfter(date)) {
+                continue;
+            }
+            if (bestDate == null || observation.tradeDate.isBefore(bestDate)) {
+                bestDate = observation.tradeDate;
+                bestPrice = observation.unitPrice;
+            }
+        }
+
+        return bestPrice;
+    }
+
+    public double getClosestObservedTradePriceAround(LocalDate date) {
+        if (date == null || priceObservations.isEmpty()) {
+            return 0.0;
+        }
+
+        long bestDistance = Long.MAX_VALUE;
+        LocalDate bestDate = null;
+        double bestPrice = 0.0;
+
+        for (PriceObservation observation : priceObservations) {
+            if (observation == null || observation.tradeDate == null || observation.tradeDate.equals(LocalDate.MIN)) {
+                continue;
+            }
+            if (observation.unitPrice <= EPSILON) {
+                continue;
+            }
+
+            long distance = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(observation.tradeDate, date));
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestDate = observation.tradeDate;
+                bestPrice = observation.unitPrice;
+                continue;
+            }
+
+            if (distance == bestDistance && bestDate != null
+                    && observation.tradeDate.isBefore(bestDate)
+                    && !observation.tradeDate.isAfter(date)) {
+                bestDate = observation.tradeDate;
+                bestPrice = observation.unitPrice;
+            }
+        }
+
+        return bestPrice;
     }
 
     public double getTotalSoldUnits() {
@@ -450,6 +543,11 @@ public class Security {
                 && (firstHoldingDate == null || tradeDate.isBefore(firstHoldingDate))) {
             firstHoldingDate = tradeDate;
         }
+
+        // Persist observed transaction prices for historical fallback valuation.
+        if (price > EPSILON) {
+            priceObservations.add(new PriceObservation(tradeDate, price));
+        }
     }
 
     private void registerSale(LocalDate tradeDate, double units, double amount, double price, double totalFees, double reportedResult) {
@@ -486,6 +584,9 @@ public class Security {
         double returnPct = costBasis > EPSILON ? (gainLoss / costBasis) * 100.0 : (gainLoss > EPSILON ? 100.0 : 0.0);
 
         saleTrades.add(new SaleTrade(tradeDate, units, price, saleValue, costBasis, gainLoss, returnPct));
+        if (price > EPSILON) {
+            priceObservations.add(new PriceObservation(tradeDate, price));
+        }
 
         unitsOwned -= units;
         if (Math.abs(unitsOwned) < EPSILON) {
@@ -549,6 +650,7 @@ public class Security {
             currencyCode = "NOK";
             resolvedSectorWeights.clear();
             resolvedRegionWeights.clear();
+            applyGeneralTickerAndNameFallback();
             return;
         }
 
@@ -564,21 +666,7 @@ public class Security {
             candidate = preferOsloListingWhenAvailable(candidate);
 
             if (candidate != null && candidate.symbol != null && !candidate.symbol.isBlank()) {
-                String candidateTicker = candidate.symbol;
-                if (!candidateTicker.contains(".") && candidate.exchange != null && !candidate.exchange.isBlank()) {
-                    String exchangeSuffix = getExchangeSuffix(candidate.exchange);
-                    candidateTicker = candidateTicker + (exchangeSuffix.isEmpty() ? "" : "." + exchangeSuffix);
-                }
-
-                ticker = candidateTicker;
-                currencyCode = normalizeCurrencyCode(candidate.currency, candidateTicker);
-                updateAssetTypeFromQuoteType(candidate.quoteType);
-                updateAssetTypeFromTicker(ticker);
-                updateResolvedName(candidate);
-                updateResolvedClassification(candidate);
-                latestPrice = candidate.regularMarketPrice > EPSILON
-                        ? candidate.regularMarketPrice
-                        : fetchLatestPrice(ticker);
+                applyCandidateMetadata(candidate);
             } else {
                 ticker = "";
                 latestPrice = 0.0;
@@ -598,6 +686,128 @@ public class Security {
             resolvedSectorWeights.clear();
             resolvedRegionWeights.clear();
         }
+
+        applyGeneralTickerAndNameFallback();
+    }
+
+    private void applyCandidateMetadata(SearchCandidate candidate) {
+        if (candidate == null || candidate.symbol == null || candidate.symbol.isBlank()) {
+            return;
+        }
+
+        String candidateTicker = candidate.symbol;
+        if (!candidateTicker.contains(".") && candidate.exchange != null && !candidate.exchange.isBlank()) {
+            String exchangeSuffix = getExchangeSuffix(candidate.exchange);
+            candidateTicker = candidateTicker + (exchangeSuffix.isEmpty() ? "" : "." + exchangeSuffix);
+        }
+
+        ticker = candidateTicker;
+        currencyCode = normalizeCurrencyCode(candidate.currency, candidateTicker);
+        updateAssetTypeFromQuoteType(candidate.quoteType);
+        updateAssetTypeFromTicker(ticker);
+        updateResolvedName(candidate);
+        updateResolvedClassification(candidate);
+        latestPrice = candidate.regularMarketPrice > EPSILON
+                ? candidate.regularMarketPrice
+                : fetchLatestPrice(ticker);
+    }
+
+    private void applyGeneralTickerAndNameFallback() {
+        if (ticker == null || ticker.isBlank()) {
+            SearchCandidate byNameCandidate = searchCandidateByQuery(name);
+            if (byNameCandidate != null) {
+                applyCandidateMetadata(byNameCandidate);
+            }
+        }
+
+        if ((ticker == null || ticker.isBlank()) && name != null && !name.isBlank()) {
+            String symbolLikeName = name.trim().toUpperCase(Locale.ROOT);
+            if (looksLikeTicker(symbolLikeName)) {
+                String inferredSuffix = inferExchangeSuffixFromIsin(isin);
+                if (!symbolLikeName.contains(".") && !inferredSuffix.isBlank()) {
+                    symbolLikeName = symbolLikeName + "." + inferredSuffix;
+                }
+                ticker = symbolLikeName;
+            }
+        }
+
+        if (ticker != null && !ticker.isBlank()) {
+            currencyCode = normalizeCurrencyCode(currencyCode, ticker);
+            updateAssetTypeFromTicker(ticker);
+        }
+    }
+
+    private SearchCandidate searchCandidateByQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+
+        try {
+            String normalizedQuery = query.trim();
+            String url = "https://query2.finance.yahoo.com/v1/finance/search?q="
+                    + URLEncoder.encode(normalizedQuery, "UTF-8")
+                    + "&quotesCount=10";
+
+            String response = httpGetRequest(url);
+            ArrayList<SearchCandidate> candidates = extractSearchCandidates(response);
+            if (candidates.isEmpty()) {
+                return null;
+            }
+
+            SearchCandidate candidate;
+            if (looksLikeTicker(normalizedQuery)) {
+                candidate = chooseBestHoldingCandidate(candidates, normalizedQuery.toUpperCase(Locale.ROOT));
+                if (candidate == null) {
+                    candidate = chooseBestCandidate(candidates);
+                }
+            } else {
+                candidate = chooseBestCandidate(candidates);
+            }
+
+            candidate = refineCandidateBySymbolListings(candidate);
+            candidate = preferOsloListingWhenAvailable(candidate);
+            return candidate;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean looksLikeTicker(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        String trimmed = value.trim();
+        if (trimmed.contains(" ")) {
+            return false;
+        }
+        if (!trimmed.matches("[A-Za-z0-9.=\\-]{1,20}")) {
+            return false;
+        }
+
+        boolean hasLetter = false;
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (Character.isLetter(trimmed.charAt(i))) {
+                hasLetter = true;
+                break;
+            }
+        }
+        return hasLetter;
+    }
+
+    private String inferExchangeSuffixFromIsin(String isinValue) {
+        if (isinValue == null || isinValue.length() < 2) {
+            return "";
+        }
+
+        String country = isinValue.substring(0, 2).toUpperCase(Locale.ROOT);
+        return switch (country) {
+            case "NO" -> "OL";
+            case "SE" -> "ST";
+            case "DK" -> "CO";
+            case "FI" -> "HE";
+            default -> "";
+        };
     }
 
     private String normalizeCurrencyCode(String candidateCurrency, String symbol) {
