@@ -41,17 +41,14 @@ public class PortfolioCalculator {
     private static final class PortfolioValuePoint {
         private final LocalDate monthEnd;
         private final double value;
-        private final double netExternalContributions;
         private final double twrCumulativeReturnPct;
 
         private PortfolioValuePoint(
                 LocalDate monthEnd,
                 double value,
-                double netExternalContributions,
                 double twrCumulativeReturnPct) {
             this.monthEnd = monthEnd;
             this.value = value;
-            this.netExternalContributions = netExternalContributions;
             this.twrCumulativeReturnPct = twrCumulativeReturnPct;
         }
     }
@@ -306,19 +303,20 @@ public class PortfolioCalculator {
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
+        double[] displayValues = new double[points.size()];
         double baselineValue = points.get(0).value;
-        double baselineExternalContributions = points.get(0).netExternalContributions;
         double baselineTwrFactor = 1.0 + (points.get(0).twrCumulativeReturnPct / 100.0);
         if (!Double.isFinite(baselineTwrFactor) || Math.abs(baselineTwrFactor) < 1e-12) {
             baselineTwrFactor = 1.0;
         }
-
-        double[] displayValues = new double[points.size()];
         for (int i = 0; i < points.size(); i++) {
             PortfolioValuePoint point = points.get(i);
             if (metric == SparklineMetric.RETURN_NOK) {
-                double periodExternalFlows = point.netExternalContributions - baselineExternalContributions;
-                displayValues[i] = point.value - baselineValue - periodExternalFlows;
+                double currentTwrFactor = 1.0 + (point.twrCumulativeReturnPct / 100.0);
+                if (!Double.isFinite(currentTwrFactor)) {
+                    currentTwrFactor = baselineTwrFactor;
+                }
+                displayValues[i] = baselineValue * ((currentTwrFactor / baselineTwrFactor) - 1.0);
             } else if (metric == SparklineMetric.RETURN_PCT) {
                 double currentTwrFactor = 1.0 + (point.twrCumulativeReturnPct / 100.0);
                 if (!Double.isFinite(currentTwrFactor)) {
@@ -581,7 +579,6 @@ public class PortfolioCalculator {
         int cashEventIndex = 0;
         int[] cashSnapshotIndexRef = new int[]{0};
         double runningCash = 0.0;
-        double runningExternalContributions = 0.0;
         LinkedHashMap<String, Double> latestBalanceByPortfolio = new LinkedHashMap<>();
 
         while (unitEventIndex < sortedUnitEvents.size()
@@ -597,9 +594,6 @@ public class PortfolioCalculator {
             if (!useAuthoritativeSnapshots) {
                 runningCash += cashEvent.cashDelta();
             }
-            if (cashEvent.externalFlow()) {
-                runningExternalContributions += cashEvent.cashDelta();
-            }
             cashEventIndex++;
         }
 
@@ -614,28 +608,49 @@ public class PortfolioCalculator {
 
         int monthEndIndex = 0;
         double previousDayValue = Double.NaN;
+        double previousSnapshotCash = Double.NaN;
         double twrFactor = 1.0;
 
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            double estimatedTradeCashDeltaToday = 0.0;
             while (unitEventIndex < sortedUnitEvents.size()
                     && !sortedUnitEvents.get(unitEventIndex).tradeDate().isAfter(date)) {
                 Events.UnitEvent event = sortedUnitEvents.get(unitEventIndex);
+                Security security = securitiesByTrackingKey.get(event.securityKey());
+                if (security != null) {
+                    estimatedTradeCashDeltaToday += estimateUnitEventCashDeltaNok(
+                            event,
+                            security,
+                            ratesToNok,
+                            priceSeriesCache
+                    );
+                }
                 unitsBySecurity.merge(event.securityKey(), event.unitsDelta(), Double::sum);
                 unitEventIndex++;
             }
 
             double externalFlowToday = 0.0;
+            double cashEventDeltaToday = 0.0;
+            double nonExternalCashEventDeltaToday = 0.0;
             while (cashEventIndex < sortedCashEvents.size()
                     && !sortedCashEvents.get(cashEventIndex).tradeDate().isAfter(date)) {
                 Events.CashEvent cashEvent = sortedCashEvents.get(cashEventIndex);
                 if (!useAuthoritativeSnapshots) {
                     runningCash += cashEvent.cashDelta();
                 }
+                cashEventDeltaToday += cashEvent.cashDelta();
                 if (cashEvent.externalFlow()) {
-                    runningExternalContributions += cashEvent.cashDelta();
                     externalFlowToday += cashEvent.cashDelta();
+                } else {
+                    nonExternalCashEventDeltaToday += cashEvent.cashDelta();
                 }
                 cashEventIndex++;
+            }
+
+            double uncoveredTradeCashDelta = estimatedTradeCashDeltaToday - nonExternalCashEventDeltaToday;
+            double tradeInferenceThreshold = Math.max(250.0, Math.abs(estimatedTradeCashDeltaToday) * 0.02);
+            if (Double.isFinite(uncoveredTradeCashDelta) && Math.abs(uncoveredTradeCashDelta) > tradeInferenceThreshold) {
+                externalFlowToday += -uncoveredTradeCashDelta;
             }
 
             double balanceSnapshotCash = sumPortfolioBalancesOnOrBefore(
@@ -645,16 +660,27 @@ public class PortfolioCalculator {
                     latestBalanceByPortfolio
             );
 
-                    double totalValue = useAuthoritativeSnapshots
-                        ? balanceSnapshotCash
-                        : runningCash + balanceSnapshotCash;
-                    totalValue += calculateHoldingsMarketValueNok(
+            if (useAuthoritativeSnapshots && Double.isFinite(previousSnapshotCash)) {
+                double snapshotDelta = balanceSnapshotCash - previousSnapshotCash;
+                double inferredExternalFlow = snapshotDelta - cashEventDeltaToday;
+                double inferenceThreshold = Math.max(100.0, Math.abs(balanceSnapshotCash) * 0.0005);
+                if (Double.isFinite(inferredExternalFlow) && Math.abs(inferredExternalFlow) > inferenceThreshold) {
+                    externalFlowToday += inferredExternalFlow;
+                }
+            }
+
+                        double holdingsValue = calculateHoldingsMarketValueNok(
                         unitsBySecurity,
                         securitiesByTrackingKey,
                         ratesToNok,
                         date,
                         priceSeriesCache
                     );
+
+                    double totalValue = useAuthoritativeSnapshots
+                        ? balanceSnapshotCash
+                        : runningCash + balanceSnapshotCash;
+                    totalValue += holdingsValue;
 
             if (Double.isFinite(previousDayValue)) {
                 if (previousDayValue > 1e-9) {
@@ -666,10 +692,13 @@ public class PortfolioCalculator {
             }
 
             previousDayValue = totalValue;
+            if (useAuthoritativeSnapshots) {
+                previousSnapshotCash = balanceSnapshotCash;
+            }
 
             if (monthEndIndex < monthEnds.size() && date.equals(monthEnds.get(monthEndIndex))) {
                 double twrPct = (twrFactor - 1.0) * 100.0;
-                timeline.add(new PortfolioValuePoint(date, totalValue, runningExternalContributions, twrPct));
+                timeline.add(new PortfolioValuePoint(date, totalValue, twrPct));
                 monthEndIndex++;
             }
         }
@@ -710,6 +739,36 @@ public class PortfolioCalculator {
             totalValue += positionValue * rateToNok;
         }
         return totalValue;
+    }
+
+    private static double estimateUnitEventCashDeltaNok(
+            Events.UnitEvent unitEvent,
+            Security security,
+            Map<String, Double> ratesToNok,
+            Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache) {
+
+        if (unitEvent == null || security == null) {
+            return 0.0;
+        }
+
+        double price = resolveHistoricalPrice(security, unitEvent.tradeDate(), priceSeriesCache);
+        if (price <= 0.0 || !Double.isFinite(price)) {
+            return 0.0;
+        }
+
+        String securityCurrency = normalizeCurrencyCode(security.getCurrencyCode());
+        double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(securityCurrency, 0.0);
+        if (rateToNok <= 0.0 || !Double.isFinite(rateToNok)) {
+            rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
+        }
+
+        double tradeNotionalNok = unitEvent.unitsDelta() * price * rateToNok;
+        if (!Double.isFinite(tradeNotionalNok)) {
+            return 0.0;
+        }
+
+        // Buying units should reduce cash, selling units should increase cash.
+        return -tradeNotionalNok;
     }
 
     private static double sumPortfolioBalancesOnOrBefore(

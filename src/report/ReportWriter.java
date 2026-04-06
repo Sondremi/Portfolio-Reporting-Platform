@@ -972,7 +972,7 @@ public class ReportWriter {
             double gain = yearlySales.stream().mapToDouble(Security.SaleTrade::getGainLoss).sum();
 
             double totalReturnValue = gain + realizedDividends;
-            double rowTotalReturnPct = costBasis > 0.0 ? (totalReturnValue / costBasis) * 100.0 : (totalReturnValue > 0.0 ? 100.0 : 0.0);
+            double rowTotalReturnPct = costBasis > 0.0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currency = security.getCurrencyCode();
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
@@ -1018,8 +1018,8 @@ public class ReportWriter {
         LinkedHashMap<String, Double> totalRealizedReturnBuckets = sumCurrencyBuckets(totalRealizedGainBuckets, totalRealizedDividendsBuckets);
         double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
         double totalReturnPct = totalCostBasisForPct > 0
-                ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
-                : (totalRealizedReturnForPct > 0 ? 100.0 : 0.0);
+            ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
+            : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
@@ -1146,7 +1146,7 @@ public class ReportWriter {
         } else {
             writer.write("<div class=\"hero-side-note\">Timeline data not available yet for this dataset.</div>");
         }
-        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio timeline info\"><div class=\"timeline-info-header\"><h4>Portfolio Value Timeline - Info</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>This chart is an indicative estimate based on imported transactions, cash movements, and historical prices.</p><ul><li><strong>Value:</strong> Estimated portfolio value at each month-end in the selected display currency.</li><li><strong>Return (NOK):</strong> Value change adjusted for external deposits/withdrawals in the selected period.</li><li><strong>Return (%):</strong> Time-weighted return (TWR-like), rebased to the selected range start.</li><li><strong>External cash flows:</strong> Deposits, withdrawals, and transfers flagged as cash events in source data.</li><li><strong>Pricing:</strong> Historical close prices are primarily fetched from Yahoo Finance. If data points are missing, transaction-derived fallback pricing is used.</li><li><strong>Disclaimer:</strong> Values are for analysis and may differ from official broker reporting.</li></ul></div></div></div>");
+        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio timeline info\"><div class=\"timeline-info-header\"><h4>Portfolio Value Timeline - Info</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>This chart is an indicative estimate based on imported transactions, cash snapshots, and historical prices.</p><ul><li><strong>Value:</strong> Estimated portfolio value at each month-end in the selected display currency.</li><li><strong>Return (NOK):</strong> Cumulative cashflow-adjusted return (TWR-based) for the selected range, expressed in NOK from the range start value.</li><li><strong>Return (%):</strong> Cumulative time-weighted return (TWR) from the selected range start.</li><li><strong>External cash flows:</strong> Deposits, withdrawals, and transfers are neutralized in return calculations so contributions/withdrawals do not count as performance.</li><li><strong>Pricing:</strong> Historical close prices are primarily fetched from Yahoo Finance. If data points are missing, transaction-derived fallback pricing is used.</li><li><strong>Disclaimer:</strong> Values are for analysis and may differ from official broker reporting.</li></ul></div></div></div>");
         writer.write("</aside>\n");
         writer.write("</section>\n");
     }
@@ -1291,7 +1291,7 @@ public class ReportWriter {
             double gain = security.getRealizedGain();
             double realizedDividends = security.isFullyRealized() ? security.getDividends() : 0.0;
             double totalReturnValue = gain + realizedDividends;
-            double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : (totalReturnValue > 0 ? 100.0 : 0.0);
+            double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
             String totalReturnCombined = HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
@@ -1330,7 +1330,7 @@ public class ReportWriter {
         double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
         double totalReturnPct = totalCostBasisForPct > 0
             ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
-            : (totalRealizedReturnForPct > 0 ? 100.0 : 0.0);
+            : 0.0;
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
