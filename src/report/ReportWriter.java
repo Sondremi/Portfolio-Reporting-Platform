@@ -808,7 +808,8 @@ public class ReportWriter {
                     ? HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")"
                     : "-";
 
-            writeHtmlRowWithClass(writer, rowClass,
+                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\"";
+                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<span class=\"ticker-scroll\">" + escapeHtml(row.ticker) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(row.securityName) + "</span>",
                     HtmlFormatter.formatUnits(row.units),
@@ -1025,7 +1026,8 @@ public class ReportWriter {
             addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
-            writeHtmlRowWithClass(writer, rowClass,
+                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
+                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
@@ -1247,6 +1249,7 @@ public class ReportWriter {
 
             String rowAttributes = "data-overview-row=\"1\""
                 + " data-ticker=\"" + escapeHtml(row.tickerText) + "\""
+                + " data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\""
                 + " data-currency=\"" + escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
                 + " data-units=\"" + String.format(Locale.US, "%.8f", row.units) + "\""
                 + " data-position-cost-basis=\"" + String.format(Locale.US, "%.8f", row.positionCostBasis) + "\""
@@ -1361,8 +1364,9 @@ public class ReportWriter {
             addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
             addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
                 String detailsRowId = "realized-details-" + detailsIndex;
+                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
 
-                writeHtmlRowWithClass(writer, rowClass,
+                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
@@ -2242,32 +2246,62 @@ public class ReportWriter {
         writer.write("  activeHeader.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');\n");
         writer.write("  activeHeader.dataset.sortDirection = direction;\n");
         writer.write("}\n");
+        writer.write("function getDirectTableRows(table) {\n");
+        writer.write("  if (!table) return [];\n");
+        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
+        writer.write("  if (table.tBodies && table.tBodies.length > 1) {\n");
+        writer.write("    for (var i = 1; i < table.tBodies.length; i += 1) {\n");
+        writer.write("      var extraBody = table.tBodies[i];\n");
+        writer.write("      while (extraBody && extraBody.firstElementChild) {\n");
+        writer.write("        body.appendChild(extraBody.firstElementChild);\n");
+        writer.write("      }\n");
+        writer.write("    }\n");
+        writer.write("  }\n");
+        writer.write("  return Array.prototype.slice.call(body.children).filter(function(node) {\n");
+        writer.write("    return node && node.tagName === 'TR';\n");
+        writer.write("  });\n");
+        writer.write("}\n");
         writer.write("function sortPrimaryTable(table, columnIndex, mode, direction) {\n");
         writer.write("  if (!table || mode === 'none') return;\n");
-        writer.write("  var allRows = Array.prototype.slice.call(table.querySelectorAll('tr'));\n");
+        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
+        writer.write("  var allRows = getDirectTableRows(table);\n");
         writer.write("  if (allRows.length <= 2) return;\n");
         writer.write("  var groups = [];\n");
         writer.write("  for (var i = 1; i < allRows.length; i += 1) {\n");
         writer.write("    var row = allRows[i];\n");
         writer.write("    if (row.classList.contains('details-row') || row.classList.contains('total-row')) continue;\n");
+        writer.write("    var assetGroup = String(row.getAttribute('data-asset-group') || 'STOCK').toUpperCase() === 'FUND' ? 'FUND' : 'STOCK';\n");
         writer.write("    var details = row.nextElementSibling;\n");
         writer.write("    if (details && details.classList && details.classList.contains('details-row')) {\n");
-        writer.write("      groups.push({ row: row, details: details, value: extractSortableValue(row.cells[columnIndex], mode) });\n");
+        writer.write("      groups.push({ row: row, details: details, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n");
         writer.write("    } else {\n");
-        writer.write("      groups.push({ row: row, details: null, value: extractSortableValue(row.cells[columnIndex], mode) });\n");
+        writer.write("      groups.push({ row: row, details: null, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n");
         writer.write("    }\n");
         writer.write("  }\n");
-        writer.write("  groups.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n");
-        writer.write("  var totalRow = table.querySelector('tr.total-row');\n");
+        writer.write("  var byAssetGroup = { STOCK: [], FUND: [] };\n");
         writer.write("  groups.forEach(function(group) {\n");
-        writer.write("    table.appendChild(group.row);\n");
-        writer.write("    if (group.details) table.appendChild(group.details);\n");
+        writer.write("    byAssetGroup[group.assetGroup].push(group);\n");
         writer.write("  });\n");
-        writer.write("  if (totalRow) table.appendChild(totalRow);\n");
+        writer.write("  byAssetGroup.STOCK.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n");
+        writer.write("  byAssetGroup.FUND.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n");
+        writer.write("  var orderedGroups = byAssetGroup.STOCK.concat(byAssetGroup.FUND);\n");
+        writer.write("  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n");
+        writer.write("  var previousGroup = '';\n");
+        writer.write("  orderedGroups.forEach(function(group, index) {\n");
+        writer.write("    group.row.classList.remove('asset-split');\n");
+        writer.write("    if (index > 0 && group.assetGroup !== previousGroup) {\n");
+        writer.write("      group.row.classList.add('asset-split');\n");
+        writer.write("    }\n");
+        writer.write("    previousGroup = group.assetGroup;\n");
+        writer.write("    body.appendChild(group.row);\n");
+        writer.write("    if (group.details) body.appendChild(group.details);\n");
+        writer.write("  });\n");
+        writer.write("  if (totalRow) body.appendChild(totalRow);\n");
         writer.write("}\n");
         writer.write("function sortSimpleTable(table, columnIndex, mode, direction) {\n");
         writer.write("  if (!table || mode === 'none') return;\n");
-        writer.write("  var allRows = Array.prototype.slice.call(table.querySelectorAll('tr'));\n");
+        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
+        writer.write("  var allRows = getDirectTableRows(table);\n");
         writer.write("  if (allRows.length <= 2) return;\n");
         writer.write("  var dataRows = allRows.slice(1).filter(function(row) { return !row.classList.contains('total-row'); });\n");
         writer.write("  dataRows.sort(function(a, b) {\n");
@@ -2275,14 +2309,14 @@ public class ReportWriter {
         writer.write("    var bValue = extractSortableValue(b.cells[columnIndex], mode);\n");
         writer.write("    return compareValues(aValue, bValue, direction);\n");
         writer.write("  });\n");
-        writer.write("  var totalRow = table.querySelector('tr.total-row');\n");
-        writer.write("  dataRows.forEach(function(row) { table.appendChild(row); });\n");
-        writer.write("  if (totalRow) table.appendChild(totalRow);\n");
+        writer.write("  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n");
+        writer.write("  dataRows.forEach(function(row) { body.appendChild(row); });\n");
+        writer.write("  if (totalRow) body.appendChild(totalRow);\n");
         writer.write("}\n");
         writer.write("function initSortableTables() {\n");
         writer.write("  function wireTable(table, sorter) {\n");
         writer.write("    if (!table || table.dataset.sortableReady === '1') return;\n");
-        writer.write("    var headerRow = table.querySelector('tr');\n");
+        writer.write("    var headerRow = getDirectTableRows(table)[0];\n");
         writer.write("    if (!headerRow) return;\n");
         writer.write("    var headers = Array.prototype.slice.call(headerRow.querySelectorAll('th'));\n");
         writer.write("    headers.forEach(function(header, index) {\n");
