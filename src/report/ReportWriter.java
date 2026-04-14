@@ -481,6 +481,34 @@ public class ReportWriter {
             + " | " + HtmlFormatter.formatPercent(metrics.worst.returnPct)
             + "</span></div></article>\n");
 
+        if (summary.hasAnalytics) {
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Volatility (Ann.)</h4><div class=\"annual-summary-value\">"
+                + HtmlFormatter.formatPercent(summary.annualizedVolatilityPct, 2)
+                + "</div><div class=\"annual-summary-sub\">Annualized from monthly return variance</div></article>\n");
+
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Sharpe Ratio</h4><div class=\"annual-summary-value\">"
+                + String.format(Locale.US, "%.2f", summary.sharpeRatio)
+                + "</div><div class=\"annual-summary-sub\">Risk-adjusted return (monthly, annualized)</div></article>\n");
+
+            if (summary.hasBeta) {
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
+                    + String.format(Locale.US, "%.2f", summary.beta)
+                    + "</div><div class=\"annual-summary-sub\">Sensitivity vs benchmark monthly returns</div></article>\n");
+            } else {
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
+            }
+        }
+
+        if (summary.hasMonteCarlo) {
+            LinkedHashMap<String, Double> medianBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.monteCarloMedianEndValueNok);
+            LinkedHashMap<String, Double> p10Buckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.monteCarloP10EndValueNok);
+            LinkedHashMap<String, Double> p90Buckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.monteCarloP90EndValueNok);
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Monte Carlo (" + summary.monteCarloHorizonMonths + "m)</h4><div class=\"annual-summary-value\">"
+                + renderConvertibleMoneyCell(medianBuckets, 0, ratesToNok)
+                + "</div><div class=\"annual-summary-sub\">Median terminal value (" + summary.monteCarloIterations + " iterations)</div>"
+                + "<div class=\"annual-summary-sub\">P10: " + renderConvertibleMoneyCell(p10Buckets, 0, ratesToNok) + " | P90: " + renderConvertibleMoneyCell(p90Buckets, 0, ratesToNok) + "</div></article>\n");
+        }
+
     }
 
     private static String buildAnnualValueWarningHtml(List<AnnualSnapshotRow> snapshotRows) {
@@ -1245,6 +1273,7 @@ public class ReportWriter {
             + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
         writer.write("</div>\n");
+        writeStandardAnalyticsSectionHtml(writer, store, ratesToNok);
         String valueTimelineSvg = PortfolioCalculator.buildStandardPortfolioValueSparklineSvg(store, ratesToNok);
         String returnTimelineSvg = PortfolioCalculator.buildStandardPortfolioReturnSparklineSvg(store, ratesToNok);
 
@@ -1276,6 +1305,57 @@ public class ReportWriter {
         writer.write("</div>\n");
 
         writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio timeline info\"><div class=\"timeline-info-header\"><h4>Portfolio Value Timeline - Info</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>This chart is an indicative estimate based on imported transactions, cash snapshots, and historical prices.</p><ul><li><strong>Value:</strong> Estimated portfolio value at each month-end in the selected display currency.</li><li><strong>Return (<span class=\"js-report-currency-code\">NOK</span>):</strong> Cumulative cashflow-adjusted return (TWR-based) for the selected range, expressed in <span class=\"js-report-currency-code\">NOK</span> from the range start value.</li><li><strong>Return (%):</strong> Cumulative time-weighted return (TWR) from the selected range start.</li><li><strong>External cash flows:</strong> Deposits, withdrawals, and transfers are neutralized in return calculations so contributions/withdrawals do not count as performance.</li><li><strong>Pricing:</strong> Historical close prices are primarily fetched from Yahoo Finance. If data points are missing, transaction-derived fallback pricing is used.</li><li><strong>Disclaimer:</strong> Values are for analysis and may differ from official broker reporting.</li></ul></div></div></div>\n");
+        writer.write("</section>\n");
+    }
+
+    private static void writeStandardAnalyticsSectionHtml(
+            FileWriter writer,
+            TransactionStore store,
+            Map<String, Double> ratesToNok) throws IOException {
+
+        PortfolioCalculator.StandardAnalyticsSummary analytics = PortfolioCalculator.buildStandardAnalyticsSummary(
+                store,
+                ratesToNok,
+                "^OSEAX"
+        );
+
+        if (!analytics.hasAnalytics && !analytics.hasMonteCarlo) {
+            return;
+        }
+
+        writer.write("<section class=\"annual-kpi-deck\">\n");
+        writer.write("<h2 class=\"annual-kpi-deck-title\">Risk Analytics</h2>\n");
+        writer.write("<div class=\"annual-summary-grid\">\n");
+
+        if (analytics.hasAnalytics) {
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Volatility (Ann.)</h4><div class=\"annual-summary-value\">"
+                    + HtmlFormatter.formatPercent(analytics.annualizedVolatilityPct, 2)
+                    + "</div><div class=\"annual-summary-sub\">Annualized from monthly return variance</div></article>\n");
+
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Sharpe Ratio</h4><div class=\"annual-summary-value\">"
+                    + String.format(Locale.US, "%.2f", analytics.sharpeRatio)
+                    + "</div><div class=\"annual-summary-sub\">Risk-adjusted return (monthly, annualized)</div></article>\n");
+
+            if (analytics.hasBeta) {
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
+                        + String.format(Locale.US, "%.2f", analytics.beta)
+                        + "</div><div class=\"annual-summary-sub\">Sensitivity vs benchmark monthly returns</div></article>\n");
+            } else {
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
+            }
+        }
+
+        if (analytics.hasMonteCarlo) {
+            LinkedHashMap<String, Double> medianBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, analytics.monteCarloMedianEndValueNok);
+            LinkedHashMap<String, Double> p10Buckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, analytics.monteCarloP10EndValueNok);
+            LinkedHashMap<String, Double> p90Buckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, analytics.monteCarloP90EndValueNok);
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Monte Carlo (" + analytics.monteCarloHorizonMonths + "m)</h4><div class=\"annual-summary-value\">"
+                    + renderConvertibleMoneyCell(medianBuckets, 0, ratesToNok)
+                    + "</div><div class=\"annual-summary-sub\">Median terminal value (" + analytics.monteCarloIterations + " iterations)</div>"
+                    + "<div class=\"annual-summary-sub\">P10: " + renderConvertibleMoneyCell(p10Buckets, 0, ratesToNok) + " | P90: " + renderConvertibleMoneyCell(p90Buckets, 0, ratesToNok) + "</div></article>\n");
+        }
+
+        writer.write("</div>\n");
         writer.write("</section>\n");
     }
 

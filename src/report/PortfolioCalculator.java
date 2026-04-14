@@ -37,6 +37,9 @@ public class PortfolioCalculator {
     private static final Duration HISTORY_CACHE_TTL = Duration.ofHours(12);
     private static final int BENCHMARK_FETCH_BUFFER_DAYS = 45;
     private static final int BENCHMARK_BOUNDARY_TOLERANCE_DAYS = 21;
+    private static final double DEFAULT_ANALYTICS_RISK_FREE_RATE = 0.02;
+    private static final int DEFAULT_MONTE_CARLO_HORIZON_MONTHS = 12;
+    private static final int DEFAULT_MONTE_CARLO_ITERATIONS = 2000;
 
     private static final class PortfolioValuePoint {
         private final LocalDate monthEnd;
@@ -50,6 +53,105 @@ public class PortfolioCalculator {
             this.monthEnd = monthEnd;
             this.value = value;
             this.twrCumulativeReturnPct = twrCumulativeReturnPct;
+        }
+    }
+
+    private static final class AnalyticsSummary {
+        private final boolean hasAnalytics;
+        private final double annualizedVolatilityPct;
+        private final double sharpeRatio;
+        private final boolean hasBeta;
+        private final double beta;
+
+        private AnalyticsSummary(
+                boolean hasAnalytics,
+                double annualizedVolatilityPct,
+                double sharpeRatio,
+                boolean hasBeta,
+                double beta) {
+            this.hasAnalytics = hasAnalytics;
+            this.annualizedVolatilityPct = annualizedVolatilityPct;
+            this.sharpeRatio = sharpeRatio;
+            this.hasBeta = hasBeta;
+            this.beta = beta;
+        }
+    }
+
+    private static final class MonteCarloSummary {
+        private final boolean hasMonteCarlo;
+        private final int horizonMonths;
+        private final int iterations;
+        private final double startValueNok;
+        private final double medianEndValueNok;
+        private final double p10EndValueNok;
+        private final double p90EndValueNok;
+        private final double expectedEndValueNok;
+
+        private MonteCarloSummary(
+                boolean hasMonteCarlo,
+                int horizonMonths,
+                int iterations,
+                double startValueNok,
+                double medianEndValueNok,
+                double p10EndValueNok,
+                double p90EndValueNok,
+                double expectedEndValueNok) {
+            this.hasMonteCarlo = hasMonteCarlo;
+            this.horizonMonths = horizonMonths;
+            this.iterations = iterations;
+            this.startValueNok = startValueNok;
+            this.medianEndValueNok = medianEndValueNok;
+            this.p10EndValueNok = p10EndValueNok;
+            this.p90EndValueNok = p90EndValueNok;
+            this.expectedEndValueNok = expectedEndValueNok;
+        }
+    }
+
+    public static final class StandardAnalyticsSummary {
+        public final boolean hasAnalytics;
+        public final double annualizedVolatilityPct;
+        public final double sharpeRatio;
+        public final boolean hasBeta;
+        public final double beta;
+        public final String benchmarkTicker;
+        public final boolean hasMonteCarlo;
+        public final int monteCarloHorizonMonths;
+        public final int monteCarloIterations;
+        public final double monteCarloStartValueNok;
+        public final double monteCarloMedianEndValueNok;
+        public final double monteCarloP10EndValueNok;
+        public final double monteCarloP90EndValueNok;
+        public final double monteCarloExpectedEndValueNok;
+
+        private StandardAnalyticsSummary(
+                boolean hasAnalytics,
+                double annualizedVolatilityPct,
+                double sharpeRatio,
+                boolean hasBeta,
+                double beta,
+                String benchmarkTicker,
+                boolean hasMonteCarlo,
+                int monteCarloHorizonMonths,
+                int monteCarloIterations,
+                double monteCarloStartValueNok,
+                double monteCarloMedianEndValueNok,
+                double monteCarloP10EndValueNok,
+                double monteCarloP90EndValueNok,
+                double monteCarloExpectedEndValueNok) {
+            this.hasAnalytics = hasAnalytics;
+            this.annualizedVolatilityPct = annualizedVolatilityPct;
+            this.sharpeRatio = sharpeRatio;
+            this.hasBeta = hasBeta;
+            this.beta = beta;
+            this.benchmarkTicker = benchmarkTicker;
+            this.hasMonteCarlo = hasMonteCarlo;
+            this.monteCarloHorizonMonths = monteCarloHorizonMonths;
+            this.monteCarloIterations = monteCarloIterations;
+            this.monteCarloStartValueNok = monteCarloStartValueNok;
+            this.monteCarloMedianEndValueNok = monteCarloMedianEndValueNok;
+            this.monteCarloP10EndValueNok = monteCarloP10EndValueNok;
+            this.monteCarloP90EndValueNok = monteCarloP90EndValueNok;
+            this.monteCarloExpectedEndValueNok = monteCarloExpectedEndValueNok;
         }
     }
 
@@ -1357,27 +1459,367 @@ public class PortfolioCalculator {
             );
 
             if (startValue > 0.0 && endValue > 0.0) {
-            benchmarkReturnPct = ((endValue - startValue) / startValue) * 100.0;
-            hasBenchmarkData = true;
-            resolvedBenchmarkTicker = candidateTicker;
-            break;
+                benchmarkReturnPct = ((endValue - startValue) / startValue) * 100.0;
+                hasBenchmarkData = true;
+                resolvedBenchmarkTicker = candidateTicker;
+                break;
             }
         }
 
+        ArrayList<PortfolioValuePoint> yearPoints = buildAnnualYearPoints(store, ratesToNok, safeYear);
+        AnalyticsSummary analyticsSummary = buildAnalyticsSummary(yearPoints, resolvedBenchmarkTicker, from, to);
+
+        double simulationStartValueNok = endValueNok > 0.0
+                ? endValueNok
+                : (lastInYear != null && lastInYear.value > 0.0 ? lastInYear.value : 0.0);
+        MonteCarloSummary monteCarloSummary = buildMonteCarloSummary(timeline, simulationStartValueNok, safeYear);
+
         return new AnnualPerformanceSummary(
                 safeYear,
-            resolvedBenchmarkTicker,
+                resolvedBenchmarkTicker,
                 hasPortfolioData,
                 startValueNok,
                 endValueNok,
                 portfolioReturnNok,
                 portfolioReturnPct,
-            realizedGainNok,
-            dividendsNok,
-            realizedTotalNok,
+                realizedGainNok,
+                dividendsNok,
+                realizedTotalNok,
                 hasBenchmarkData,
-                benchmarkReturnPct
+                benchmarkReturnPct,
+                analyticsSummary.hasAnalytics,
+                analyticsSummary.annualizedVolatilityPct,
+                analyticsSummary.sharpeRatio,
+                analyticsSummary.hasBeta,
+                analyticsSummary.beta,
+                monteCarloSummary.hasMonteCarlo,
+                monteCarloSummary.horizonMonths,
+                monteCarloSummary.iterations,
+                monteCarloSummary.startValueNok,
+                monteCarloSummary.medianEndValueNok,
+                monteCarloSummary.p10EndValueNok,
+                monteCarloSummary.p90EndValueNok,
+                monteCarloSummary.expectedEndValueNok
         );
+    }
+
+    public static StandardAnalyticsSummary buildStandardAnalyticsSummary(
+            TransactionStore store,
+            Map<String, Double> ratesToNok,
+            String benchmarkTicker) {
+
+        ArrayList<PortfolioValuePoint> timeline = buildPortfolioValueTimeline(store, ratesToNok, 120);
+        if (timeline.size() < 3) {
+            return new StandardAnalyticsSummary(
+                    false, 0.0, 0.0, false, 0.0, benchmarkTicker == null ? "^OSEAX" : benchmarkTicker,
+                    false, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0
+            );
+        }
+
+        String safeBenchmarkTicker = (benchmarkTicker == null || benchmarkTicker.isBlank())
+                ? "^OSEAX"
+                : benchmarkTicker.trim();
+        LocalDate from = timeline.get(Math.max(0, timeline.size() - 61)).monthEnd;
+        LocalDate to = timeline.get(timeline.size() - 1).monthEnd;
+        ArrayList<PortfolioValuePoint> recent = new ArrayList<>(timeline.subList(Math.max(0, timeline.size() - 61), timeline.size()));
+        AnalyticsSummary analytics = buildAnalyticsSummary(recent, safeBenchmarkTicker, from, to);
+        double startValue = recent.get(recent.size() - 1).value;
+        MonteCarloSummary monteCarlo = buildMonteCarloSummary(timeline, startValue, to.getYear());
+
+        return new StandardAnalyticsSummary(
+                analytics.hasAnalytics,
+                analytics.annualizedVolatilityPct,
+                analytics.sharpeRatio,
+                analytics.hasBeta,
+                analytics.beta,
+                safeBenchmarkTicker,
+                monteCarlo.hasMonteCarlo,
+                monteCarlo.horizonMonths,
+                monteCarlo.iterations,
+                monteCarlo.startValueNok,
+                monteCarlo.medianEndValueNok,
+                monteCarlo.p10EndValueNok,
+                monteCarlo.p90EndValueNok,
+                monteCarlo.expectedEndValueNok
+        );
+    }
+
+    private static AnalyticsSummary buildAnalyticsSummary(
+            ArrayList<PortfolioValuePoint> points,
+            String benchmarkTicker,
+            LocalDate from,
+            LocalDate to) {
+
+        ArrayList<Double> portfolioMonthlyReturns = buildMonthlyReturnSeries(points);
+        if (portfolioMonthlyReturns.size() < 2) {
+            return new AnalyticsSummary(false, 0.0, 0.0, false, 0.0);
+        }
+
+        double volatilityMonthly = computeStdDev(portfolioMonthlyReturns);
+        double annualizedVolatilityPct = volatilityMonthly * Math.sqrt(12.0) * 100.0;
+
+        double riskFreeAnnual = resolveRiskFreeRateAnnual();
+        double riskFreeMonthly = Math.pow(1.0 + riskFreeAnnual, 1.0 / 12.0) - 1.0;
+        double avgExcess = 0.0;
+        for (double value : portfolioMonthlyReturns) {
+            avgExcess += (value - riskFreeMonthly);
+        }
+        avgExcess /= portfolioMonthlyReturns.size();
+        double sharpe = volatilityMonthly > 1e-12
+                ? (avgExcess / volatilityMonthly) * Math.sqrt(12.0)
+                : 0.0;
+        if (!Double.isFinite(sharpe)) {
+            sharpe = 0.0;
+        }
+
+        boolean hasBeta = false;
+        double beta = 0.0;
+        if (from != null && to != null) {
+            ArrayList<Double> benchmarkMonthlyReturns = buildBenchmarkMonthlyReturnSeries(
+                    benchmarkTicker, from, to, points
+            );
+            int alignedCount = Math.min(portfolioMonthlyReturns.size(), benchmarkMonthlyReturns.size());
+            if (alignedCount >= 2) {
+                ArrayList<Double> p = new ArrayList<>(portfolioMonthlyReturns.subList(portfolioMonthlyReturns.size() - alignedCount, portfolioMonthlyReturns.size()));
+                ArrayList<Double> b = new ArrayList<>(benchmarkMonthlyReturns.subList(benchmarkMonthlyReturns.size() - alignedCount, benchmarkMonthlyReturns.size()));
+                double variance = computeVariance(b);
+                if (variance > 1e-12) {
+                    beta = computeCovariance(p, b) / variance;
+                    hasBeta = Double.isFinite(beta);
+                    if (!hasBeta) {
+                        beta = 0.0;
+                    }
+                }
+            }
+        }
+
+        return new AnalyticsSummary(
+                true,
+                annualizedVolatilityPct,
+                sharpe,
+                hasBeta,
+                beta
+        );
+    }
+
+    private static MonteCarloSummary buildMonteCarloSummary(
+            ArrayList<PortfolioValuePoint> timeline,
+            double startValueNok,
+            int seedBiasYear) {
+
+        ArrayList<Double> historicalMonthlyReturns = buildMonthlyReturnSeries(timeline);
+        int horizonMonths = resolveMonteCarloHorizonMonths();
+        int iterations = resolveMonteCarloIterations();
+        if (historicalMonthlyReturns.isEmpty() || startValueNok <= 0.0 || horizonMonths <= 0 || iterations <= 0) {
+            return new MonteCarloSummary(false, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        }
+
+        Random random = new Random(1_000_003L + seedBiasYear);
+        double[] simulatedEndValues = new double[iterations];
+        double expected = 0.0;
+        for (int i = 0; i < iterations; i++) {
+            double value = startValueNok;
+            for (int month = 0; month < horizonMonths; month++) {
+                double sampledReturn = historicalMonthlyReturns.get(random.nextInt(historicalMonthlyReturns.size()));
+                value *= Math.max(0.0, 1.0 + sampledReturn);
+            }
+            simulatedEndValues[i] = value;
+            expected += value;
+        }
+        Arrays.sort(simulatedEndValues);
+        expected /= iterations;
+        double p10 = percentile(simulatedEndValues, 0.10);
+        double median = percentile(simulatedEndValues, 0.50);
+        double p90 = percentile(simulatedEndValues, 0.90);
+
+        return new MonteCarloSummary(
+                true,
+                horizonMonths,
+                iterations,
+                startValueNok,
+                median,
+                p10,
+                p90,
+                expected
+        );
+    }
+
+    private static ArrayList<Double> buildMonthlyReturnSeries(ArrayList<PortfolioValuePoint> points) {
+        ArrayList<Double> returns = new ArrayList<>();
+        if (points == null || points.size() < 2) {
+            return returns;
+        }
+
+        for (int i = 1; i < points.size(); i++) {
+            PortfolioValuePoint previous = points.get(i - 1);
+            PortfolioValuePoint current = points.get(i);
+            double prevFactor = 1.0 + (previous.twrCumulativeReturnPct / 100.0);
+            double currFactor = 1.0 + (current.twrCumulativeReturnPct / 100.0);
+            if (!Double.isFinite(prevFactor) || !Double.isFinite(currFactor) || Math.abs(prevFactor) < 1e-12) {
+                continue;
+            }
+            double monthlyReturn = (currFactor / prevFactor) - 1.0;
+            if (Double.isFinite(monthlyReturn)) {
+                returns.add(monthlyReturn);
+            }
+        }
+        return returns;
+    }
+
+    private static ArrayList<Double> buildBenchmarkMonthlyReturnSeries(
+            String benchmarkTicker,
+            LocalDate from,
+            LocalDate to,
+            ArrayList<PortfolioValuePoint> portfolioPoints) {
+
+        ArrayList<Double> returns = new ArrayList<>();
+        if (portfolioPoints == null || portfolioPoints.size() < 2 || from == null || to == null) {
+            return returns;
+        }
+
+        NavigableMap<LocalDate, Double> benchmarkSeries = fetchHistoricalCloseSeries(
+                benchmarkTicker,
+                from.minusDays(BENCHMARK_FETCH_BUFFER_DAYS),
+                to.plusDays(BENCHMARK_FETCH_BUFFER_DAYS)
+        );
+        if (benchmarkSeries == null || benchmarkSeries.isEmpty()) {
+            return returns;
+        }
+
+        ArrayList<Double> monthEndValues = new ArrayList<>();
+        for (PortfolioValuePoint point : portfolioPoints) {
+            double value = resolveBoundaryValue(
+                    benchmarkSeries,
+                    point.monthEnd,
+                    false,
+                    BENCHMARK_BOUNDARY_TOLERANCE_DAYS
+            );
+            monthEndValues.add(value > 0.0 ? value : Double.NaN);
+        }
+
+        for (int i = 1; i < monthEndValues.size(); i++) {
+            double prev = monthEndValues.get(i - 1);
+            double curr = monthEndValues.get(i);
+            if (!Double.isFinite(prev) || !Double.isFinite(curr) || prev <= 0.0) {
+                continue;
+            }
+            double periodReturn = (curr / prev) - 1.0;
+            if (Double.isFinite(periodReturn)) {
+                returns.add(periodReturn);
+            }
+        }
+        return returns;
+    }
+
+    private static double computeStdDev(ArrayList<Double> values) {
+        if (values == null || values.size() < 2) {
+            return 0.0;
+        }
+        double mean = 0.0;
+        for (double value : values) {
+            mean += value;
+        }
+        mean /= values.size();
+        double variance = 0.0;
+        for (double value : values) {
+            double diff = value - mean;
+            variance += diff * diff;
+        }
+        variance /= (values.size() - 1);
+        if (!Double.isFinite(variance) || variance < 0.0) {
+            return 0.0;
+        }
+        return Math.sqrt(variance);
+    }
+
+    private static double computeVariance(ArrayList<Double> values) {
+        double stdDev = computeStdDev(values);
+        return stdDev * stdDev;
+    }
+
+    private static double computeCovariance(ArrayList<Double> left, ArrayList<Double> right) {
+        if (left == null || right == null || left.size() != right.size() || left.size() < 2) {
+            return 0.0;
+        }
+        int n = left.size();
+        double meanLeft = 0.0;
+        double meanRight = 0.0;
+        for (int i = 0; i < n; i++) {
+            meanLeft += left.get(i);
+            meanRight += right.get(i);
+        }
+        meanLeft /= n;
+        meanRight /= n;
+
+        double covariance = 0.0;
+        for (int i = 0; i < n; i++) {
+            covariance += (left.get(i) - meanLeft) * (right.get(i) - meanRight);
+        }
+        covariance /= (n - 1);
+        return Double.isFinite(covariance) ? covariance : 0.0;
+    }
+
+    private static double percentile(double[] sorted, double quantile) {
+        if (sorted == null || sorted.length == 0) {
+            return 0.0;
+        }
+        if (quantile <= 0.0) {
+            return sorted[0];
+        }
+        if (quantile >= 1.0) {
+            return sorted[sorted.length - 1];
+        }
+
+        double position = quantile * (sorted.length - 1);
+        int lower = (int) Math.floor(position);
+        int upper = (int) Math.ceil(position);
+        if (lower == upper) {
+            return sorted[lower];
+        }
+        double weight = position - lower;
+        return sorted[lower] * (1.0 - weight) + sorted[upper] * weight;
+    }
+
+    private static double resolveRiskFreeRateAnnual() {
+        String raw = System.getProperty("portfolio.analytics.riskFreeRate", "");
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_ANALYTICS_RISK_FREE_RATE;
+        }
+        try {
+            double parsed = Double.parseDouble(raw.trim());
+            if (!Double.isFinite(parsed)) {
+                return DEFAULT_ANALYTICS_RISK_FREE_RATE;
+            }
+            return Math.max(-0.5, Math.min(1.0, parsed));
+        } catch (NumberFormatException ignored) {
+            return DEFAULT_ANALYTICS_RISK_FREE_RATE;
+        }
+    }
+
+    private static int resolveMonteCarloHorizonMonths() {
+        String raw = System.getProperty("portfolio.analytics.montecarlo.horizonMonths", "");
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_MONTE_CARLO_HORIZON_MONTHS;
+        }
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            return Math.max(1, Math.min(120, parsed));
+        } catch (NumberFormatException ignored) {
+            return DEFAULT_MONTE_CARLO_HORIZON_MONTHS;
+        }
+    }
+
+    private static int resolveMonteCarloIterations() {
+        String raw = System.getProperty("portfolio.analytics.montecarlo.iterations", "");
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_MONTE_CARLO_ITERATIONS;
+        }
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            return Math.max(200, Math.min(20000, parsed));
+        } catch (NumberFormatException ignored) {
+            return DEFAULT_MONTE_CARLO_ITERATIONS;
+        }
     }
 
     public static String buildAnnualPortfolioValueSparklineSvg(

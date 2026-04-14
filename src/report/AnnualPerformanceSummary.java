@@ -13,6 +13,19 @@ public class AnnualPerformanceSummary {
     public final double realizedTotalNok;
     public final boolean hasBenchmarkData;
     public final double benchmarkReturnPct;
+    public final boolean hasAnalytics;
+    public final double annualizedVolatilityPct;
+    public final double sharpeRatio;
+    public final boolean hasBeta;
+    public final double beta;
+    public final boolean hasMonteCarlo;
+    public final int monteCarloHorizonMonths;
+    public final int monteCarloIterations;
+    public final double monteCarloStartValueNok;
+    public final double monteCarloMedianEndValueNok;
+    public final double monteCarloP10EndValueNok;
+    public final double monteCarloP90EndValueNok;
+    public final double monteCarloExpectedEndValueNok;
 
     public AnnualPerformanceSummary(
             int year,
@@ -26,7 +39,20 @@ public class AnnualPerformanceSummary {
             double dividendsNok,
             double realizedTotalNok,
             boolean hasBenchmarkData,
-            double benchmarkReturnPct) {
+            double benchmarkReturnPct,
+            boolean hasAnalytics,
+            double annualizedVolatilityPct,
+            double sharpeRatio,
+            boolean hasBeta,
+            double beta,
+            boolean hasMonteCarlo,
+            int monteCarloHorizonMonths,
+            int monteCarloIterations,
+            double monteCarloStartValueNok,
+            double monteCarloMedianEndValueNok,
+            double monteCarloP10EndValueNok,
+            double monteCarloP90EndValueNok,
+            double monteCarloExpectedEndValueNok) {
         this.year = year;
         this.benchmarkTicker = benchmarkTicker;
         this.hasPortfolioData = hasPortfolioData;
@@ -39,5 +65,18 @@ public class AnnualPerformanceSummary {
         this.realizedTotalNok = realizedTotalNok;
         this.hasBenchmarkData = hasBenchmarkData;
         this.benchmarkReturnPct = benchmarkReturnPct;
+        this.hasAnalytics = hasAnalytics;
+        this.annualizedVolatilityPct = annualizedVolatilityPct;
+        this.sharpeRatio = sharpeRatio;
+        this.hasBeta = hasBeta;
+        this.beta = beta;
+        this.hasMonteCarlo = hasMonteCarlo;
+        this.monteCarloHorizonMonths = monteCarloHorizonMonths;
+        this.monteCarloIterations = monteCarloIterations;
+        this.monteCarloStartValueNok = monteCarloStartValueNok;
+        this.monteCarloMedianEndValueNok = monteCarloMedianEndValueNok;
+        this.monteCarloP10EndValueNok = monteCarloP10EndValueNok;
+        this.monteCarloP90EndValueNok = monteCarloP90EndValueNok;
+        this.monteCarloExpectedEndValueNok = monteCarloExpectedEndValueNok;
     }
 }
