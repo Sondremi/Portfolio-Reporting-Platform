@@ -344,9 +344,8 @@ public class ReportWriter {
             writer.write("        body.theme-dark .market-value-bar-chart line[stroke='#495057'] { stroke:#dce8f4 !important; }\n");
             writer.write("        body.theme-dark .market-value-bar-chart text[fill='#495057'] { fill:#dce8f4 !important; }\n");
             writer.write("        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#d1e0ef; }\n");
-            writer.write("        .expand-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:62px; padding:2px 8px; font-size:.66rem; font-weight:700; cursor:pointer; text-align:center; }\n");
-            writer.write("        .expand-btn:hover { background:#e6f1fb; }\n");
-            writer.write("        .details-link-btn { width:100%; min-width:0; text-align:left; }\n");
+            writer.write("        .details-link-btn { display:block; width:100%; min-width:0; text-align:left; border:none; background:transparent; color:inherit; font:inherit; padding:0; margin:0; cursor:pointer; }\n");
+            writer.write("        .details-link-btn:hover { text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px; }\n");
             writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");
             writer.write("        .detail-group-toggle { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:50%; width:18px; height:18px; padding:0; line-height:16px; font-size:.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }\n");
             writer.write("        .detail-group-toggle:hover { background:#e6f1fb; }\n");
@@ -1033,7 +1032,7 @@ public class ReportWriter {
         int safeYear = Math.max(2000, Math.min(2100, reportYear));
         writer.write("<h2>REALIZED OVERVIEW - SALES IN " + safeYear + "</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildTickerHeaderCell("realized-details-year"), "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -1082,8 +1081,8 @@ public class ReportWriter {
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
-                String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-                String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
+                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+                String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
                     securityToggle,
@@ -1466,7 +1465,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
-            "Ticker", "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
+            ReportTemplateHelper.buildTickerHeaderCell("overview-details"), "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1510,8 +1509,8 @@ public class ReportWriter {
                 + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
                 + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
 
-            String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
-            String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
+            String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
+            String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
             ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
                     securityToggle,
@@ -1624,7 +1623,7 @@ public class ReportWriter {
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildTickerHeaderCell("realized-details"), "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
@@ -1654,8 +1653,8 @@ public class ReportWriter {
                 String detailsRowId = "realized-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
 
-                String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-                String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
+                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+                String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
                     securityToggle,

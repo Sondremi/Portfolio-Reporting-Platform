@@ -7,8 +7,8 @@ final class ReportTemplateHelper {
 
     private ReportTemplateHelper() {}
 
-    static String buildDetailsHeaderCell(String groupName) {
-        return "<span class=\"details-head\">Details"
+    static String buildTickerHeaderCell(String groupName) {
+        return "<span class=\"details-head\">Ticker"
             + "<button class=\"detail-group-toggle\" onclick=\"toggleDetailGroup('" + groupName + "', this)\" title=\"Expand/collapse all details\">▸</button>"
             + "</span>";
     }
