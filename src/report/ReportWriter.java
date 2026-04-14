@@ -117,7 +117,10 @@ public class ReportWriter {
             writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(13) { width:8%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(n+3) { overflow:hidden !important; text-overflow:ellipsis !important; }\n");
             writer.write("        .report-standard .overview-holdings-table th, .report-standard .overview-holdings-table td { overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table { table-layout:fixed; width:100%; min-width:1720px; }\n");
+            writer.write("        .report-standard .overview-holdings-table { table-layout:fixed; width:100%; min-width:1880px; }\n");
+            writer.write("        .report-standard .overview-holdings-table tr.total-row td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; font-variant-numeric:tabular-nums; }\n");
+            writer.write("        .report-standard .overview-holdings-table tr.total-row td:nth-child(n+8) { min-width:154px; }\n");
+            writer.write("        .report-standard .overview-holdings-table tr.total-row td:nth-child(13) { min-width:188px; }\n");
             writer.write("        .report-standard .overview-fundamentals-table { table-layout:fixed; width:100%; min-width:1860px; }\n");
             writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(1)  { width:9%; min-width:110px; max-width:130px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
             writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(2)  { width:14%; min-width:150px; max-width:210px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
