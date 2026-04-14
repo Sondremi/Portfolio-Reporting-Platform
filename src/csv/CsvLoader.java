@@ -165,7 +165,14 @@ public class CsvLoader {
         String balanceText = getCell(row, indexes.cashBalance);
         if (portfolioId.isBlank() || balanceText.isBlank()) return false;
 
-        double balance = parseDoubleOrZero(balanceText);
+        Double parsedBalance = parseDoubleOrNull(balanceText);
+        if (parsedBalance == null) {
+            System.out.println("Warning: ignored malformed cash balance snapshot for portfolio '"
+                    + portfolioId + "' on " + tradeDate + " (value='" + balanceText + "')");
+            return false;
+        }
+
+        double balance = parsedBalance;
         store.addPortfolioCashSnapshot(new Events.PortfolioCashSnapshot(tradeDate, sortId, portfolioId, balance));
         return true;
     }
@@ -276,7 +283,12 @@ public class CsvLoader {
     // ====================== Parsing Helpers ======================
 
     private static double parseDoubleOrZero(String value) {
-        if (value == null || value.trim().isEmpty()) return 0.0;
+        Double parsed = parseDoubleOrNull(value);
+        return parsed == null ? 0.0 : parsed;
+    }
+
+    private static Double parseDoubleOrNull(String value) {
+        if (value == null || value.trim().isEmpty()) return null;
         String normalized = value.trim()
                 .replace("\u00A0", "")
                 .replace("−", "-")
@@ -289,7 +301,7 @@ public class CsvLoader {
         try {
             return Double.parseDouble(normalized);
         } catch (NumberFormatException ex) {
-            return 0.0;
+            return null;
         }
     }
 

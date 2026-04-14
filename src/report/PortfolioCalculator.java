@@ -145,7 +145,7 @@ public class PortfolioCalculator {
         double cashHoldings = store.getCurrentCashHoldings();
         double totalReturn = 0.0;
         double totalHistoricalCostBasis = 0.0;
-        String totalCurrencyCode = null;
+        String totalCurrencyCode = DEFAULT_CURRENCY_CODE;
 
         OverviewRow best = null;
         OverviewRow worst = null;
@@ -157,31 +157,38 @@ public class PortfolioCalculator {
         String worstCurrencyCode = DEFAULT_CURRENCY_CODE;
         double worstReturn = 0.0;
         double worstReturnPct = 0.0;
+        double bestReturnNok = Double.NEGATIVE_INFINITY;
+        double worstReturnNok = Double.POSITIVE_INFINITY;
 
         for (OverviewRow row : overviewRows) {
-            totalMarketValue += row.marketValue;
-            totalReturn += row.totalReturn;
-            totalHistoricalCostBasis += row.historicalCostBasis;
-            totalCurrencyCode = mergeCurrencyCodes(totalCurrencyCode, row.currencyCode);
+            double marketValueNok = convertAmountToNok(row.marketValue, row.currencyCode, ratesToNok);
+            double totalReturnNok = convertAmountToNok(row.totalReturn, row.currencyCode, ratesToNok);
+            double historicalCostBasisNok = convertAmountToNok(row.historicalCostBasis, row.currencyCode, ratesToNok);
 
-            if (best == null || row.totalReturn > best.totalReturn) {
+            totalMarketValue += marketValueNok;
+            totalReturn += totalReturnNok;
+            totalHistoricalCostBasis += historicalCostBasisNok;
+
+            if (best == null || totalReturnNok > bestReturnNok) {
                 best = row;
+                bestReturnNok = totalReturnNok;
             }
-            if (worst == null || row.totalReturn < worst.totalReturn) {
+            if (worst == null || totalReturnNok < worstReturnNok) {
                 worst = row;
+                worstReturnNok = totalReturnNok;
             }
         }
 
         if (best != null) {
             bestLabel = getOverviewRowLabel(best);
-            bestCurrencyCode = normalizeCurrencyCode(best.currencyCode);
-            bestReturn = best.totalReturn;
+            bestCurrencyCode = DEFAULT_CURRENCY_CODE;
+            bestReturn = Double.isFinite(bestReturnNok) ? bestReturnNok : 0.0;
             bestReturnPct = best.totalReturnPct;
         }
         if (worst != null) {
             worstLabel = getOverviewRowLabel(worst);
-            worstCurrencyCode = normalizeCurrencyCode(worst.currencyCode);
-            worstReturn = worst.totalReturn;
+            worstCurrencyCode = DEFAULT_CURRENCY_CODE;
+            worstReturn = Double.isFinite(worstReturnNok) ? worstReturnNok : 0.0;
             worstReturnPct = worst.totalReturnPct;
         }
 
@@ -208,6 +215,23 @@ public class PortfolioCalculator {
                 worstReturnPct,
                 sparklineSvg
         );
+    }
+
+    private static double convertAmountToNok(double amount, String currencyCode, Map<String, Double> ratesToNok) {
+        if (!Double.isFinite(amount)) {
+            return 0.0;
+        }
+
+        String normalized = normalizeCurrencyCode(currencyCode);
+        double rateToNok = ratesToNok == null ? 0.0 : ratesToNok.getOrDefault(normalized, 0.0);
+        if (!Double.isFinite(rateToNok) || rateToNok <= 0.0) {
+            rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
+        }
+        if (!Double.isFinite(rateToNok) || rateToNok <= 0.0) {
+            rateToNok = 1.0;
+        }
+
+        return amount * rateToNok;
     }
 
     private static String buildPortfolioValueSparklineWidget(TransactionStore store, Map<String, Double> ratesToNok) {
@@ -1217,23 +1241,6 @@ public class PortfolioCalculator {
             return row.tickerText;
         }
         return row.securityDisplayName;
-    }
-
-    private static String mergeCurrencyCodes(String currentCurrencyCode, String nextCurrencyCode) {
-        String next = (nextCurrencyCode == null || nextCurrencyCode.isBlank())
-                ? DEFAULT_CURRENCY_CODE
-                : nextCurrencyCode.trim().toUpperCase(Locale.ROOT);
-
-        if (currentCurrencyCode == null || currentCurrencyCode.isBlank()) {
-            return next;
-        }
-        if ("MIXED".equals(currentCurrencyCode)) {
-            return currentCurrencyCode;
-        }
-        if (currentCurrencyCode.equalsIgnoreCase(next)) {
-            return currentCurrencyCode.toUpperCase(Locale.ROOT);
-        }
-        return "MIXED";
     }
 
     private static String normalizeCurrencyCode(String currencyCode) {
