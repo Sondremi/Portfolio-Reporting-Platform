@@ -81,22 +81,21 @@ public class ReportWriter {
             writer.write("        .report-standard .overview-table { table-layout:fixed; width:100%; max-width:100%; }\n");
             writer.write("        .report-standard .overview-table th, .report-standard .overview-table td { white-space:nowrap; overflow:visible; text-overflow:clip; font-size:.68rem; padding:4px 4px; }\n");
             writer.write("        .report-standard .overview-table tr > * { min-width:0; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(1)  { width:6%; min-width:48px; max-width:76px; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(2)  { width:8%; min-width:74px; max-width:96px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(3)  { width:11%; min-width:104px; max-width:138px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(4)  { width:7%; min-width:74px; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(1)  { width:8%; min-width:74px; max-width:96px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(2)  { width:11%; min-width:104px; max-width:138px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(3)  { width:7%; min-width:74px; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(4)  { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(5)  { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(6)  { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(7)  { width:6%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(6)  { width:6%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(7)  { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(8)  { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(9)  { width:7%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(9)  { width:8%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(10) { width:8%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(11) { width:8%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(12) { width:10%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(13) { width:8%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(11) { width:10%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(12) { width:8%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(13) { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(14) { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(15) { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(n+4) { overflow:visible !important; text-overflow:clip !important; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n");
             writer.write("        .mini-day-chart { display:block; width:78px; height:22px; }\n");
             writer.write("        .mini-day-chart-line { fill:none; stroke:#2e5f88; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }\n");
             writer.write("        .mini-day-chart-line.positive { stroke:#1f8b4d; }\n");
@@ -109,17 +108,16 @@ public class ReportWriter {
             writer.write("        .report-standard .ticker-scroll::-webkit-scrollbar, .report-standard .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
             writer.write("        .report-standard .ticker-scroll::after, .report-standard .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
             writer.write("        .report-standard .ticker-scroll:hover::after, .report-standard .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
-            writer.write("        @media (max-width:1060px) { .report-standard .overview-table tr > *:nth-child(n+4), .report-standard .realized-table tr > *:nth-child(n+4) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
+            writer.write("        @media (max-width:1060px) { .report-standard .overview-table tr > *:nth-child(n+3), .report-standard .realized-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
             writer.write("        .report-annual .realized-table { table-layout:auto; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(1) { width:106px; max-width:106px; min-width:106px; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-annual .realized-table tr > *:nth-child(8) { width:160px; max-width:160px; }\n");
+            writer.write("        .report-annual .realized-table tr > *:nth-child(7) { width:160px; max-width:160px; }\n");
             writer.write("        .report-standard .realized-table { table-layout:auto; width:100%; }\n");
             writer.write("        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-standard .realized-table tr > *:nth-child(1)  { width:80px; min-width:80px; max-width:80px; }\n");
-            writer.write("        .report-standard .realized-table tr > *:nth-child(2)  { width:108px; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .realized-table tr > *:nth-child(3)  { width:178px; min-width:178px; max-width:178px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .realized-table tr > *:nth-child(1)  { width:108px; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .realized-table tr > *:nth-child(2)  { width:178px; min-width:178px; max-width:178px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
             writer.write("        .ticker-scroll { display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-bottom:0; }\n");
             writer.write("        .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
             writer.write("        .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
@@ -348,6 +346,7 @@ public class ReportWriter {
             writer.write("        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#d1e0ef; }\n");
             writer.write("        .expand-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:62px; padding:2px 8px; font-size:.66rem; font-weight:700; cursor:pointer; text-align:center; }\n");
             writer.write("        .expand-btn:hover { background:#e6f1fb; }\n");
+            writer.write("        .details-link-btn { width:100%; min-width:0; text-align:left; }\n");
             writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");
             writer.write("        .detail-group-toggle { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:50%; width:18px; height:18px; padding:0; line-height:16px; font-size:.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }\n");
             writer.write("        .detail-group-toggle:hover { background:#e6f1fb; }\n");
@@ -1034,7 +1033,7 @@ public class ReportWriter {
         int safeYear = Math.max(2000, Math.min(2100, reportYear));
         writer.write("<h2>REALIZED OVERVIEW - SALES IN " + safeYear + "</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildDetailsHeaderCell("realized-details-year"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -1083,10 +1082,11 @@ public class ReportWriter {
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
+                String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+                String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                    "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
-                    "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
-                    "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
+                    tickerToggle,
+                    securityToggle,
                     HtmlFormatter.formatMoney(costBasis, currency, 2),
                     HtmlFormatter.formatMoney(salesValue, currency, 2),
                     HtmlFormatter.formatMoney(gain, currency, 2),
@@ -1094,7 +1094,7 @@ public class ReportWriter {
                     totalReturnCombined);
 
             writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details-year\">\n");
-            writer.write("    <td class=\"details-cell\" colspan=\"8\">\n");
+            writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
             writer.write(buildRealizedSaleTradesDetailsHtml(security, safeYear));
             writer.write("    </td>\n");
             writer.write("</tr>\n");
@@ -1105,7 +1105,7 @@ public class ReportWriter {
         }
 
         if (includedRows == 0) {
-            writer.write("<tr><td colspan=\"8\" class=\"app-shell-note\">No sales or dividends were recorded for " + safeYear + ".</td></tr>\n");
+            writer.write("<tr><td colspan=\"7\" class=\"app-shell-note\">No sales or dividends were recorded for " + safeYear + ".</td></tr>\n");
             writer.write("</table>\n</div>\n\n");
             return;
         }
@@ -1120,7 +1120,7 @@ public class ReportWriter {
             : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
@@ -1466,7 +1466,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
-            ReportTemplateHelper.buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
+            "Ticker", "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1510,10 +1510,11 @@ public class ReportWriter {
                 + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
                 + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
 
+            String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
+            String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
             ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
-                    "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
-                    "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
+                    tickerToggle,
+                    securityToggle,
                     dayChangeCell,
                     dayChangeValueCell,
                     "<span class=\"js-row-day-chart\" data-ticker=\"" + escapeHtml(row.tickerText) + "\">-</span>",
@@ -1528,7 +1529,7 @@ public class ReportWriter {
                     "<span class=\"js-row-total-return\">" + totalReturnCombined + "</span>");
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
-                    writer.write("    <td class=\"details-cell\" colspan=\"15\">\n");
+                    writer.write("    <td class=\"details-cell\" colspan=\"14\">\n");
                     writer.write(buildHoldingDetailsTableHtml(security, row));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
@@ -1550,7 +1551,7 @@ public class ReportWriter {
         double totalRealizedPct = totalCostBasisForPct > 0 ? (totalRealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-unrealized", totalUnrealizedBuckets, 2, ratesToNok) + " (<span id=\"overview-total-unrealized-pct\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</td>\n");
@@ -1623,7 +1624,7 @@ public class ReportWriter {
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildDetailsHeaderCell("realized-details"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
@@ -1653,10 +1654,11 @@ public class ReportWriter {
                 String detailsRowId = "realized-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
 
+                String tickerToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+                String securityToggle = "<button class=\"expand-btn details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                    "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
-                    "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
-                    "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
+                    tickerToggle,
+                    securityToggle,
                     HtmlFormatter.formatMoney(costBasis, currency, 2),
                     HtmlFormatter.formatMoney(salesValue, currency, 2),
                     HtmlFormatter.formatMoney(gain, currency, 2),
@@ -1664,7 +1666,7 @@ public class ReportWriter {
                     totalReturnCombined);
 
                 writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
-                writer.write("    <td class=\"details-cell\" colspan=\"8\">\n");
+                writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
                 writer.write(buildRealizedSaleTradesDetailsHtml(security));
                 writer.write("    </td>\n");
                 writer.write("</tr>\n");
@@ -1682,7 +1684,7 @@ public class ReportWriter {
             ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
             : 0.0;
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td>\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
