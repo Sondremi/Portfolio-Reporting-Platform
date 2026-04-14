@@ -876,7 +876,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
-                "Ticker", "Security", "Units", "Avg Cost", "Price", "Cost Basis", "Market Value", "Unrealized");
+            "Ticker", "Security", "Shares", "Avg Cost", "Price/Share", "Cost Basis", "Market Value", "Unrealized");
 
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1972,7 +1972,7 @@ public class ReportWriter {
             html.append("<div class=\"app-shell-note\">No sale trades available.</div>\n");
         } else {
             html.append("<table class=\"details-table\">\n");
-            html.append("<tr><th>Sale Date</th><th>Units</th><th>Price/Unit</th><th>Cost Basis</th><th>Sale Value</th><th>Gain/Loss</th><th>Return (%)</th></tr>\n");
+            html.append("<tr><th>Sale Date</th><th>Shares</th><th>Price/Share</th><th>Cost Basis</th><th>Sale Value</th><th>Gain/Loss</th><th>Return (%)</th></tr>\n");
 
             double totalUnits = 0.0;
             double totalSaleValue = 0.0;
@@ -2019,7 +2019,7 @@ public class ReportWriter {
         if (!dividendEvents.isEmpty()) {
             html.append("<h4 style=\"margin-top:10px;\">Dividend Events</h4>\n");
             html.append("<table class=\"details-table\">\n");
-            html.append("<tr><th>Date</th><th>Units</th><th>Dividend</th></tr>\n");
+            html.append("<tr><th>Date</th><th>Shares</th><th>Dividend</th></tr>\n");
             double totalDividendAmount = 0.0;
             for (Security.DividendEvent event : dividendEvents) {
                 totalDividendAmount += event.getAmount();
@@ -2163,7 +2163,7 @@ public class ReportWriter {
         }
 
         html.append("<table class=\"details-table\">\n");
-        html.append("<tr><th>Date</th><th>Type</th><th>Units</th><th>Price</th><th>Amount</th><th>Unrealized</th><th>Unrealized (%)</th></tr>\n");
+        html.append("<tr><th>Date</th><th>Type</th><th>Shares</th><th>Price/Share</th><th>Amount</th><th>Unrealized</th><th>Unrealized (%)</th></tr>\n");
         for (DetailEntry entry : entries) {
             html.append("<tr>");
             html.append("<td>").append(escapeHtml(formatDetailDate(entry.date))).append("</td>");
