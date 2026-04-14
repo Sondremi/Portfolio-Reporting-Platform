@@ -104,6 +104,8 @@ public class ReportWriter {
             writer.write("        .report-standard .overview-table tr > *:nth-child(13) { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(14) { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n");
+            writer.write("        .report-standard .overview-fundamentals-table { table-layout:auto; width:100%; }\n");
+            writer.write("        .report-standard .overview-fundamentals-table th, .report-standard .overview-fundamentals-table td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap; }\n");
             writer.write("        .mini-day-chart { display:block; width:78px; height:22px; }\n");
             writer.write("        .mini-day-chart-line { fill:none; stroke:#2e5f88; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }\n");
             writer.write("        .mini-day-chart-line.positive { stroke:#1f8b4d; }\n");
@@ -1574,12 +1576,72 @@ public class ReportWriter {
         writer.write("</tr>\n");
 
         writer.write("</table>\n</div>\n");
-        writer.write("<div class=\"table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"holdings\" hidden>\n");
-        writer.write("<div class=\"details-wrap\"><div class=\"app-shell-note\">Holdings mode table will appear here.</div></div>\n");
-        writer.write("</div>\n");
-        writer.write("<div class=\"table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"fundamentals\" hidden>\n");
-        writer.write("<div class=\"details-wrap\"><div class=\"app-shell-note\">Fundamentals mode table will appear here.</div></div>\n");
-        writer.write("</div>\n\n");
+
+        writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"holdings\" hidden>\n<table class=\"overview-table\">\n");
+        ReportTemplateHelper.writeHtmlRow(writer, true,
+                "Ticker", "Security", "Change %", "Change (Portfolio)", "Units", "Avg Cost", "Last Price",
+                "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
+
+        previousAssetType = null;
+        for (OverviewRow row : rows) {
+            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
+            String unrealizedCombined = row.hasPrice
+                    ? HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")"
+                    : "-";
+            String realizedCombined = HtmlFormatter.formatMoney(row.realized, row.currencyCode, 2)
+                    + " (" + row.realizedReturnPctText + "%)";
+            String totalReturnCombined = HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2)
+                    + " (" + HtmlFormatter.formatPercent(row.totalReturnPct, 2) + ")";
+            String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
+            String holdingsDayChangeValueCell = formatHoldingDayChangeValueCell(row);
+
+            ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, null,
+                    "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
+                    "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
+                    dayChangeCell,
+                    holdingsDayChangeValueCell,
+                    HtmlFormatter.formatUnits(row.units),
+                    HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
+                    row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-",
+                    HtmlFormatter.formatMoney(row.positionCostBasis, row.currencyCode, 2),
+                    row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.marketValue, row.currencyCode, 2) : "-",
+                    unrealizedCombined,
+                    realizedCombined,
+                    HtmlFormatter.formatMoney(row.dividends, row.currencyCode, 2),
+                    totalReturnCombined);
+
+            previousAssetType = row.assetType;
+        }
+
+        writer.write("<tr class=\"total-row\">\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalUnrealizedBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + ")</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + ")</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalDividendsBuckets, 2, ratesToNok) + "</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCell(totalReturnBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")</td>\n");
+        writer.write("</tr>\n");
+        writer.write("</table>\n</div>\n");
+
+        writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"fundamentals\" hidden>\n<table class=\"overview-table overview-fundamentals-table\">\n");
+        ReportTemplateHelper.writeHtmlRow(writer, true,
+                "Ticker", "Security", "Last Price", "Market Cap", "Avg Vol (3M)", "EPS Est. Next Yr", "Forward P/E",
+                "Div Payment Date", "Ex-Div Date", "Div/Share", "Fwd Ann Div Rate", "Fwd Ann Div Yield",
+                "Trl Ann Div Rate", "Trl Ann Div Yield", "Price / Book");
+
+        previousAssetType = null;
+        for (OverviewRow row : rows) {
+            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
+            ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, null,
+                    "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
+                    "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
+                    row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-",
+                    "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            previousAssetType = row.assetType;
+        }
+
+        writer.write("</table>\n</div>\n\n");
 
         writer.write("<section class=\"allocation-card\">\n");
         writer.write("<h3>Market Value Allocation</h3>\n");
@@ -1638,6 +1700,22 @@ public class ReportWriter {
             return "<span class=\"js-row-day-change-value " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
         }
         return "<span class=\"js-row-day-change-value\">" + escapeHtml(valueText) + "</span>";
+    }
+
+    private static String formatHoldingDayChangeValueCell(OverviewRow row) {
+        if (row == null || row.latestPrice <= 0.0 || row.previousClose <= 0.0 || row.units <= 0.0) {
+            return "-";
+        }
+
+        double changeValue = (row.latestPrice - row.previousClose) * row.units;
+        String cssClass = changeValue > 0.0
+                ? "positive"
+                : (changeValue < 0.0 ? "negative" : "");
+        String valueText = HtmlFormatter.formatMoney(changeValue, row.currencyCode, 2);
+        if (!cssClass.isBlank()) {
+            return "<span class=\"" + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+        }
+        return escapeHtml(valueText);
     }
 
     private static String formatDayChartCell(OverviewRow row) {
