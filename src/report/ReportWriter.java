@@ -1153,6 +1153,10 @@ public class ReportWriter {
         String worstPctLabel = "N/A";
         double bestPctValue = Double.NEGATIVE_INFINITY;
         double worstPctValue = Double.POSITIVE_INFINITY;
+        double bestPctReturnAmount = 0.0;
+        double worstPctReturnAmount = 0.0;
+        String bestPctCurrency = DEFAULT_TOTAL_CURRENCY;
+        String worstPctCurrency = DEFAULT_TOTAL_CURRENCY;
         for (OverviewRow row : overviewRows) {
             if (row == null || !Double.isFinite(row.totalReturnPct)) {
                 continue;
@@ -1160,10 +1164,14 @@ public class ReportWriter {
             if (row.totalReturnPct > bestPctValue) {
                 bestPctValue = row.totalReturnPct;
                 bestPctLabel = row.securityDisplayName;
+                bestPctReturnAmount = row.totalReturn;
+                bestPctCurrency = normalizeCurrencyCode(row.currencyCode);
             }
             if (row.totalReturnPct < worstPctValue) {
                 worstPctValue = row.totalReturnPct;
                 worstPctLabel = row.securityDisplayName;
+                worstPctReturnAmount = row.totalReturn;
+                worstPctCurrency = normalizeCurrencyCode(row.currencyCode);
             }
         }
         boolean hasPctExtremes = Double.isFinite(bestPctValue) && Double.isFinite(worstPctValue);
@@ -1281,13 +1289,19 @@ public class ReportWriter {
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
 
         if (hasPctExtremes) {
+            LinkedHashMap<String, Double> bestPctBuckets = singleCurrencyBuckets(bestPctCurrency, bestPctReturnAmount);
+            LinkedHashMap<String, Double> worstPctBuckets = singleCurrencyBuckets(worstPctCurrency, worstPctReturnAmount);
             writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer " + bestPctClass + "\"><strong>"
                 + escapeHtml(bestPctLabel)
                 + "</strong><span class=\"performer-metrics\">"
+                + renderConvertibleMoneyCell(bestPctBuckets, 0, ratesToNok)
+                + " | "
                 + HtmlFormatter.formatPercent(bestPctValue)
                 + "</span></div><div class=\"performer " + worstPctClass + "\"><strong>"
                 + escapeHtml(worstPctLabel)
                 + "</strong><span class=\"performer-metrics\">"
+                + renderConvertibleMoneyCell(worstPctBuckets, 0, ratesToNok)
+                + " | "
                 + HtmlFormatter.formatPercent(worstPctValue)
                 + "</span></div></article>\n");
         } else {
