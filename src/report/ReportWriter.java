@@ -77,6 +77,14 @@ public class ReportWriter {
             writer.write("        .table-wrap::-webkit-scrollbar { height:12px; }\n");
             writer.write("        .table-wrap::-webkit-scrollbar-track { background:transparent; border-radius:999px; }\n");
             writer.write("        .table-wrap::-webkit-scrollbar-thumb { background:#9db0c3; border-radius:999px; border:2px solid transparent; background-clip:padding-box; }\n");
+            writer.write("        .overview-mode-shell { display:flex; align-items:flex-end; gap:0; margin:10px 0 -1px; }\n");
+            writer.write("        .overview-mode-btn { border:1px solid var(--line); border-bottom:none; background:#e9f2fb; color:#24435a; font-size:.74rem; font-weight:700; padding:6px 10px; cursor:pointer; }\n");
+            writer.write("        .overview-mode-btn + .overview-mode-btn { border-left:none; }\n");
+            writer.write("        .overview-mode-btn:first-child { border-top-left-radius:10px; }\n");
+            writer.write("        .overview-mode-btn:last-child { border-top-right-radius:10px; }\n");
+            writer.write("        .overview-mode-btn.is-active { background:var(--card); color:var(--ink); }\n");
+            writer.write("        body.theme-dark .overview-mode-btn { background:#1f3347; color:#d8e7f5; border-color:#2f445a; }\n");
+            writer.write("        body.theme-dark .overview-mode-btn.is-active { background:#162231; color:#edf5ff; }\n");
             writer.write("        .report-standard .overview-table-wrap { width:100%; max-width:100%; overflow-x:hidden; }\n");
             writer.write("        .report-standard .overview-table { table-layout:fixed; width:100%; max-width:100%; }\n");
             writer.write("        .report-standard .overview-table th, .report-standard .overview-table td { white-space:nowrap; overflow:visible; text-overflow:clip; font-size:.68rem; padding:4px 4px; }\n");
@@ -1463,7 +1471,12 @@ public class ReportWriter {
         writer.write("</div>\n");
         writer.write("</section>\n");
 
-        writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
+        writer.write("<div class=\"overview-mode-shell\" role=\"tablist\" aria-label=\"Portfolio table mode\">\n");
+        writer.write("<button type=\"button\" class=\"overview-mode-btn is-active\" data-overview-mode=\"summary\">Summary</button>\n");
+        writer.write("<button type=\"button\" class=\"overview-mode-btn\" data-overview-mode=\"holdings\">Holdings</button>\n");
+        writer.write("<button type=\"button\" class=\"overview-mode-btn\" data-overview-mode=\"fundamentals\">Fundamentals</button>\n");
+        writer.write("</div>\n");
+        writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"summary\">\n<table class=\"overview-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
             ReportTemplateHelper.buildTickerHeaderCell("overview-details"), "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
@@ -1560,7 +1573,13 @@ public class ReportWriter {
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-return", totalReturnBuckets, 2, ratesToNok) + " (<span id=\"overview-total-return-pct\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</span>)</td>\n");
         writer.write("</tr>\n");
 
-        writer.write("</table>\n</div>\n\n");
+        writer.write("</table>\n</div>\n");
+        writer.write("<div class=\"table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"holdings\" hidden>\n");
+        writer.write("<div class=\"details-wrap\"><div class=\"app-shell-note\">Holdings mode table will appear here.</div></div>\n");
+        writer.write("</div>\n");
+        writer.write("<div class=\"table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"fundamentals\" hidden>\n");
+        writer.write("<div class=\"details-wrap\"><div class=\"app-shell-note\">Fundamentals mode table will appear here.</div></div>\n");
+        writer.write("</div>\n\n");
 
         writer.write("<section class=\"allocation-card\">\n");
         writer.write("<h3>Market Value Allocation</h3>\n");
@@ -2769,6 +2788,28 @@ public class ReportWriter {
         writer.write("    wireTable(table, sortSimpleTable);\n");
         writer.write("  });\n");
         writer.write("}\n");
+        writer.write("function initOverviewModeSwitcher() {\n");
+        writer.write("  var buttons = Array.prototype.slice.call(document.querySelectorAll('.overview-mode-btn[data-overview-mode]'));\n");
+        writer.write("  var panels = Array.prototype.slice.call(document.querySelectorAll('.js-overview-mode-panel[data-overview-mode-panel]'));\n");
+        writer.write("  if (!buttons.length || !panels.length) return;\n");
+        writer.write("  function activate(mode) {\n");
+        writer.write("    buttons.forEach(function(btn) {\n");
+        writer.write("      var active = btn.getAttribute('data-overview-mode') === mode;\n");
+        writer.write("      btn.classList.toggle('is-active', active);\n");
+        writer.write("      btn.setAttribute('aria-selected', active ? 'true' : 'false');\n");
+        writer.write("    });\n");
+        writer.write("    panels.forEach(function(panel) {\n");
+        writer.write("      var visible = panel.getAttribute('data-overview-mode-panel') === mode;\n");
+        writer.write("      panel.hidden = !visible;\n");
+        writer.write("    });\n");
+        writer.write("  }\n");
+        writer.write("  buttons.forEach(function(btn) {\n");
+        writer.write("    btn.addEventListener('click', function() {\n");
+        writer.write("      activate(btn.getAttribute('data-overview-mode') || 'summary');\n");
+        writer.write("    });\n");
+        writer.write("  });\n");
+        writer.write("  activate('summary');\n");
+        writer.write("}\n");
         writer.write("function resolveCashHoldingsBridge() {\n");
         writer.write("  try {\n");
         writer.write("    if (window.parent && window.parent !== window && window.parent.__portfolioCashHoldingsBridge) {\n");
@@ -3557,6 +3598,7 @@ public class ReportWriter {
         writer.write("  initTimelineInfoPopup();\n");
         writer.write("  initInlineCellDragHandles();\n");
         writer.write("  initSortableTables();\n");
+        writer.write("  initOverviewModeSwitcher();\n");
         writer.write("  initOverviewDayCharts();\n");
         writer.write("  initChartDownloadButtons();\n");
         writer.write("  initChartHoverEffects();\n");
