@@ -89,6 +89,9 @@ public class PortfolioCalculator {
             double units = security.getUnitsOwned();
             double avgCost = security.getAverageCost();
             double latestPrice = security.getLatestPrice();
+            double previousClose = security.getPreviousClose();
+            boolean hasDayChangePct = security.hasDayChangePct();
+            double dayChangePct = hasDayChangePct ? security.getDayChangePct() : 0.0;
             double positionCostBasis = units * avgCost;
                 double realizedCostBasis = security.getRealizedCostBasis();
                 double historicalCostBasis = positionCostBasis + realizedCostBasis;
@@ -106,6 +109,9 @@ public class PortfolioCalculator {
                     getTrackingSecurityKey(security),
                     getTickerText(security),
                     getPreferredSecurityName(security),
+                    dayChangePct,
+                    previousClose,
+                    hasDayChangePct,
                     security.getAssetType().name(),
                     security.getResolvedSector(),
                     security.getResolvedSectorWeights(),

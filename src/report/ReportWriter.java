@@ -86,6 +86,7 @@ public class ReportWriter {
             writer.write("        .report-standard .overview-table tr > *:nth-child(1)  { width:80px; min-width:80px; max-width:80px; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(2)  { width:108px; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(3)  { width:178px; min-width:178px; max-width:178px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(4)  { width:98px; min-width:98px; max-width:98px; }\n");
             writer.write("        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
             writer.write("        .report-standard .ticker-scroll { max-width:108px; }\n");
             writer.write("        .report-standard .security-scroll { max-width:178px; }\n");
@@ -1296,7 +1297,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
         writeHtmlRow(writer, true,
-            buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Units", "Avg Cost", "Last Price",
+            buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Day Change %", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1325,6 +1326,7 @@ public class ReportWriter {
                 + " (" + row.realizedReturnPctText + "%)";
             String totalReturnCombined = HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2)
                 + " (" + HtmlFormatter.formatPercent(row.totalReturnPct, 2) + ")";
+            String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
 
             String rowAttributes = "data-overview-row=\"1\""
                 + " data-ticker=\"" + escapeHtml(row.tickerText) + "\""
@@ -1335,12 +1337,14 @@ public class ReportWriter {
                 + " data-realized=\"" + String.format(Locale.US, "%.8f", row.realized) + "\""
                 + " data-dividends=\"" + String.format(Locale.US, "%.8f", row.dividends) + "\""
                 + " data-historical-cost-basis=\"" + String.format(Locale.US, "%.8f", row.historicalCostBasis) + "\""
-                + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\"";
+                + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
+                + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
 
             writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                 "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
+                    dayChangeCell,
                     HtmlFormatter.formatUnits(row.units),
                     HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
                     "<span class=\"js-row-last-price\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-") + "</span>",
@@ -1352,7 +1356,7 @@ public class ReportWriter {
                     "<span class=\"js-row-total-return\">" + totalReturnCombined + "</span>");
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
-                    writer.write("    <td class=\"details-cell\" colspan=\"12\">\n");
+                    writer.write("    <td class=\"details-cell\" colspan=\"13\">\n");
                     writer.write(buildHoldingDetailsTableHtml(security, row));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
@@ -1374,7 +1378,7 @@ public class ReportWriter {
         double totalRealizedPct = totalCostBasisForPct > 0 ? (totalRealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-unrealized", totalUnrealizedBuckets, 2, ratesToNok) + " (<span id=\"overview-total-unrealized-pct\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</td>\n");
@@ -1410,6 +1414,22 @@ public class ReportWriter {
         writer.write("</div>\n");
         writer.write("</div>\n");
         writer.write("</section>\n");
+    }
+
+    private static String formatDayChangeCell(double dayChangePct, boolean hasDayChangePct) {
+        if (!hasDayChangePct || !Double.isFinite(dayChangePct)) {
+            return "<span class=\"js-row-day-change\">-</span>";
+        }
+
+        String cssClass = dayChangePct > 0.0
+                ? "positive"
+                : (dayChangePct < 0.0 ? "negative" : "");
+
+        String valueText = HtmlFormatter.formatPercent(dayChangePct, 2);
+        if (!cssClass.isBlank()) {
+            return "<span class=\"js-row-day-change " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+        }
+        return "<span class=\"js-row-day-change\">" + escapeHtml(valueText) + "</span>";
     }
 
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
@@ -2137,11 +2157,14 @@ public class ReportWriter {
         writer.write("  var realized = Number(row.getAttribute('data-realized') || 0);\n");
         writer.write("  var dividends = Number(row.getAttribute('data-dividends') || 0);\n");
         writer.write("  var historicalCostBasis = Number(row.getAttribute('data-historical-cost-basis') || 0);\n");
+        writer.write("  var previousClose = Number(row.getAttribute('data-previous-close') || 0);\n");
         writer.write("  var marketValue = units * nextPrice;\n");
         writer.write("  var unrealized = marketValue - positionCostBasis;\n");
         writer.write("  var unrealizedPct = positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100 : 0;\n");
         writer.write("  var totalReturn = unrealized + realized + dividends;\n");
         writer.write("  var totalReturnPct = historicalCostBasis > 0 ? (totalReturn / historicalCostBasis) * 100 : 0;\n");
+        writer.write("  var hasDayChange = Number.isFinite(previousClose) && previousClose > 0;\n");
+        writer.write("  var dayChangePct = hasDayChange ? ((nextPrice / previousClose) - 1) * 100 : Number.NaN;\n");
         writer.write("  row.setAttribute('data-latest-price', String(nextPrice));\n");
         writer.write("  row.setAttribute('data-market-value', String(marketValue));\n");
         writer.write("  row.setAttribute('data-unrealized-value', String(unrealized));\n");
@@ -2150,10 +2173,22 @@ public class ReportWriter {
         writer.write("  var marketCell = row.querySelector('.js-row-market-value');\n");
         writer.write("  var unrealizedCell = row.querySelector('.js-row-unrealized');\n");
         writer.write("  var totalReturnCell = row.querySelector('.js-row-total-return');\n");
+        writer.write("  var dayChangeCell = row.querySelector('.js-row-day-change');\n");
         writer.write("  if (priceCell) priceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n");
         writer.write("  if (marketCell) marketCell.textContent = formatMoneyValue(marketValue, currency, 2);\n");
         writer.write("  if (unrealizedCell) unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2) + ' (' + formatPercentValue(unrealizedPct, 2) + ')';\n");
         writer.write("  if (totalReturnCell) totalReturnCell.textContent = formatMoneyValue(totalReturn, currency, 2) + ' (' + formatPercentValue(totalReturnPct, 2) + ')';\n");
+        writer.write("  if (dayChangeCell) {\n");
+        writer.write("    if (hasDayChange && Number.isFinite(dayChangePct)) {\n");
+        writer.write("      dayChangeCell.textContent = formatPercentValue(dayChangePct, 2);\n");
+        writer.write("      dayChangeCell.classList.remove('positive', 'negative');\n");
+        writer.write("      if (dayChangePct > 0) dayChangeCell.classList.add('positive');\n");
+        writer.write("      else if (dayChangePct < 0) dayChangeCell.classList.add('negative');\n");
+        writer.write("    } else {\n");
+        writer.write("      dayChangeCell.textContent = '-';\n");
+        writer.write("      dayChangeCell.classList.remove('positive', 'negative');\n");
+        writer.write("    }\n");
+        writer.write("  }\n");
         writer.write("  return true;\n");
         writer.write("}\n");
         writer.write("function recalculateOverviewAndHeaderTotalsAfterPriceRefresh() {\n");

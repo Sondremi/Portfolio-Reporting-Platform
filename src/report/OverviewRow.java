@@ -8,6 +8,9 @@ public class OverviewRow {
     public final String securityKey;
     public final String tickerText;
     public final String securityDisplayName;
+    public final double dayChangePct;
+    public final double previousClose;
+    public final boolean hasDayChangePct;
     public final String assetType;
     public final String sectorLabel;
     public final Map<String, Double> sectorWeights;
@@ -34,6 +37,9 @@ public class OverviewRow {
             String securityKey,
             String tickerText,
             String securityDisplayName,
+            double dayChangePct,
+            double previousClose,
+            boolean hasDayChangePct,
             String assetType,
             String sectorLabel,
             Map<String, Double> sectorWeights,
@@ -59,6 +65,9 @@ public class OverviewRow {
         this.securityKey = securityKey != null ? securityKey : "";
         this.tickerText = tickerText != null ? tickerText : "-";
         this.securityDisplayName = securityDisplayName != null ? securityDisplayName : "-";
+        this.dayChangePct = dayChangePct;
+        this.previousClose = previousClose;
+        this.hasDayChangePct = hasDayChangePct;
         this.assetType = assetType != null ? assetType : "UNKNOWN";
         this.sectorLabel = sectorLabel != null ? sectorLabel : "Other";
         this.sectorWeights = sectorWeights != null ? new LinkedHashMap<>(sectorWeights) : Map.of();

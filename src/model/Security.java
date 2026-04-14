@@ -94,6 +94,7 @@ public class Security {
     private double realizedCostBasis = 0.0;
     private double realizedSalesValue = 0.0;
     private double latestPrice = 0.0;
+    private double previousClose = 0.0;
     private String currencyCode = "NOK";
     private LocalDate firstHoldingDate = null;
 
@@ -116,6 +117,16 @@ public class Security {
         private PriceObservation(LocalDate tradeDate, double unitPrice) {
             this.tradeDate = tradeDate;
             this.unitPrice = unitPrice;
+        }
+    }
+
+    private static final class LatestQuote {
+        private final double latestPrice;
+        private final double previousClose;
+
+        private LatestQuote(double latestPrice, double previousClose) {
+            this.latestPrice = latestPrice;
+            this.previousClose = previousClose;
         }
     }
 
@@ -262,7 +273,17 @@ public class Security {
     public double getUnitsOwned() { return unitsOwned; }
     public double getDividends() { return dividends; }
     public double getLatestPrice() { return latestPrice; }
+    public double getPreviousClose() { return previousClose; }
     public LocalDate getFirstHoldingDate() { return firstHoldingDate; }
+    public boolean hasDayChangePct() {
+        return previousClose > EPSILON && latestPrice > EPSILON;
+    }
+    public double getDayChangePct() {
+        if (!hasDayChangePct()) {
+            return 0.0;
+        }
+        return ((latestPrice / previousClose) - 1.0) * 100.0;
+    }
 
     public boolean isFullyRealized() {
         return Math.abs(unitsOwned) < EPSILON;
@@ -727,6 +748,7 @@ public class Security {
         if (isin == null || isin.isEmpty()) {
             ticker = "";
             latestPrice = 0.0;
+            previousClose = 0.0;
             currencyCode = "NOK";
             resolvedSectorWeights.clear();
             resolvedRegionWeights.clear();
@@ -750,6 +772,7 @@ public class Security {
             } else {
                 ticker = "";
                 latestPrice = 0.0;
+                previousClose = 0.0;
                 currencyCode = "NOK";
                 resolvedSector = "Other";
                 resolvedRegion = "Global";
@@ -760,6 +783,7 @@ public class Security {
             System.err.println("Yahoo Finance ISIN lookup failed: " + e.getMessage());
             ticker = "";
             latestPrice = 0.0;
+            previousClose = 0.0;
             currencyCode = "NOK";
             resolvedSector = "Other";
             resolvedRegion = "Global";
@@ -787,9 +811,11 @@ public class Security {
         updateAssetTypeFromTicker(ticker);
         updateResolvedName(candidate);
         updateResolvedClassification(candidate);
+        LatestQuote quote = fetchLatestQuote(ticker);
         latestPrice = candidate.regularMarketPrice > EPSILON
                 ? candidate.regularMarketPrice
-                : fetchLatestPrice(ticker);
+                : quote.latestPrice;
+        previousClose = quote.previousClose > EPSILON ? quote.previousClose : 0.0;
     }
 
     private void applyGeneralTickerAndNameFallback() {
@@ -1940,8 +1966,12 @@ public class Security {
     }
 
     private double fetchLatestPrice(String symbol) {
+        return fetchLatestQuote(symbol).latestPrice;
+    }
+
+    private LatestQuote fetchLatestQuote(String symbol) {
         if (symbol == null || symbol.isBlank()) {
-            return 0.0;
+            return new LatestQuote(0.0, 0.0);
         }
 
         try {
@@ -1950,13 +1980,14 @@ public class Security {
                     + "?interval=1d&range=1d";
             String quoteResponse = httpGetRequest(quoteUrl);
             double regularMarketPrice = extractNumericValue(quoteResponse, "regularMarketPrice");
-            if (regularMarketPrice > EPSILON) {
-                return regularMarketPrice;
-            }
-
-            return extractNumericValue(quoteResponse, "chartPreviousClose");
+            double chartPreviousClose = extractNumericValue(quoteResponse, "chartPreviousClose");
+            double resolvedLatestPrice = regularMarketPrice > EPSILON
+                    ? regularMarketPrice
+                    : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0);
+            double resolvedPreviousClose = chartPreviousClose > EPSILON ? chartPreviousClose : 0.0;
+            return new LatestQuote(resolvedLatestPrice, resolvedPreviousClose);
         } catch (Exception ignored) {
-            return 0.0;
+            return new LatestQuote(0.0, 0.0);
         }
     }
 
