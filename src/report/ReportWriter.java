@@ -245,7 +245,8 @@ public class ReportWriter {
             writer.write("        .annual-graphs-heading h2 { margin:0; font-size:1.02rem; color:var(--ink); }\n");
             writer.write("        .annual-graphs-heading p { margin:0; font-size:.8rem; color:var(--muted); }\n");
             writer.write("        .annual-graphs-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0; }\n");
-            writer.write("        .annual-graph-card { display:flex; flex-direction:column; min-height:332px; padding:14px; border:1px solid #d4dfeb; border-radius:13px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
+            writer.write("        .annual-graph-card { display:flex; flex-direction:column; min-height:388px; padding:14px; border:1px solid #d4dfeb; border-radius:13px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
+            writer.write("        .report-standard .annual-graph-card { min-height:410px; }\n");
             writer.write("        .annual-graph-card.full-span { grid-column:1 / -1; }\n");
             writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
             writer.write("        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n");
@@ -1148,6 +1149,26 @@ public class ReportWriter {
     private static void writeHeaderSummaryHtml(FileWriter writer, HeaderSummary s, List<OverviewRow> overviewRows, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         String bestClass = s.bestReturn >= 0 ? "positive" : "negative";
         String worstClass = s.worstReturn >= 0 ? "positive" : "negative";
+        String bestPctLabel = "N/A";
+        String worstPctLabel = "N/A";
+        double bestPctValue = Double.NEGATIVE_INFINITY;
+        double worstPctValue = Double.POSITIVE_INFINITY;
+        for (OverviewRow row : overviewRows) {
+            if (row == null || !Double.isFinite(row.totalReturnPct)) {
+                continue;
+            }
+            if (row.totalReturnPct > bestPctValue) {
+                bestPctValue = row.totalReturnPct;
+                bestPctLabel = row.securityDisplayName;
+            }
+            if (row.totalReturnPct < worstPctValue) {
+                worstPctValue = row.totalReturnPct;
+                worstPctLabel = row.securityDisplayName;
+            }
+        }
+        boolean hasPctExtremes = Double.isFinite(bestPctValue) && Double.isFinite(worstPctValue);
+        String bestPctClass = hasPctExtremes && bestPctValue >= 0 ? "positive" : "negative";
+        String worstPctClass = hasPctExtremes && worstPctValue >= 0 ? "positive" : "negative";
 
         writer.write("<section class=\"report-hero annual-hero\">\n");
         writer.write("<div class=\"hero-title annual-hero-header\">\n");
@@ -1258,12 +1279,26 @@ public class ReportWriter {
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
+
+        if (hasPctExtremes) {
+            writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer " + bestPctClass + "\"><strong>"
+                + escapeHtml(bestPctLabel)
+                + "</strong><span class=\"performer-metrics\">"
+                + HtmlFormatter.formatPercent(bestPctValue)
+                + "</span></div><div class=\"performer " + worstPctClass + "\"><strong>"
+                + escapeHtml(worstPctLabel)
+                + "</strong><span class=\"performer-metrics\">"
+                + HtmlFormatter.formatPercent(worstPctValue)
+                + "</span></div></article>\n");
+        } else {
+            writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
+        }
         writer.write("</div>\n");
-        writeStandardAnalyticsSectionHtml(writer, store, ratesToNok);
         String valueTimelineSvg = PortfolioCalculator.buildStandardPortfolioValueSparklineSvg(store, ratesToNok);
         String returnTimelineSvg = PortfolioCalculator.buildStandardPortfolioReturnSparklineSvg(store, ratesToNok);
 
         writer.write("</section>\n");
+        writeStandardAnalyticsSectionHtml(writer, store, ratesToNok);
         writer.write("<section class=\"annual-graphs-section\">\n");
         writer.write("<div class=\"annual-graphs-heading\"><div class=\"timeline-title-row\"><h2>Yearly Trend</h2><button type=\"button\" class=\"timeline-info-btn\" aria-label=\"Show calculation info\" title=\"Show calculation info\">i</button></div></div>\n");
         writer.write("<div class=\"annual-graphs-row\">\n");
