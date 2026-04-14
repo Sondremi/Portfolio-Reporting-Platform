@@ -439,13 +439,16 @@ public class PortfolioCalculator {
         final String gridColor = "var(--spark-grid,#cfdbe6)";
         final String lineColor = "var(--spark-line,#223c55)";
         final String pointColor = "var(--spark-point,#223c55)";
+        final String areaColor = "var(--spark-area,rgba(34,60,85,.22))";
+        final String areaPositiveColor = "var(--spark-area-positive,rgba(36,131,87,.24))";
+        final String areaNegativeColor = "var(--spark-area-negative,rgba(178,58,49,.22))";
 
-        final double width = 500.0;
-        final double height = 124.0;
-        final double left = 46.0;
+        final double width = 560.0;
+        final double height = 170.0;
+        final double left = 48.0;
         final double right = 14.0;
-        final double top = 8.0;
-        final double bottom = 20.0;
+        final double top = 10.0;
+        final double bottom = 24.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -499,6 +502,12 @@ public class PortfolioCalculator {
             yValues[i] = y;
         }
 
+        double endValue = displayValues[n - 1];
+        String dynamicAreaColor = areaColor;
+        if (metric != SparklineMetric.VALUE) {
+            dynamicAreaColor = endValue >= 0.0 ? areaPositiveColor : areaNegativeColor;
+        }
+
         StringBuilder svg = new StringBuilder();
         svg.append("<svg viewBox=\"0 0 ").append(String.format(Locale.US, "%.0f %.0f", width, height))
                 .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">");
@@ -535,20 +544,42 @@ public class PortfolioCalculator {
                 .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(top))
                 .append("\" stroke=\"").append(gridColor).append("\" stroke-width=\"0.8\" opacity=\"0.7\" stroke-dasharray=\"3 3\"/>");
 
+        if (metric != SparklineMetric.VALUE) {
+            double zeroLineY = mapValueToY(0.0, min, max, top, plotHeight);
+            zeroLineY = Math.max(top, Math.min(axisY, zeroLineY));
+            svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(zeroLineY))
+                    .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(zeroLineY))
+                    .append("\" stroke=\"").append(axisSoftColor).append("\" stroke-width=\"0.9\" opacity=\"0.85\" stroke-dasharray=\"2.5 2.5\"/>");
+        }
+
+        double areaBaselineY = axisY;
+        if (metric != SparklineMetric.VALUE) {
+            areaBaselineY = mapValueToY(0.0, min, max, top, plotHeight);
+            areaBaselineY = Math.max(top, Math.min(axisY, areaBaselineY));
+        }
+
+        StringBuilder areaPath = new StringBuilder();
+        areaPath.append("M ").append(svgNumber(xValues[0])).append(" ").append(svgNumber(areaBaselineY));
+        for (int i = 0; i < n; i++) {
+            areaPath.append(" L ").append(svgNumber(xValues[i])).append(" ").append(svgNumber(yValues[i]));
+        }
+        areaPath.append(" L ").append(svgNumber(xValues[n - 1])).append(" ").append(svgNumber(areaBaselineY)).append(" Z");
+        svg.append("<path d=\"").append(areaPath).append("\" fill=\"").append(dynamicAreaColor).append("\"/>");
+
         StringBuilder path = new StringBuilder();
         for (int i = 0; i < n; i++) {
             path.append(i == 0 ? "M " : " L ")
                     .append(svgNumber(xValues[i])).append(" ").append(svgNumber(yValues[i]));
         }
 
-        svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(lineColor).append("\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>");
+        svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(lineColor).append("\" stroke-width=\"2.4\" stroke-linecap=\"round\"/>");
 
         DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
         int labelStep = Math.max(1, (int) Math.ceil(n / 10.0));
         for (int i = 0; i < n; i++) {
             String monthLabel = points.get(i).monthEnd.format(axisMonthFormat);
             svg.append("<circle class=\"chart-hover-target chart-hover-point\" cx=\"").append(svgNumber(xValues[i])).append("\" cy=\"").append(svgNumber(yValues[i]))
-                .append("\" r=\"2.2\" fill=\"").append(pointColor).append("\">");
+                .append("\" r=\"2.4\" fill=\"").append(pointColor).append("\">");
             if (metric == SparklineMetric.RETURN_PCT) {
                 svg.append("<title>")
                     .append(monthLabel).append(": ").append(formatSparklineTooltipValue(metric, displayValues[i]))

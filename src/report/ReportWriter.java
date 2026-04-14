@@ -290,12 +290,12 @@ public class ReportWriter {
             writer.write("        .annual-graph-card.full-span { grid-column:1 / -1; }\n");
             writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
             writer.write("        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n");
-            writer.write("        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-end; min-height:0; }\n");
+            writer.write("        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-start; min-height:0; }\n");
             writer.write("        .annual-graph-content > svg { display:block; width:100%; margin-top:auto; }\n");
-            writer.write("        .annual-graph-content .sparkline-widget { display:flex; flex-direction:column; min-height:100%; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel { flex:1; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel.is-active { display:flex; align-items:flex-end; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel > svg { display:block; width:100%; }\n");
+            writer.write("        .annual-graph-content .sparkline-widget { display:flex; flex-direction:column; gap:6px; min-height:100%; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel { flex:1; min-height:0; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel.is-active { display:flex; align-items:stretch; }\n");
+            writer.write("        .annual-graph-content .sparkline-panel > svg { display:block; width:100%; height:100%; min-height:220px; }\n");
             writer.write("        .allocation-visuals { display:grid; gap:10px; }\n");
             writer.write("        .allocation-row { display:grid; gap:10px; }\n");
             writer.write("        .allocation-row-top { grid-template-columns:repeat(3,minmax(0,1fr)); }\n");
