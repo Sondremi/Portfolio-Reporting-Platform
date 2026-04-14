@@ -442,6 +442,8 @@ public class PortfolioCalculator {
         final String areaColor = "var(--spark-area,rgba(34,60,85,.22))";
         final String areaPositiveColor = "var(--spark-area-positive,rgba(36,131,87,.24))";
         final String areaNegativeColor = "var(--spark-area-negative,rgba(178,58,49,.22))";
+        final String returnLinePositiveColor = "var(--spark-line-positive,#1f8b4d)";
+        final String returnLineNegativeColor = "var(--spark-line-negative,#b23a31)";
 
         final double width = 560.0;
         final double height = 170.0;
@@ -502,17 +504,36 @@ public class PortfolioCalculator {
             yValues[i] = y;
         }
 
-        double endValue = displayValues[n - 1];
-        String dynamicAreaColor = areaColor;
+        double axisY = top + plotHeight;
+        double areaBaselineY = axisY;
         if (metric != SparklineMetric.VALUE) {
-            dynamicAreaColor = endValue >= 0.0 ? areaPositiveColor : areaNegativeColor;
+            areaBaselineY = mapValueToY(0.0, min, max, top, plotHeight);
+            areaBaselineY = Math.max(top, Math.min(axisY, areaBaselineY));
+        }
+
+        String upperClipId = null;
+        String lowerClipId = null;
+        if (metric != SparklineMetric.VALUE) {
+            String clipSeed = Long.toHexString(System.nanoTime()) + Integer.toHexString(Arrays.hashCode(displayValues));
+            upperClipId = "spark-upper-" + clipSeed;
+            lowerClipId = "spark-lower-" + clipSeed;
         }
 
         StringBuilder svg = new StringBuilder();
         svg.append("<svg viewBox=\"0 0 ").append(String.format(Locale.US, "%.0f %.0f", width, height))
                 .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">");
 
-        double axisY = top + plotHeight;
+        if (metric != SparklineMetric.VALUE) {
+            svg.append("<defs>")
+                .append("<clipPath id=\"").append(upperClipId).append("\"><rect x=\"").append(svgNumber(left))
+                .append("\" y=\"").append(svgNumber(top)).append("\" width=\"").append(svgNumber(plotWidth))
+                .append("\" height=\"").append(svgNumber(Math.max(0.0, areaBaselineY - top))).append("\"/></clipPath>")
+                .append("<clipPath id=\"").append(lowerClipId).append("\"><rect x=\"").append(svgNumber(left))
+                .append("\" y=\"").append(svgNumber(areaBaselineY)).append("\" width=\"").append(svgNumber(plotWidth))
+                .append("\" height=\"").append(svgNumber(Math.max(0.0, axisY - areaBaselineY))).append("\"/></clipPath>")
+                .append("</defs>");
+        }
+
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
                 .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(axisY))
             .append("\" stroke=\"").append(axisColor).append("\" stroke-width=\"1\"/>");
@@ -552,19 +573,20 @@ public class PortfolioCalculator {
                     .append("\" stroke=\"").append(axisSoftColor).append("\" stroke-width=\"0.9\" opacity=\"0.85\" stroke-dasharray=\"2.5 2.5\"/>");
         }
 
-        double areaBaselineY = axisY;
-        if (metric != SparklineMetric.VALUE) {
-            areaBaselineY = mapValueToY(0.0, min, max, top, plotHeight);
-            areaBaselineY = Math.max(top, Math.min(axisY, areaBaselineY));
-        }
-
         StringBuilder areaPath = new StringBuilder();
         areaPath.append("M ").append(svgNumber(xValues[0])).append(" ").append(svgNumber(areaBaselineY));
         for (int i = 0; i < n; i++) {
             areaPath.append(" L ").append(svgNumber(xValues[i])).append(" ").append(svgNumber(yValues[i]));
         }
         areaPath.append(" L ").append(svgNumber(xValues[n - 1])).append(" ").append(svgNumber(areaBaselineY)).append(" Z");
-        svg.append("<path d=\"").append(areaPath).append("\" fill=\"").append(dynamicAreaColor).append("\"/>");
+        if (metric == SparklineMetric.VALUE) {
+            svg.append("<path d=\"").append(areaPath).append("\" fill=\"").append(areaColor).append("\"/>");
+        } else {
+            svg.append("<path d=\"").append(areaPath).append("\" fill=\"").append(areaPositiveColor)
+                .append("\" clip-path=\"url(#").append(upperClipId).append(")\"/>");
+            svg.append("<path d=\"").append(areaPath).append("\" fill=\"").append(areaNegativeColor)
+                .append("\" clip-path=\"url(#").append(lowerClipId).append(")\"/>");
+        }
 
         StringBuilder path = new StringBuilder();
         for (int i = 0; i < n; i++) {
@@ -572,7 +594,14 @@ public class PortfolioCalculator {
                     .append(svgNumber(xValues[i])).append(" ").append(svgNumber(yValues[i]));
         }
 
-        svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(lineColor).append("\" stroke-width=\"2.4\" stroke-linecap=\"round\"/>");
+        if (metric == SparklineMetric.VALUE) {
+            svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(lineColor).append("\" stroke-width=\"2.4\" stroke-linecap=\"round\"/>");
+        } else {
+            svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(returnLinePositiveColor)
+                .append("\" stroke-width=\"2.4\" stroke-linecap=\"round\" clip-path=\"url(#").append(upperClipId).append(")\"/>");
+            svg.append("<path d=\"").append(path).append("\" fill=\"none\" stroke=\"").append(returnLineNegativeColor)
+                .append("\" stroke-width=\"2.4\" stroke-linecap=\"round\" clip-path=\"url(#").append(lowerClipId).append(")\"/>");
+        }
 
         DateTimeFormatter axisMonthFormat = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
         int labelStep = Math.max(1, (int) Math.ceil(n / 10.0));
