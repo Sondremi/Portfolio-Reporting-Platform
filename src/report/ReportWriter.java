@@ -61,11 +61,7 @@ public class ReportWriter {
             writer.write("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
             writer.write("    <title>Portfolio Report</title>\n");
             writer.write("    <style>\n");
-            writer.write("        :root { --bg:#eef3f7; --line:#d8e0e9; --card:#ffffff; --ink:#16202a; --muted:#5a6877; --good:#1f8b4d; --bad:#b23a31; --spark-text:#5c7187; --spark-axis:#9eb1c3; --spark-axis-soft:#b8c7d6; --spark-grid:#cfdbe6; --spark-line:#223c55; --spark-point:#223c55; }\n");
-            writer.write("        body.theme-dark { --bg:#0f1722; --line:#253245; --card:#162231; --ink:#e5edf7; --muted:#aebdce; --good:#59c887; --bad:#f07f7f; --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n");
-            writer.write("        * { box-sizing: border-box; }\n");
-            writer.write("        body { font-family: 'Segoe UI','Avenir Next','Helvetica Neue',Arial,sans-serif; margin:0; background: radial-gradient(circle at top,#f8fbfe 0%,var(--bg) 58%); color:var(--ink); overflow-x:hidden; }\n");
-            writer.write("        body.theme-dark { background: radial-gradient(circle at top,#1c2b3f 0%, var(--bg) 62%); }\n");
+            ReportStyleHelper.writeBaseThemeStyles(writer);
             writer.write("        .page { width:100%; max-width:100%; margin:0; padding:24px 8px 32px; }\n");
             writer.write("        h2 { margin:26px 2px 12px; font-size:1.14rem; color:var(--ink); }\n");
             writer.write("        table { width:100%; border-collapse:collapse; min-width:0; table-layout:fixed; background:var(--card); }\n");
@@ -366,29 +362,7 @@ public class ReportWriter {
 
             writer.write("</main>\n");
             writer.write("<script>\n");
-            writer.write("function toggleOverviewDetails(rowId, button) {\n");
-            writer.write("  var row = document.getElementById(rowId);\n");
-            writer.write("  if (!row) return;\n");
-            writer.write("  var isOpen = row.style.display === 'table-row';\n");
-            writer.write("  row.style.display = isOpen ? 'none' : 'table-row';\n");
-            writer.write("  if (button) button.textContent = isOpen ? 'Show' : 'Hide';\n");
-            writer.write("}\n");
-            writer.write("function toggleDetailGroup(groupName, button) {\n");
-            writer.write("  var rows = document.querySelectorAll('tr.details-row[data-group=\\\"' + groupName + '\\\"]');\n");
-            writer.write("  if (!rows.length) return;\n");
-            writer.write("  window.__detailGroupNextAction = window.__detailGroupNextAction || {};\n");
-            writer.write("  var action = window.__detailGroupNextAction[groupName] || 'open';\n");
-            writer.write("  var open = action === 'open';\n");
-            writer.write("  rows.forEach(function(row) {\n");
-            writer.write("    row.style.display = open ? 'table-row' : 'none';\n");
-            writer.write("    var rowId = row.id;\n");
-            writer.write("    if (!rowId) return;\n");
-            writer.write("    var rowButton = document.querySelector('button.expand-btn[data-target=\\\"' + rowId + '\\\"]');\n");
-            writer.write("    if (rowButton) rowButton.textContent = open ? 'Hide' : 'Show';\n");
-            writer.write("  });\n");
-            writer.write("  window.__detailGroupNextAction[groupName] = open ? 'close' : 'open';\n");
-            writer.write("  if (button) button.textContent = open ? '▾' : '▸';\n");
-            writer.write("}\n");
+            ReportScriptHelper.writeDetailsToggleScript(writer);
             writeCurrencyConversionScript(writer, ratesToNok);
             writer.write("</script>\n");
             writer.write("</body>\n");
@@ -851,7 +825,7 @@ public class ReportWriter {
         }
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
-        writeHtmlRow(writer, true,
+        ReportTemplateHelper.writeHtmlRow(writer, true,
                 "Ticker", "Security", "Units", "Avg Cost", "Price", "Cost Basis", "Market Value", "Unrealized");
 
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -870,7 +844,7 @@ public class ReportWriter {
                     : "-";
 
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\"";
-                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+                ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<span class=\"ticker-scroll\">" + escapeHtml(row.ticker) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(row.securityName) + "</span>",
                     HtmlFormatter.formatUnits(row.units),
@@ -1039,7 +1013,7 @@ public class ReportWriter {
         int safeYear = Math.max(2000, Math.min(2100, reportYear));
         writer.write("<h2>REALIZED OVERVIEW - SALES IN " + safeYear + "</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        writeHtmlRow(writer, true, buildDetailsHeaderCell("realized-details-year"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildDetailsHeaderCell("realized-details-year"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -1088,7 +1062,7 @@ public class ReportWriter {
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
-                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+                ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
@@ -1376,8 +1350,8 @@ public class ReportWriter {
         writer.write("</section>\n");
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
-        writeHtmlRow(writer, true,
-            buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Day Change %", "Units", "Avg Cost", "Last Price",
+        ReportTemplateHelper.writeHtmlRow(writer, true,
+            ReportTemplateHelper.buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Day Change %", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1420,7 +1394,7 @@ public class ReportWriter {
                 + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
                 + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
 
-            writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+            ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                 "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
@@ -1515,7 +1489,7 @@ public class ReportWriter {
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        writeHtmlRow(writer, true, buildDetailsHeaderCell("realized-details"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, true, ReportTemplateHelper.buildDetailsHeaderCell("realized-details"), "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
@@ -1545,7 +1519,7 @@ public class ReportWriter {
                 String detailsRowId = "realized-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
 
-                writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+                ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     "<button class=\"expand-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', this)\">Show</button>",
                     "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>",
                     "<span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span>",
@@ -1830,34 +1804,6 @@ public class ReportWriter {
                 .thenComparing(Security::getRealizedSalesValue, Comparator.reverseOrder())
                 .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER));
         return sold;
-    }
-
-    private static String buildDetailsHeaderCell(String groupName) {
-        return "<span class=\"details-head\">Details"
-            + "<button class=\"detail-group-toggle\" onclick=\"toggleDetailGroup('" + groupName + "', this)\" title=\"Expand/collapse all details\">▸</button>"
-            + "</span>";
-    }
-
-    private static void writeHtmlRow(FileWriter writer, boolean isHeader, String... cells) throws IOException {
-        writer.write("<tr>\n");
-        for (String cell : cells) {
-            if (isHeader) {
-                writer.write("    <th>" + (cell != null ? cell : "") + "</th>\n");
-            } else {
-                writer.write("    <td>" + (cell != null ? cell : "") + "</td>\n");
-            }
-        }
-        writer.write("</tr>\n");
-    }
-
-    private static void writeHtmlRowWithClassAndAttributes(FileWriter writer, String rowClass, String rowAttributes, String... cells) throws IOException {
-        String classAttribute = (rowClass == null || rowClass.isBlank()) ? "" : " class=\"" + escapeHtml(rowClass) + "\"";
-        String attributeSuffix = (rowAttributes == null || rowAttributes.isBlank()) ? "" : " " + rowAttributes.trim();
-        writer.write("<tr" + classAttribute + attributeSuffix + ">\n");
-        for (String cell : cells) {
-            writer.write("    <td>" + (cell != null ? cell : "") + "</td>\n");
-        }
-        writer.write("</tr>\n");
     }
 
     private static boolean isStockFundBoundary(String previousAssetType, String currentAssetType) {
