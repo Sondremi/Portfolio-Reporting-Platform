@@ -1496,6 +1496,7 @@ public class ReportWriter {
                 + " (" + HtmlFormatter.formatPercent(row.totalReturnPct, 2) + ")";
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
             String dayChangeValueCell = formatDayChangeValueCell(row);
+            String dayChartCell = formatDayChartCell(row);
 
             String rowAttributes = "data-overview-row=\"1\""
                 + " data-ticker=\"" + escapeHtml(row.tickerText) + "\""
@@ -1516,7 +1517,7 @@ public class ReportWriter {
                     securityToggle,
                     dayChangeCell,
                     dayChangeValueCell,
-                    "<span class=\"js-row-day-chart\" data-ticker=\"" + escapeHtml(row.tickerText) + "\">-</span>",
+                    dayChartCell,
                     HtmlFormatter.formatUnits(row.units),
                     HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
                     "<span class=\"js-row-last-price\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-") + "</span>",
@@ -1618,6 +1619,18 @@ public class ReportWriter {
             return "<span class=\"js-row-day-change-value " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
         }
         return "<span class=\"js-row-day-change-value\">" + escapeHtml(valueText) + "</span>";
+    }
+
+    private static String formatDayChartCell(OverviewRow row) {
+        if (row == null || row.latestPrice <= 0.0) {
+            return "<span class=\"js-row-day-chart\" data-ticker=\"\">-</span>";
+        }
+
+        double first = row.previousClose > 0.0 ? row.previousClose : row.latestPrice;
+        String fallbackSeries = String.format(Locale.US, "%.8f,%.8f", first, row.latestPrice);
+        return "<span class=\"js-row-day-chart\" data-ticker=\"" + escapeHtml(row.tickerText)
+            + "\" data-fallback-series=\"" + escapeHtml(fallbackSeries) + "\">"
+            + "</span>";
     }
 
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
@@ -2334,6 +2347,13 @@ public class ReportWriter {
         writer.write("function initOverviewDayCharts() {\n");
         writer.write("  var nodes = Array.prototype.slice.call(document.querySelectorAll('.js-row-day-chart[data-ticker]'));\n");
         writer.write("  if (!nodes.length) return;\n");
+        writer.write("  nodes.forEach(function(node) {\n");
+        writer.write("    var fallbackRaw = String(node.getAttribute('data-fallback-series') || '').trim();\n");
+        writer.write("    if (!fallbackRaw) return;\n");
+        writer.write("    var fallbackSeries = fallbackRaw.split(',').map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; });\n");
+        writer.write("    var fallbackSvg = buildMiniDayChartSvg(fallbackSeries);\n");
+        writer.write("    if (fallbackSvg) node.innerHTML = fallbackSvg;\n");
+        writer.write("  });\n");
         writer.write("  var byTicker = new Map();\n");
         writer.write("  nodes.forEach(function(node) {\n");
         writer.write("    var ticker = String(node.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
@@ -2345,10 +2365,10 @@ public class ReportWriter {
         writer.write("    fetchDaySeriesFromYahooDirect(ticker).then(function(series) {\n");
         writer.write("      var svg = buildMiniDayChartSvg(series);\n");
         writer.write("      targets.forEach(function(node) {\n");
-        writer.write("        node.innerHTML = svg || '-';\n");
+        writer.write("        if (svg) node.innerHTML = svg;\n");
         writer.write("      });\n");
         writer.write("    }).catch(function() {\n");
-        writer.write("      targets.forEach(function(node) { node.textContent = '-'; });\n");
+        writer.write("      // Keep fallback chart when remote fetch fails.\n");
         writer.write("    });\n");
         writer.write("  });\n");
         writer.write("}\n");
