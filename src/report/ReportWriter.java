@@ -86,16 +86,23 @@ public class ReportWriter {
             writer.write("        .report-standard .overview-table tr > *:nth-child(3)  { width:11%; min-width:104px; max-width:138px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(4)  { width:7%; min-width:74px; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(5)  { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(6)  { width:6%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(7)  { width:7%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(6)  { width:7%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(7)  { width:6%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(8)  { width:7%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(9)  { width:8%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(9)  { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(10) { width:8%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(11) { width:10%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(12) { width:8%; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(13) { width:7%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(11) { width:8%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(12) { width:10%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(13) { width:8%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(14) { width:7%; }\n");
+            writer.write("        .report-standard .overview-table tr > *:nth-child(15) { width:7%; }\n");
             writer.write("        .report-standard .overview-table tr > *:nth-child(n+4) { overflow:visible !important; text-overflow:clip !important; }\n");
+            writer.write("        .mini-day-chart { display:block; width:78px; height:22px; }\n");
+            writer.write("        .mini-day-chart-line { fill:none; stroke:#2e5f88; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }\n");
+            writer.write("        .mini-day-chart-line.positive { stroke:#1f8b4d; }\n");
+            writer.write("        .mini-day-chart-line.negative { stroke:#b23a31; }\n");
+            writer.write("        .mini-day-chart-base { stroke:#a5b7c8; stroke-width:1; stroke-dasharray:2 2; opacity:.65; }\n");
+            writer.write("        body.theme-dark .mini-day-chart-base { stroke:#6f879f; }\n");
             writer.write("        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
             writer.write("        .report-standard .ticker-scroll { max-width:96px; }\n");
             writer.write("        .report-standard .security-scroll { max-width:138px; }\n");
@@ -1459,7 +1466,7 @@ public class ReportWriter {
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
-            ReportTemplateHelper.buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Change %", "Change", "Units", "Avg Cost", "Last Price",
+            ReportTemplateHelper.buildDetailsHeaderCell("overview-details"), "Ticker", "Security", "Change %", "Change", "Day Chart", "Units", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1509,6 +1516,7 @@ public class ReportWriter {
                     "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
                     dayChangeCell,
                     dayChangeValueCell,
+                    "<span class=\"js-row-day-chart\" data-ticker=\"" + escapeHtml(row.tickerText) + "\">-</span>",
                     HtmlFormatter.formatUnits(row.units),
                     HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
                     "<span class=\"js-row-last-price\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-") + "</span>",
@@ -1520,7 +1528,7 @@ public class ReportWriter {
                     "<span class=\"js-row-total-return\">" + totalReturnCombined + "</span>");
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
-                    writer.write("    <td class=\"details-cell\" colspan=\"14\">\n");
+                    writer.write("    <td class=\"details-cell\" colspan=\"15\">\n");
                     writer.write(buildHoldingDetailsTableHtml(security, row));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
@@ -1542,7 +1550,7 @@ public class ReportWriter {
         double totalRealizedPct = totalCostBasisForPct > 0 ? (totalRealizedForPct / totalCostBasisForPct) * 100.0 : 0.0;
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-unrealized", totalUnrealizedBuckets, 2, ratesToNok) + " (<span id=\"overview-total-unrealized-pct\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</td>\n");
@@ -2280,6 +2288,68 @@ public class ReportWriter {
         writer.write("    if (Number.isFinite(value) && value > 0) return value;\n");
         writer.write("  }\n");
         writer.write("  return 0;\n");
+        writer.write("}\n");
+        writer.write("async function fetchDaySeriesFromYahooDirect(ticker) {\n");
+        writer.write("  var symbol = String(ticker || '').trim().toUpperCase();\n");
+        writer.write("  if (!symbol) return [];\n");
+        writer.write("  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=5m&range=1d';\n");
+        writer.write("  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n");
+        writer.write("  if (!response.ok) return [];\n");
+        writer.write("  var data = await response.json();\n");
+        writer.write("  var result = data && data.chart && data.chart.result && data.chart.result[0];\n");
+        writer.write("  if (!result) return [];\n");
+        writer.write("  var closeSeries = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
+        writer.write("  if (!Array.isArray(closeSeries)) return [];\n");
+        writer.write("  return closeSeries.map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; });\n");
+        writer.write("}\n");
+        writer.write("function buildMiniDayChartSvg(prices) {\n");
+        writer.write("  if (!Array.isArray(prices) || prices.length < 2) return '';\n");
+        writer.write("  var width = 78;\n");
+        writer.write("  var height = 22;\n");
+        writer.write("  var left = 1;\n");
+        writer.write("  var right = width - 1;\n");
+        writer.write("  var top = 1;\n");
+        writer.write("  var bottom = height - 1;\n");
+        writer.write("  var min = Math.min.apply(null, prices);\n");
+        writer.write("  var max = Math.max.apply(null, prices);\n");
+        writer.write("  var span = Math.max(0.000001, max - min);\n");
+        writer.write("  var points = prices.map(function(price, index) {\n");
+        writer.write("    var ratioX = prices.length <= 1 ? 0 : index / (prices.length - 1);\n");
+        writer.write("    var ratioY = (price - min) / span;\n");
+        writer.write("    var x = left + ratioX * (right - left);\n");
+        writer.write("    var y = bottom - ratioY * (bottom - top);\n");
+        writer.write("    return x.toFixed(2) + ',' + y.toFixed(2);\n");
+        writer.write("  }).join(' ');\n");
+        writer.write("  var start = Number(prices[0]);\n");
+        writer.write("  var end = Number(prices[prices.length - 1]);\n");
+        writer.write("  var lineClass = end >= start ? 'positive' : 'negative';\n");
+        writer.write("  var baselineRatio = (start - min) / span;\n");
+        writer.write("  var baselineY = (bottom - baselineRatio * (bottom - top)).toFixed(2);\n");
+        writer.write("  return '<svg class=\"mini-day-chart\" viewBox=\"0 0 ' + width + ' ' + height + '\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">'\n");
+        writer.write("    + '<line class=\"mini-day-chart-base\" x1=\"0\" y1=\"' + baselineY + '\" x2=\"' + width + '\" y2=\"' + baselineY + '\"></line>'\n");
+        writer.write("    + '<polyline class=\"mini-day-chart-line ' + lineClass + '\" points=\"' + points + '\"></polyline>'\n");
+        writer.write("    + '</svg>';\n");
+        writer.write("}\n");
+        writer.write("function initOverviewDayCharts() {\n");
+        writer.write("  var nodes = Array.prototype.slice.call(document.querySelectorAll('.js-row-day-chart[data-ticker]'));\n");
+        writer.write("  if (!nodes.length) return;\n");
+        writer.write("  var byTicker = new Map();\n");
+        writer.write("  nodes.forEach(function(node) {\n");
+        writer.write("    var ticker = String(node.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
+        writer.write("    if (!ticker) return;\n");
+        writer.write("    if (!byTicker.has(ticker)) byTicker.set(ticker, []);\n");
+        writer.write("    byTicker.get(ticker).push(node);\n");
+        writer.write("  });\n");
+        writer.write("  byTicker.forEach(function(targets, ticker) {\n");
+        writer.write("    fetchDaySeriesFromYahooDirect(ticker).then(function(series) {\n");
+        writer.write("      var svg = buildMiniDayChartSvg(series);\n");
+        writer.write("      targets.forEach(function(node) {\n");
+        writer.write("        node.innerHTML = svg || '-';\n");
+        writer.write("      });\n");
+        writer.write("    }).catch(function() {\n");
+        writer.write("      targets.forEach(function(node) { node.textContent = '-'; });\n");
+        writer.write("    });\n");
+        writer.write("  });\n");
         writer.write("}\n");
         writer.write("async function fetchLatestPricesDirect(tickers) {\n");
         writer.write("  var prices = {};\n");
@@ -3466,6 +3536,7 @@ public class ReportWriter {
         writer.write("  initTimelineInfoPopup();\n");
         writer.write("  initInlineCellDragHandles();\n");
         writer.write("  initSortableTables();\n");
+        writer.write("  initOverviewDayCharts();\n");
         writer.write("  initChartDownloadButtons();\n");
         writer.write("  initChartHoverEffects();\n");
         writer.write("  initInteractiveChartControls();\n");
