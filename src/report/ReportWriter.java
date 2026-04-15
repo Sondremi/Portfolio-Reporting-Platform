@@ -279,6 +279,8 @@ public class ReportWriter {
             writer.write("        .sparkline-range-btn:hover { background:#e8f0f8; }\n");
             writer.write("        .sparkline-range-btn.is-active { background:#dbe9f8; color:#1f3f5b; border-color:#9eb9d5; }\n");
             writer.write("        .sparkline-return-summary { margin:0 0 8px; font-size:.8rem; font-weight:700; color:#2f4a62; }\n");
+            writer.write("        .sparkline-return-summary.positive { color:var(--good); }\n");
+            writer.write("        .sparkline-return-summary.negative { color:var(--bad); }\n");
             writer.write("        .hero-side { --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n");
             writer.write("        .hero-side .sparkline-metric-btn, .hero-side .sparkline-range-btn { border-color:rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; }\n");
             writer.write("        .hero-side .sparkline-metric-btn:hover, .hero-side .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n");
@@ -407,6 +409,8 @@ public class ReportWriter {
             writer.write("        body.theme-dark .sparkline-metric-btn.is-active { background:#dceafb; color:#173047; border-color:#dceafb; }\n");
             writer.write("        body.theme-dark .sparkline-range-btn.is-active { background:#c3d7ed; color:#173047; border-color:#9bb7d3; }\n");
             writer.write("        body.theme-dark .sparkline-return-summary { color:#cfe0f2; }\n");
+            writer.write("        body.theme-dark .sparkline-return-summary.positive { color:var(--good); }\n");
+            writer.write("        body.theme-dark .sparkline-return-summary.negative { color:var(--bad); }\n");
             writer.write("        body.theme-dark .chart-title-row > h3, body.theme-dark .chart-title-row > h4, body.theme-dark .chart-title-row > .hero-side-title { color:#dce8f5; }\n");
             writer.write("        body.theme-dark .chart-svg { background:#162231; border-color:#2b3a4d; }\n");
             writer.write("        body.theme-dark .chart-svg text { fill:#d4e1ee !important; }\n");
