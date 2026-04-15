@@ -193,6 +193,10 @@ public class ReportWriter {
             writer.write("        .report-standard .kpi-value { color:#1f3549; }\n");
             writer.write("        .report-standard .performer { color:#314c64; }\n");
             writer.write("        .report-standard .performer strong { color:#1f3549; }\n");
+            writer.write("        .report-standard .kpi-label.positive, .report-standard .kpi-value.positive { color:var(--good); }\n");
+            writer.write("        .report-standard .kpi-label.negative, .report-standard .kpi-value.negative { color:var(--bad); }\n");
+            writer.write("        .report-standard .performer.positive { color:var(--good); }\n");
+            writer.write("        .report-standard .performer.negative { color:var(--bad); }\n");
             writer.write("        .report-standard .cash-holdings-add-btn { border-color:#8da9c4; background:#eef5fb; color:#1f3a52; }\n");
             writer.write("        .report-standard .cash-holdings-add-btn:hover { background:#e4eff9; }\n");
             writer.write("        .report-standard .manual-cash-holding-line { color:#4f6780; }\n");
@@ -202,6 +206,10 @@ public class ReportWriter {
             writer.write("        body.theme-dark.report-standard .kpi-value { color:#edf5ff; }\n");
             writer.write("        body.theme-dark.report-standard .performer { color:#d4e3f2; }\n");
             writer.write("        body.theme-dark.report-standard .performer strong { color:#edf5ff; }\n");
+            writer.write("        body.theme-dark.report-standard .kpi-label.positive, body.theme-dark.report-standard .kpi-value.positive { color:var(--good); }\n");
+            writer.write("        body.theme-dark.report-standard .kpi-label.negative, body.theme-dark.report-standard .kpi-value.negative { color:var(--bad); }\n");
+            writer.write("        body.theme-dark.report-standard .performer.positive { color:var(--good); }\n");
+            writer.write("        body.theme-dark.report-standard .performer.negative { color:var(--bad); }\n");
             writer.write("        body.theme-dark.report-standard .cash-holdings-add-btn { border-color:#56799a; background:#243c55; color:#e2edf8; }\n");
             writer.write("        body.theme-dark.report-standard .cash-holdings-add-btn:hover { background:#2d4a67; }\n");
             writer.write("        body.theme-dark.report-standard .manual-cash-holding-line { color:#c2d6ea; }\n");
@@ -290,9 +298,13 @@ public class ReportWriter {
             writer.write("        .annual-summary-card h4 { margin:0 0 4px; font-size:.82rem; color:#40576c; text-transform:uppercase; }\n");
             writer.write("        .annual-summary-value { font-size:1.05rem; font-weight:700; }\n");
             writer.write("        .annual-summary-sub { margin-top:4px; font-size:.78rem; color:#5f7488; }\n");
+            writer.write("        .annual-summary-value.positive, .annual-summary-sub.positive { color:var(--good); }\n");
+            writer.write("        .annual-summary-value.negative, .annual-summary-sub.negative { color:var(--bad); }\n");
             writer.write("        .annual-value-warning { margin-top:6px; padding:6px 7px; font-size:.74rem; line-height:1.35; border:1px solid #f0d8a8; border-radius:8px; background:#fff5df; color:#7b4a00; }\n");
             writer.write("        .annual-summary-card .performer { margin-top:5px; color:#253d53; font-size:.82rem; }\n");
             writer.write("        .annual-summary-card .performer strong { margin-bottom:1px; font-size:.88rem; color:#1f3345; }\n");
+            writer.write("        .annual-summary-card .performer.positive { color:var(--good); }\n");
+            writer.write("        .annual-summary-card .performer.negative { color:var(--bad); }\n");
             writer.write("        .annual-graphs-section { margin:0 0 18px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
             writer.write("        .annual-graphs-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; margin:0 0 10px; }\n");
             writer.write("        .annual-graphs-heading h2 { margin:0; font-size:1.02rem; color:var(--ink); }\n");
@@ -375,6 +387,10 @@ public class ReportWriter {
             writer.write("        body.theme-dark .annual-value-warning { background:#3d2e19; border-color:#8e6a33; color:#ffdca8; }\n");
             writer.write("        body.theme-dark .annual-summary-card .performer { color:#d4e3f2; }\n");
             writer.write("        body.theme-dark .annual-summary-card .performer strong { color:#e9f2fc; }\n");
+            writer.write("        body.theme-dark .annual-summary-value.positive, body.theme-dark .annual-summary-sub.positive { color:var(--good); }\n");
+            writer.write("        body.theme-dark .annual-summary-value.negative, body.theme-dark .annual-summary-sub.negative { color:var(--bad); }\n");
+            writer.write("        body.theme-dark .annual-summary-card .performer.positive { color:var(--good); }\n");
+            writer.write("        body.theme-dark .annual-summary-card .performer.negative { color:var(--bad); }\n");
             writer.write("        body.theme-dark .annual-graphs-heading h2 { color:#e5edf7; }\n");
             writer.write("        body.theme-dark .annual-graphs-heading p { color:#bad0e5; }\n");
             writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n");
@@ -462,11 +478,11 @@ public class ReportWriter {
         LinkedHashMap<String, Double> bestReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.best.returnNok);
         LinkedHashMap<String, Double> worstReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.worst.returnNok);
 
-        String portfolioClass = summary.portfolioReturnNok >= 0 ? "positive" : "negative";
+        String portfolioClass = signedClass(summary.portfolioReturnNok);
         double benchmarkDelta = summary.hasBenchmarkData ? (summary.portfolioReturnPct - summary.benchmarkReturnPct) : 0.0;
-        String deltaClass = benchmarkDelta >= 0 ? "positive" : "negative";
-        String bestClass = metrics.best.returnNok >= 0.0 ? "positive" : "negative";
-        String worstClass = metrics.worst.returnNok >= 0.0 ? "positive" : "negative";
+        String deltaClass = signedClass(benchmarkDelta);
+        String bestClass = signedClass(metrics.best.returnNok);
+        String worstClass = signedClass(metrics.worst.returnNok);
         String valueWarningHtml = buildAnnualValueWarningHtml(snapshotRows);
 
         writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Value</h4><div class=\"annual-summary-value\">"
@@ -485,7 +501,7 @@ public class ReportWriter {
             + HtmlFormatter.formatPercent(summary.portfolioReturnPct)
             + "</div><div class=\"annual-summary-sub\">Time-weighted annual return, adjusted for external cash flows.</div></article>\n");
 
-        String realizedGainClass = summary.realizedGainNok >= 0 ? "positive" : "negative";
+        String realizedGainClass = signedClass(summary.realizedGainNok);
         writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Realized Gain/Loss</h4><div class=\"annual-summary-value " + realizedGainClass + "\">"
             + renderConvertibleMoneyCell(realizedGainBuckets, 2, ratesToNok)
             + "</div><div class=\"annual-summary-sub\">Closed sales in selected year</div></article>\n");
@@ -494,13 +510,14 @@ public class ReportWriter {
             + renderConvertibleMoneyCell(dividendsBuckets, 2, ratesToNok)
             + "</div><div class=\"annual-summary-sub\">Dividend cash flows in selected year</div></article>\n");
 
-        String realizedTotalClass = summary.realizedTotalNok >= 0 ? "positive" : "negative";
+        String realizedTotalClass = signedClass(summary.realizedTotalNok);
         writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Total Realized</h4><div class=\"annual-summary-value " + realizedTotalClass + "\">"
             + renderConvertibleMoneyCell(realizedTotalBuckets, 2, ratesToNok)
             + "</div><div class=\"annual-summary-sub\">Realized gain/loss plus dividends</div></article>\n");
 
         if (summary.hasBenchmarkData) {
-            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value\">"
+            String benchmarkClass = signedClass(summary.benchmarkReturnPct);
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value " + benchmarkClass + "\">"
                 + HtmlFormatter.formatPercent(summary.benchmarkReturnPct)
                 + "</div><div class=\"annual-summary-sub\">Selected year performance</div></article>\n");
 
@@ -910,8 +927,8 @@ public class ReportWriter {
             addToCurrencyBuckets(totalUnrealizedBuckets, row.currencyCode, row.unrealized);
 
             String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
-            String unrealizedText = row.hasPrice
-                    ? HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")"
+                String unrealizedText = row.hasPrice
+                    ? signedSpan(HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")", row.unrealized)
                     : "-";
 
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\"";
@@ -936,7 +953,11 @@ public class ReportWriter {
         writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalUnrealizedBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + ")</td>\n");
+        writer.write("    <td>"
+            + signedWrapHtml(renderConvertibleMoneyCell(totalUnrealizedBuckets, 2, ratesToNok), totalUnrealizedForPct)
+            + " "
+            + signedSpan("(" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + ")", totalUnrealizedForPct)
+            + "</td>\n");
         writer.write("</tr>\n");
         writer.write("</table>\n</div>\n\n");
     }
@@ -1123,8 +1144,10 @@ public class ReportWriter {
             String currency = security.getCurrencyCode();
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
-            String totalReturnCombined = HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
-                    + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")";
+                String totalReturnCombined = signedSpan(
+                    HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
+                        + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
+                    totalReturnValue);
 
             addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
             addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
@@ -1140,8 +1163,8 @@ public class ReportWriter {
                     securityToggle,
                     HtmlFormatter.formatMoney(costBasis, currency, 2),
                     HtmlFormatter.formatMoney(salesValue, currency, 2),
-                    HtmlFormatter.formatMoney(gain, currency, 2),
-                    HtmlFormatter.formatMoney(realizedDividends, currency, 2),
+                    signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
+                    signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
                     totalReturnCombined);
 
             writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details-year\">\n");
@@ -1174,9 +1197,13 @@ public class ReportWriter {
         writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")</td>\n");
+        writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok), totalRealizedGainForPct) + "</td>\n");
+        writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok), totalRealizedDividendsForPct) + "</td>\n");
+        writer.write("    <td>"
+            + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok), totalRealizedReturnForPct)
+            + " "
+            + signedSpan("(" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")", totalRealizedReturnForPct)
+            + "</td>\n");
         writer.write("</tr>\n");
         writer.write("</table>\n</div>\n\n");
     }
@@ -1206,8 +1233,8 @@ public class ReportWriter {
     }
 
     private static void writeHeaderSummaryHtml(FileWriter writer, HeaderSummary s, List<OverviewRow> overviewRows, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
-        String bestClass = s.bestReturn >= 0 ? "positive" : "negative";
-        String worstClass = s.worstReturn >= 0 ? "positive" : "negative";
+        String bestClass = signedClass(s.bestReturn);
+        String worstClass = signedClass(s.worstReturn);
         String bestPctLabel = "N/A";
         String worstPctLabel = "N/A";
         double bestPctValue = Double.NEGATIVE_INFINITY;
@@ -1234,8 +1261,8 @@ public class ReportWriter {
             }
         }
         boolean hasPctExtremes = Double.isFinite(bestPctValue) && Double.isFinite(worstPctValue);
-        String bestPctClass = hasPctExtremes && bestPctValue >= 0 ? "positive" : "negative";
-        String worstPctClass = hasPctExtremes && worstPctValue >= 0 ? "positive" : "negative";
+        String bestPctClass = hasPctExtremes ? signedClass(bestPctValue) : "";
+        String worstPctClass = hasPctExtremes ? signedClass(worstPctValue) : "";
 
         writer.write("<section class=\"report-hero annual-hero\">\n");
         writer.write("<div class=\"hero-title annual-hero-header\">\n");
@@ -1329,10 +1356,10 @@ public class ReportWriter {
         double dayChangeNok = convertBucketsToTarget(dayChangeBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
         double previousDayValueNok = convertBucketsToTarget(previousDayValueBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
         double dayChangePct = previousDayValueNok > 0.0 ? (dayChangeNok / previousDayValueNok) * 100.0 : 0.0;
-        String totalClass = totalReturnInDefaultCurrency >= 0 ? "positive" : "negative";
-        String unrealizedClass = totalUnrealizedInDefaultCurrency >= 0 ? "positive" : "negative";
-        String realizedClass = totalRealizedInDefaultCurrency >= 0 ? "positive" : "negative";
-        String dayChangeClass = dayChangeNok >= 0 ? "positive" : "negative";
+        String totalClass = signedClass(totalReturnInDefaultCurrency);
+        String unrealizedClass = signedClass(totalUnrealizedInDefaultCurrency);
+        String realizedClass = signedClass(totalRealizedInDefaultCurrency);
+        String dayChangeClass = signedClass(dayChangeNok);
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Market Value</div><div id=\"hero-total-market-value\" class=\"kpi-value js-convert-money\" data-buckets=\""
             + escapeHtml(toBucketsJson(totalMarketBuckets)) + "\" data-decimals=\"0\">"
@@ -1629,7 +1656,7 @@ public class ReportWriter {
         }
         String totalDayChangeValueCell = totalDayChangeBuckets.isEmpty()
             ? "<span id=\"holdings-total-day-change-value\" class=\"js-convert-money\" data-buckets=\"{}\" data-decimals=\"2\">-</span>"
-            : renderConvertibleMoneyCellWithId("holdings-total-day-change-value", totalDayChangeBuckets, 2, ratesToNok);
+            : renderConvertibleMoneyCellWithId("holdings-total-day-change-value", signedClass(totalDayChangeForPct), totalDayChangeBuckets, 2, ratesToNok);
 
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
@@ -1650,13 +1677,21 @@ public class ReportWriter {
             String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
             Security security = securityByKey.get(row.securityKey);
             String detailsRowId = "holdings-details-" + holdingsDetailsIndex;
-            String unrealizedCombined = row.hasPrice
+                String unrealizedText = row.hasPrice
                     ? HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")"
                     : "-";
-            String realizedCombined = HtmlFormatter.formatMoney(row.realized, row.currencyCode, 2)
+                String realizedText = HtmlFormatter.formatMoney(row.realized, row.currencyCode, 2)
                     + " (" + row.realizedReturnPctText + "%)";
-            String totalReturnCombined = HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2)
+                String totalReturnText = HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2)
                     + " (" + HtmlFormatter.formatPercent(row.totalReturnPct, 2) + ")";
+                String unrealizedCell = row.hasPrice
+                    ? "<span class=\"js-row-unrealized" + signedClassAttr(row.unrealized) + "\">" + escapeHtml(unrealizedText) + "</span>"
+                    : "<span class=\"js-row-unrealized\">-</span>";
+                String realizedCell = "<span class=\"" + signedClass(row.realized) + "\">" + escapeHtml(realizedText) + "</span>";
+                if (signedClass(row.realized).isBlank()) {
+                realizedCell = "<span>" + escapeHtml(realizedText) + "</span>";
+                }
+                String totalReturnCell = "<span class=\"js-row-total-return" + signedClassAttr(row.totalReturn) + "\">" + escapeHtml(totalReturnText) + "</span>";
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
             String holdingsDayChangeValueCell = formatHoldingDayChangeValueCell(row);
                     String rowAttributes = "data-overview-security-key=\"" + escapeHtml(row.securityKey) + "\""
@@ -1682,10 +1717,10 @@ public class ReportWriter {
                     "<span class=\"js-row-last-price\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-") + "</span>",
                     HtmlFormatter.formatMoney(row.positionCostBasis, row.currencyCode, 2),
                     "<span class=\"js-row-market-value\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.marketValue, row.currencyCode, 2) : "-") + "</span>",
-                    "<span class=\"js-row-unrealized\">" + escapeHtml(unrealizedCombined) + "</span>",
-                    realizedCombined,
+                    unrealizedCell,
+                    realizedCell,
                     HtmlFormatter.formatMoney(row.dividends, row.currencyCode, 2),
-                    "<span class=\"js-row-total-return\">" + escapeHtml(totalReturnCombined) + "</span>");
+                    totalReturnCell);
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"holdings-details\">\n");
                     writer.write("    <td class=\"details-cell\" colspan=\"13\">\n");
@@ -1702,10 +1737,13 @@ public class ReportWriter {
         writer.write("    <td></td><td><strong>TOTAL</strong></td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", totalUnrealizedBuckets, 2, ratesToNok) + " (<span id=\"holdings-total-unrealized-pct\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-realized-value", totalRealizedBuckets, 2, ratesToNok) + " (<span id=\"holdings-total-realized-pct\">" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + "</span>)</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", signedClass(totalUnrealizedForPct), totalUnrealizedBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-unrealized-pct-wrap\" class=\"" + signedClass(totalUnrealizedForPct) + "\">(<span id=\"holdings-total-unrealized-pct\" class=\"" + signedClass(totalUnrealizedForPct) + "\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</span></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-realized-value", signedClass(totalRealizedForPct), totalRealizedBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-realized-pct-wrap\" class=\"" + signedClass(totalRealizedForPct) + "\">(<span id=\"holdings-total-realized-pct\" class=\"" + signedClass(totalRealizedForPct) + "\">" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + "</span>)</span></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-dividends-value", totalDividendsBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-total-return-value", totalReturnBuckets, 2, ratesToNok) + " (<span id=\"holdings-total-total-return-pct\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</span>)</td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-total-return-value", signedClass(totalReturnForPct), totalReturnBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-total-return-pct-wrap\" class=\"" + signedClass(totalReturnForPct) + "\">(<span id=\"holdings-total-total-return-pct\" class=\"" + signedClass(totalReturnForPct) + "\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</span>)</span></td>\n");
         writer.write("</tr>\n");
         writer.write("</table>\n</div>\n");
 
@@ -1933,6 +1971,35 @@ public class ReportWriter {
         return value.replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
+    private static String signedClass(double value) {
+        if (!Double.isFinite(value) || Math.abs(value) <= EPSILON) {
+            return "";
+        }
+        return value > 0.0 ? "positive" : "negative";
+    }
+
+    private static String signedClassAttr(double value) {
+        String cssClass = signedClass(value);
+        return cssClass.isBlank() ? "" : " " + cssClass;
+    }
+
+    private static String signedSpan(String text, double value) {
+        String safeText = escapeHtml(text);
+        String cssClass = signedClass(value);
+        if (cssClass.isBlank()) {
+            return safeText;
+        }
+        return "<span class=\"" + cssClass + "\">" + safeText + "</span>";
+    }
+
+    private static String signedWrapHtml(String html, double value) {
+        String cssClass = signedClass(value);
+        if (cssClass.isBlank()) {
+            return html;
+        }
+        return "<span class=\"" + cssClass + "\">" + html + "</span>";
+    }
+
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
@@ -1956,8 +2023,10 @@ public class ReportWriter {
             double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
-            String totalReturnCombined = HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
-                + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")";
+            String totalReturnCombined = signedSpan(
+                HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
+                    + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
+                totalReturnValue);
 
             addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
             addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
@@ -1973,8 +2042,8 @@ public class ReportWriter {
                     securityToggle,
                     HtmlFormatter.formatMoney(costBasis, currency, 2),
                     HtmlFormatter.formatMoney(salesValue, currency, 2),
-                    HtmlFormatter.formatMoney(gain, currency, 2),
-                    HtmlFormatter.formatMoney(realizedDividends, currency, 2),
+                    signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
+                    signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
                     totalReturnCombined);
 
                 writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
@@ -1999,9 +2068,13 @@ public class ReportWriter {
         writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok) + " (" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")</td>\n");
+        writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok), totalRealizedGainForPct) + "</td>\n");
+        writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok), totalRealizedDividendsForPct) + "</td>\n");
+        writer.write("    <td>"
+            + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok), totalRealizedReturnForPct)
+            + " "
+            + signedSpan("(" + HtmlFormatter.formatPercent(totalReturnPct, 2) + ")", totalRealizedReturnForPct)
+            + "</td>\n");
         writer.write("</tr>\n");
 
         writer.write("</table>\n</div>\n\n");
@@ -2046,8 +2119,8 @@ public class ReportWriter {
                 html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getUnitPrice(), currency, 2))).append("</td>");
                 html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getCostBasis(), currency, 0))).append("</td>");
                 html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getSaleValue(), currency, 0))).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
+                html.append("<td class=\"").append(signedClass(trade.getGainLoss())).append("\">").append(escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
+                html.append("<td class=\"").append(signedClass(trade.getReturnPct())).append("\">").append(escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
                 html.append("</tr>\n");
             }
 
@@ -2058,8 +2131,8 @@ public class ReportWriter {
             html.append("<td></td>");
             html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalCostBasis, currency, 0))).append("</td>");
             html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalSaleValue, currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
+            html.append("<td class=\"").append(signedClass(totalGainLoss)).append("\">").append(escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
+            html.append("<td class=\"").append(signedClass(totalReturnPct)).append("\">").append(escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
             html.append("</tr>\n");
 
             html.append("</table>\n");
@@ -2155,9 +2228,12 @@ public class ReportWriter {
             final String amount;
             final String unrealized;
             final String unrealizedPct;
+            final String unrealizedClass;
+            final String unrealizedPctClass;
 
             DetailEntry(LocalDate date, int order, String type, String units, String price,
-                        String amount, String unrealized, String unrealizedPct) {
+                        String amount, String unrealized, String unrealizedPct,
+                        String unrealizedClass, String unrealizedPctClass) {
                 this.date = date;
                 this.order = order;
                 this.type = type;
@@ -2166,6 +2242,8 @@ public class ReportWriter {
                 this.amount = amount;
                 this.unrealized = unrealized;
                 this.unrealizedPct = unrealizedPct;
+                this.unrealizedClass = unrealizedClass;
+                this.unrealizedPctClass = unrealizedPctClass;
             }
         }
 
@@ -2174,12 +2252,16 @@ public class ReportWriter {
             double lotCostBasis = lot.getCostBasis();
             String unrealizedText = "-";
             String unrealizedPctText = "-";
+            String unrealizedClass = "";
+            String unrealizedPctClass = "";
             if (row.latestPrice > 0.0 && lotCostBasis > 0.0) {
                 double currentValue = lot.getUnits() * row.latestPrice;
                 double unrealized = currentValue - lotCostBasis;
                 double unrealizedPct = (unrealized / lotCostBasis) * 100.0;
                 unrealizedText = HtmlFormatter.formatMoney(unrealized, row.currencyCode, 2);
                 unrealizedPctText = HtmlFormatter.formatPercent(unrealizedPct, 2);
+                unrealizedClass = signedClass(unrealized);
+                unrealizedPctClass = signedClass(unrealizedPct);
             }
 
             entries.add(new DetailEntry(
@@ -2190,7 +2272,9 @@ public class ReportWriter {
                     HtmlFormatter.formatMoney(lot.getUnitCost(), row.currencyCode, 2),
                     HtmlFormatter.formatMoney(lotCostBasis, row.currencyCode, 2),
                     unrealizedText,
-                    unrealizedPctText
+                    unrealizedPctText,
+                    unrealizedClass,
+                    unrealizedPctClass
             ));
         }
 
@@ -2204,7 +2288,9 @@ public class ReportWriter {
                     "-",
                     HtmlFormatter.formatMoney(event.getAmount(), row.currencyCode, 2),
                     "-",
-                    "-"
+                    "-",
+                    "",
+                    ""
             ));
         }
 
@@ -2227,8 +2313,8 @@ public class ReportWriter {
             html.append("<td>").append(escapeHtml(entry.units)).append("</td>");
             html.append("<td>").append(escapeHtml(entry.price)).append("</td>");
             html.append("<td>").append(escapeHtml(entry.amount)).append("</td>");
-            html.append("<td>").append(escapeHtml(entry.unrealized)).append("</td>");
-            html.append("<td>").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+            html.append("<td class=\"").append(escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
+            html.append("<td class=\"").append(escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
             html.append("</tr>\n");
         }
         html.append("</table>\n</div>\n");
@@ -2417,6 +2503,20 @@ public class ReportWriter {
 
     private static String renderConvertibleMoneyCellWithId(String id, Map<String, Double> buckets, int decimals, Map<String, Double> ratesToNok) {
         return "<span id=\"" + escapeHtml(id) + "\" class=\"js-convert-money\" data-buckets=\""
+                + escapeHtml(toBucketsJson(buckets))
+                + "\" data-decimals=\""
+                + decimals
+                + "\">"
+                + formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, decimals, ratesToNok)
+                + "</span>";
+    }
+
+    private static String renderConvertibleMoneyCellWithId(String id, String extraClass, Map<String, Double> buckets, int decimals, Map<String, Double> ratesToNok) {
+        String classes = "js-convert-money";
+        if (extraClass != null && !extraClass.isBlank()) {
+            classes += " " + extraClass.trim();
+        }
+        return "<span id=\"" + escapeHtml(id) + "\" class=\"" + classes + "\" data-buckets=\""
                 + escapeHtml(toBucketsJson(buckets))
                 + "\" data-decimals=\""
                 + decimals
@@ -2793,8 +2893,18 @@ public class ReportWriter {
         writer.write("  var dayChartCell = row.querySelector('.js-row-day-chart');\n");
         writer.write("  if (priceCell) priceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n");
         writer.write("  if (marketCell) marketCell.textContent = formatMoneyValue(marketValue, currency, 2);\n");
-        writer.write("  if (unrealizedCell) unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2) + ' (' + formatPercentValue(unrealizedPct, 2) + ')';\n");
-        writer.write("  if (totalReturnCell) totalReturnCell.textContent = formatMoneyValue(totalReturn, currency, 2) + ' (' + formatPercentValue(totalReturnPct, 2) + ')';\n");
+        writer.write("  if (unrealizedCell) {\n");
+        writer.write("    unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2) + ' (' + formatPercentValue(unrealizedPct, 2) + ')';\n");
+        writer.write("    unrealizedCell.classList.remove('positive', 'negative');\n");
+        writer.write("    if (unrealized > 0) unrealizedCell.classList.add('positive');\n");
+        writer.write("    else if (unrealized < 0) unrealizedCell.classList.add('negative');\n");
+        writer.write("  }\n");
+        writer.write("  if (totalReturnCell) {\n");
+        writer.write("    totalReturnCell.textContent = formatMoneyValue(totalReturn, currency, 2) + ' (' + formatPercentValue(totalReturnPct, 2) + ')';\n");
+        writer.write("    totalReturnCell.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalReturn > 0) totalReturnCell.classList.add('positive');\n");
+        writer.write("    else if (totalReturn < 0) totalReturnCell.classList.add('negative');\n");
+        writer.write("  }\n");
         writer.write("  if (fundamentalsPriceCell) fundamentalsPriceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n");
         writer.write("  if (dayChangeCell) {\n");
         writer.write("    if (hasDayChange && Number.isFinite(dayChangePct)) {\n");
@@ -2923,6 +3033,7 @@ public class ReportWriter {
         writer.write("  if (overviewRealizedPct) overviewRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
         writer.write("  if (overviewTotalPct) overviewTotalPct.textContent = formatPercentValue(totalReturnPct, 2);\n");
         writer.write("  var holdingsDayChangePct = document.getElementById('holdings-total-day-change-pct');\n");
+        writer.write("  var holdingsDayChangeValue = document.getElementById('holdings-total-day-change-value');\n");
         writer.write("  if (holdingsDayChangePct) {\n");
         writer.write("    holdingsDayChangePct.classList.remove('positive', 'negative');\n");
         writer.write("    if (previousDayValueNok > 0 && Number.isFinite(dayChangePct)) {\n");
@@ -2933,26 +3044,67 @@ public class ReportWriter {
         writer.write("      holdingsDayChangePct.textContent = '-';\n");
         writer.write("    }\n");
         writer.write("  }\n");
+        writer.write("  if (holdingsDayChangeValue) {\n");
+        writer.write("    holdingsDayChangeValue.classList.remove('positive', 'negative');\n");
+        writer.write("    if (dayChangeNok > 0) holdingsDayChangeValue.classList.add('positive');\n");
+        writer.write("    else if (dayChangeNok < 0) holdingsDayChangeValue.classList.add('negative');\n");
+        writer.write("  }\n");
         writer.write("  var holdingsUnrealizedPct = document.getElementById('holdings-total-unrealized-pct');\n");
+        writer.write("  var holdingsUnrealizedPctWrap = document.getElementById('holdings-total-unrealized-pct-wrap');\n");
+        writer.write("  var holdingsUnrealizedValue = document.getElementById('holdings-total-unrealized-value');\n");
         writer.write("  if (holdingsUnrealizedPct) {\n");
         writer.write("    holdingsUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n");
         writer.write("    holdingsUnrealizedPct.classList.remove('positive', 'negative');\n");
         writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedPct.classList.add('positive');\n");
         writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedPct.classList.add('negative');\n");
         writer.write("  }\n");
+        writer.write("  if (holdingsUnrealizedPctWrap) {\n");
+        writer.write("    holdingsUnrealizedPctWrap.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedPctWrap.classList.add('positive');\n");
+        writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedPctWrap.classList.add('negative');\n");
+        writer.write("  }\n");
+        writer.write("  if (holdingsUnrealizedValue) {\n");
+        writer.write("    holdingsUnrealizedValue.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedValue.classList.add('positive');\n");
+        writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedValue.classList.add('negative');\n");
+        writer.write("  }\n");
         writer.write("  var holdingsRealizedPct = document.getElementById('holdings-total-realized-pct');\n");
+        writer.write("  var holdingsRealizedPctWrap = document.getElementById('holdings-total-realized-pct-wrap');\n");
+        writer.write("  var holdingsRealizedValue = document.getElementById('holdings-total-realized-value');\n");
         writer.write("  if (holdingsRealizedPct) {\n");
         writer.write("    holdingsRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
         writer.write("    holdingsRealizedPct.classList.remove('positive', 'negative');\n");
         writer.write("    if (totalRealizedNok > 0) holdingsRealizedPct.classList.add('positive');\n");
         writer.write("    else if (totalRealizedNok < 0) holdingsRealizedPct.classList.add('negative');\n");
         writer.write("  }\n");
+        writer.write("  if (holdingsRealizedPctWrap) {\n");
+        writer.write("    holdingsRealizedPctWrap.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalRealizedNok > 0) holdingsRealizedPctWrap.classList.add('positive');\n");
+        writer.write("    else if (totalRealizedNok < 0) holdingsRealizedPctWrap.classList.add('negative');\n");
+        writer.write("  }\n");
+        writer.write("  if (holdingsRealizedValue) {\n");
+        writer.write("    holdingsRealizedValue.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalRealizedNok > 0) holdingsRealizedValue.classList.add('positive');\n");
+        writer.write("    else if (totalRealizedNok < 0) holdingsRealizedValue.classList.add('negative');\n");
+        writer.write("  }\n");
         writer.write("  var holdingsTotalReturnPct = document.getElementById('holdings-total-total-return-pct');\n");
+        writer.write("  var holdingsTotalReturnPctWrap = document.getElementById('holdings-total-total-return-pct-wrap');\n");
+        writer.write("  var holdingsTotalReturnValue = document.getElementById('holdings-total-total-return-value');\n");
         writer.write("  if (holdingsTotalReturnPct) {\n");
         writer.write("    holdingsTotalReturnPct.textContent = formatPercentValue(totalReturnPct, 2);\n");
         writer.write("    holdingsTotalReturnPct.classList.remove('positive', 'negative');\n");
         writer.write("    if (totalReturnNok > 0) holdingsTotalReturnPct.classList.add('positive');\n");
         writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnPct.classList.add('negative');\n");
+        writer.write("  }\n");
+        writer.write("  if (holdingsTotalReturnPctWrap) {\n");
+        writer.write("    holdingsTotalReturnPctWrap.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalReturnNok > 0) holdingsTotalReturnPctWrap.classList.add('positive');\n");
+        writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnPctWrap.classList.add('negative');\n");
+        writer.write("  }\n");
+        writer.write("  if (holdingsTotalReturnValue) {\n");
+        writer.write("    holdingsTotalReturnValue.classList.remove('positive', 'negative');\n");
+        writer.write("    if (totalReturnNok > 0) holdingsTotalReturnValue.classList.add('positive');\n");
+        writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnValue.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  var heroTotalReturn = document.getElementById('hero-total-return-value');\n");
         writer.write("  var heroTotalReturnPct = document.getElementById('hero-total-return-pct');\n");
@@ -2966,11 +3118,13 @@ public class ReportWriter {
         writer.write("    var fullHistoricalNok = Number(convertBucketsToCurrency(fullHistoricalBuckets, 'NOK') || 0);\n");
         writer.write("    var fullReturnPct = fullHistoricalNok > 0 ? (fullReturnNok / fullHistoricalNok) * 100 : 0;\n");
         writer.write("    heroTotalReturn.classList.remove('positive', 'negative');\n");
-        writer.write("    heroTotalReturn.classList.add(fullReturnNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (fullReturnNok > 0) heroTotalReturn.classList.add('positive');\n");
+        writer.write("    else if (fullReturnNok < 0) heroTotalReturn.classList.add('negative');\n");
         writer.write("    if (heroTotalReturnPct) {\n");
         writer.write("      heroTotalReturnPct.textContent = formatPercentValue(fullReturnPct, 2);\n");
         writer.write("      heroTotalReturnPct.classList.remove('positive', 'negative');\n");
-        writer.write("      heroTotalReturnPct.classList.add(fullReturnNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("      if (fullReturnNok > 0) heroTotalReturnPct.classList.add('positive');\n");
+        writer.write("      else if (fullReturnNok < 0) heroTotalReturnPct.classList.add('negative');\n");
         writer.write("    }\n");
         writer.write("  }\n");
         writer.write("  var heroDividends = document.getElementById('hero-dividends-value');\n");
@@ -2983,34 +3137,40 @@ public class ReportWriter {
         writer.write("  var heroDayChangePct = document.getElementById('hero-day-change-pct');\n");
         writer.write("  if (heroDayChangeValue) {\n");
         writer.write("    heroDayChangeValue.classList.remove('positive', 'negative');\n");
-        writer.write("    heroDayChangeValue.classList.add(dayChangeNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (dayChangeNok > 0) heroDayChangeValue.classList.add('positive');\n");
+        writer.write("    else if (dayChangeNok < 0) heroDayChangeValue.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  if (heroDayChangePct) {\n");
         writer.write("    heroDayChangePct.textContent = formatPercentValue(dayChangePct, 2);\n");
         writer.write("    heroDayChangePct.classList.remove('positive', 'negative');\n");
-        writer.write("    heroDayChangePct.classList.add(dayChangeNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (dayChangeNok > 0) heroDayChangePct.classList.add('positive');\n");
+        writer.write("    else if (dayChangeNok < 0) heroDayChangePct.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  var heroUnrealizedValue = document.getElementById('hero-unrealized-value');\n");
         writer.write("  var heroUnrealizedPct = document.getElementById('hero-unrealized-pct');\n");
         writer.write("  if (heroUnrealizedValue) {\n");
         writer.write("    heroUnrealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    heroUnrealizedValue.classList.add(totalUnrealizedNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (totalUnrealizedNok > 0) heroUnrealizedValue.classList.add('positive');\n");
+        writer.write("    else if (totalUnrealizedNok < 0) heroUnrealizedValue.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  if (heroUnrealizedPct) {\n");
         writer.write("    heroUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n");
         writer.write("    heroUnrealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    heroUnrealizedPct.classList.add(totalUnrealizedNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (totalUnrealizedNok > 0) heroUnrealizedPct.classList.add('positive');\n");
+        writer.write("    else if (totalUnrealizedNok < 0) heroUnrealizedPct.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  var heroRealizedValue = document.getElementById('hero-realized-value');\n");
         writer.write("  var heroRealizedPct = document.getElementById('hero-realized-pct');\n");
         writer.write("  if (heroRealizedValue) {\n");
         writer.write("    heroRealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    heroRealizedValue.classList.add(totalRealizedNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (totalRealizedNok > 0) heroRealizedValue.classList.add('positive');\n");
+        writer.write("    else if (totalRealizedNok < 0) heroRealizedValue.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  if (heroRealizedPct) {\n");
         writer.write("    heroRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
         writer.write("    heroRealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    heroRealizedPct.classList.add(totalRealizedNok >= 0 ? 'positive' : 'negative');\n");
+        writer.write("    if (totalRealizedNok > 0) heroRealizedPct.classList.add('positive');\n");
+        writer.write("    else if (totalRealizedNok < 0) heroRealizedPct.classList.add('negative');\n");
         writer.write("  }\n");
         writer.write("  refreshPortfolioValueBuckets();\n");
         writer.write("  var activeCurrency = getActiveReportCurrency();\n");
