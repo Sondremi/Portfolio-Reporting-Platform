@@ -182,6 +182,10 @@ public class ReportWriter {
             writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n");
             writer.write("        .annual-headline-grid { margin-top:0; }\n");
             writer.write("        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n");
+            writer.write("        .report-standard .annual-summary-grid { grid-template-columns:repeat(8,minmax(0,1fr)); }\n");
+            writer.write("        .report-standard .annual-summary-grid > .kpi-card { grid-column:span 1; }\n");
+            writer.write("        .report-standard .annual-summary-grid > .kpi-card.kpi-card-wide { grid-column:span 2; }\n");
+            writer.write("        .report-standard .annual-summary-grid > .kpi-card.kpi-card-bestworst { grid-column:span 2; }\n");
             writer.write("        .report-standard .kpi-card { background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); border-color:#d4dfeb; color:#1f3549; }\n");
             writer.write("        .report-standard .kpi-label { color:#5b7288; }\n");
             writer.write("        .report-standard .kpi-value { color:#1f3549; }\n");
@@ -242,6 +246,8 @@ public class ReportWriter {
             writer.write("        .kpi-value { margin-top:2px; font-size:1.02rem; font-weight:700; color:#fff; }\n");
             writer.write("        .performer { margin-top:6px; font-size:.84rem; color:#dce8f3; }\n");
             writer.write("        .performer strong { display:block; font-size:.9rem; margin-bottom:2px; }\n");
+            writer.write("        .report-standard .kpi-card-bestworst .performer strong { white-space:nowrap; overflow-x:auto; overflow-y:hidden; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; }\n");
+            writer.write("        .report-standard .kpi-card-bestworst .performer strong::-webkit-scrollbar { display:none; width:0; height:0; }\n");
             writer.write("        .performer-metrics { display:block; }\n");
             writer.write("        .hero-side { position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
             writer.write("        .timeline-title-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }\n");
@@ -1432,7 +1438,7 @@ public class ReportWriter {
             + escapeHtml(toBucketsJson(cashBuckets)) + "\" data-base-buckets=\"" + escapeHtml(toBucketsJson(cashBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(cashBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div><div id=\"manual-cash-holdings-list\" class=\"manual-cash-holdings-list\"></div></article>\n");
 
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst</div><div class=\"performer " + bestClass + "\"><strong>"
+        writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst</div><div class=\"performer " + bestClass + "\"><strong>"
             + escapeHtml(s.bestLabel)
             + "</strong><span class=\"performer-metrics\"><span class=\"js-convert-money\" data-buckets=\""
             + escapeHtml(toBucketsJson(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn)))
@@ -1449,7 +1455,7 @@ public class ReportWriter {
         if (hasPctExtremes) {
             LinkedHashMap<String, Double> bestPctBuckets = singleCurrencyBuckets(bestPctCurrency, bestPctReturnAmount);
             LinkedHashMap<String, Double> worstPctBuckets = singleCurrencyBuckets(worstPctCurrency, worstPctReturnAmount);
-            writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer " + bestPctClass + "\"><strong>"
+            writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer " + bestPctClass + "\"><strong>"
                 + escapeHtml(bestPctLabel)
                 + "</strong><span class=\"performer-metrics\">"
                 + renderConvertibleMoneyCell(bestPctBuckets, 0, ratesToNok)
@@ -1463,7 +1469,7 @@ public class ReportWriter {
                 + HtmlFormatter.formatPercent(worstPctValue)
                 + "</span></div></article>\n");
         } else {
-            writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
+            writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
         }
         writer.write("</div>\n");
         String valueTimelineSvg = PortfolioCalculator.buildStandardPortfolioValueSparklineSvg(store, ratesToNok);
