@@ -642,9 +642,15 @@ public class PortfolioCalculator {
                     .append("</title>");
             } else {
                 String prefix = escapeHtmlAttribute(monthLabel + ": ");
+                String suffix = "";
+                if (metric == SparklineMetric.RETURN_NOK && Math.abs(baselineValue) > 1e-9) {
+                    double returnPctAtPoint = (displayValues[i] / baselineValue) * 100.0;
+                    suffix = " (" + String.format(Locale.US, "%.2f%%", returnPctAtPoint) + ")";
+                }
                 svg.append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(displayValues[i]))
-                    .append("\" data-format=\"compact\" data-prefix=\"").append(prefix).append("\">")
-                    .append(monthLabel).append(": ").append(formatCompactKroner(displayValues[i]))
+                    .append("\" data-format=\"compact\" data-prefix=\"").append(prefix)
+                    .append("\" data-suffix=\"").append(escapeHtmlAttribute(suffix)).append("\">")
+                    .append(monthLabel).append(": ").append(formatCompactKroner(displayValues[i])).append(suffix)
                     .append("</title>");
             }
             svg.append("</circle>");
@@ -1939,21 +1945,6 @@ public class PortfolioCalculator {
         String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"sparkline-widget\">\n");
-        html.append("<div class=\"sparkline-metric-controls\">\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn is-active\" data-metric=\"value\">Value</button>\n");
-        html.append("</div>\n");
-        html.append("<div class=\"sparkline-controls\">\n");
-        for (String range : byRange.keySet()) {
-            String active = range.equals(defaultRange) ? " is-active" : "";
-            html.append("<button type=\"button\" class=\"sparkline-range-btn")
-                .append(active)
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\">")
-                .append(range)
-                .append("</button>\n");
-        }
-        html.append("</div>\n");
 
         for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
             String range = entry.getKey();
@@ -1965,6 +1956,19 @@ public class PortfolioCalculator {
                 .append(buildPortfolioValueSparkline(entry.getValue(), SparklineMetric.VALUE))
                 .append("</div>\n");
         }
+
+            html.append("<div class=\"sparkline-controls sparkline-controls-bottom\">\n");
+            for (String range : byRange.keySet()) {
+                String active = range.equals(defaultRange) ? " is-active" : "";
+                html.append("<button type=\"button\" class=\"sparkline-range-btn")
+                .append(active)
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\">")
+                .append(range)
+                .append("</button>\n");
+            }
+            html.append("</div>\n");
 
         html.append("</div>\n");
         return html.toString();
@@ -1987,12 +1991,28 @@ public class PortfolioCalculator {
         String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"sparkline-widget\">\n");
-        html.append("<div class=\"sparkline-metric-controls\">\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn js-return-amount-label is-active\" data-metric=\"return-nok\">Return (NOK)</button>\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn\" data-metric=\"return-pct\">Return (%)</button>\n");
-        html.append("</div>\n");
+        html.append("<div class=\"sparkline-return-summary js-sparkline-return-summary\"></div>\n");
 
-        html.append("<div class=\"sparkline-controls\">\n");
+        for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
+            String range = entry.getKey();
+            ArrayList<PortfolioValuePoint> points = entry.getValue();
+            double rangeReturnNok = calculateRangeReturnNok(points);
+            double rangeReturnPct = calculateRangeReturnPct(points);
+
+            html.append("<div class=\"sparkline-panel")
+                .append(range.equals(defaultRange) ? " is-active" : "")
+                .append("\" data-range=\"")
+                .append(range)
+                .append("\" data-metric=\"return-nok\" data-return-nok=\"")
+                .append(svgNumber(rangeReturnNok))
+                .append("\" data-return-pct=\"")
+                .append(svgNumber(rangeReturnPct))
+                .append("\">\n")
+                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_NOK))
+                .append("</div>\n");
+        }
+
+        html.append("<div class=\"sparkline-controls sparkline-controls-bottom\">\n");
         for (String range : byRange.keySet()) {
             String active = range.equals(defaultRange) ? " is-active" : "";
             html.append("<button type=\"button\" class=\"sparkline-range-btn")
@@ -2004,25 +2024,6 @@ public class PortfolioCalculator {
                 .append("</button>\n");
         }
         html.append("</div>\n");
-
-        for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
-            String range = entry.getKey();
-            ArrayList<PortfolioValuePoint> points = entry.getValue();
-
-            html.append("<div class=\"sparkline-panel")
-                .append(range.equals(defaultRange) ? " is-active" : "")
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\" data-metric=\"return-nok\">\n")
-                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_NOK))
-                .append("</div>\n");
-
-            html.append("<div class=\"sparkline-panel\" data-range=\"")
-                .append(range)
-                .append("\" data-metric=\"return-pct\">\n")
-                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_PCT))
-                .append("</div>\n");
-        }
 
         html.append("</div>\n");
         return html.toString();
@@ -2042,25 +2043,54 @@ public class PortfolioCalculator {
         String yearRangeKey = "YEAR";
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"sparkline-widget\">\n");
-        html.append("<div class=\"sparkline-metric-controls\">\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn js-return-amount-label is-active\" data-metric=\"return-nok\">Return (NOK)</button>\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn\" data-metric=\"return-pct\">Return (%)</button>\n");
-        html.append("</div>\n");
+        html.append("<div class=\"sparkline-return-summary js-sparkline-return-summary\"></div>\n");
+
+        double yearReturnNok = calculateRangeReturnNok(yearPoints);
+        double yearReturnPct = calculateRangeReturnPct(yearPoints);
 
         html.append("<div class=\"sparkline-panel is-active\" data-range=\"")
             .append(yearRangeKey)
-            .append("\" data-metric=\"return-nok\">\n")
+            .append("\" data-metric=\"return-nok\" data-return-nok=\"")
+            .append(svgNumber(yearReturnNok))
+            .append("\" data-return-pct=\"")
+            .append(svgNumber(yearReturnPct))
+            .append("\">\n")
             .append(buildPortfolioValueSparkline(yearPoints, SparklineMetric.RETURN_NOK))
-            .append("</div>\n");
-
-        html.append("<div class=\"sparkline-panel\" data-range=\"")
-            .append(yearRangeKey)
-            .append("\" data-metric=\"return-pct\">\n")
-            .append(buildPortfolioValueSparkline(yearPoints, SparklineMetric.RETURN_PCT))
             .append("</div>\n");
 
         html.append("</div>\n");
         return html.toString();
+    }
+
+    private static double calculateRangeReturnNok(ArrayList<PortfolioValuePoint> points) {
+        if (points == null || points.size() < 2) {
+            return 0.0;
+        }
+        PortfolioValuePoint start = points.get(0);
+        PortfolioValuePoint end = points.get(points.size() - 1);
+        double startValue = start.value;
+        double startFactor = 1.0 + (start.twrCumulativeReturnPct / 100.0);
+        double endFactor = 1.0 + (end.twrCumulativeReturnPct / 100.0);
+        if (!Double.isFinite(startValue) || startValue <= 0.0
+                || !Double.isFinite(startFactor) || Math.abs(startFactor) < 1e-12
+                || !Double.isFinite(endFactor)) {
+            return 0.0;
+        }
+        return startValue * ((endFactor / startFactor) - 1.0);
+    }
+
+    private static double calculateRangeReturnPct(ArrayList<PortfolioValuePoint> points) {
+        if (points == null || points.size() < 2) {
+            return 0.0;
+        }
+        PortfolioValuePoint start = points.get(0);
+        PortfolioValuePoint end = points.get(points.size() - 1);
+        double startFactor = 1.0 + (start.twrCumulativeReturnPct / 100.0);
+        double endFactor = 1.0 + (end.twrCumulativeReturnPct / 100.0);
+        if (!Double.isFinite(startFactor) || Math.abs(startFactor) < 1e-12 || !Double.isFinite(endFactor)) {
+            return 0.0;
+        }
+        return ((endFactor / startFactor) - 1.0) * 100.0;
     }
 
     public static OneYearChangeSummary buildStandardTrailingOneYearChangeSummary(
