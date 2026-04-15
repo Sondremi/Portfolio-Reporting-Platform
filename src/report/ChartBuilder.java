@@ -75,7 +75,7 @@ public class ChartBuilder {
         double chartZeroY = Math.max(top, Math.min(top + plotHeight, zeroY));
 
         StringBuilder svg = new StringBuilder();
-        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+        svg.append("<svg class=\"chart-svg total-return-bar-chart\" viewBox=\"0 0 ")
                 .append(svgNumber(width))
                 .append(" ")
                 .append(svgNumber(height))
@@ -95,7 +95,7 @@ public class ChartBuilder {
             .append("</filter>")
             .append("</defs>\n");
 
-        svg.append("<rect x=\"").append(svgNumber(left)).append("\" y=\"").append(svgNumber(top))
+        svg.append("<rect class=\"tr-plot-bg\" x=\"").append(svgNumber(left)).append("\" y=\"").append(svgNumber(top))
             .append("\" width=\"").append(svgNumber(plotWidth)).append("\" height=\"").append(svgNumber(plotHeight))
             .append("\" rx=\"8\" fill=\"#f6fbff\" stroke=\"#d6e1ed\" stroke-width=\"1\"/>\n");
 
@@ -104,17 +104,17 @@ public class ChartBuilder {
             double tickValue = maxValue - ((valueRange / tickCount) * i);
             double y = mapValueToY(tickValue, minValue, maxValue, top, plotHeight);
 
-            svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(y))
+            svg.append("<line class=\"tr-grid-line\" x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(y))
                     .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(y))
                 .append("\" stroke=\"#d8e3ee\" stroke-width=\"1.15\"/>\n");
 
                 if (percentChart) {
-                svg.append("<text x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
+                svg.append("<text class=\"tr-axis-label\" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
                     .append("\" text-anchor=\"end\" font-size=\"12\" font-weight=\"600\" fill=\"#496077\">")
                     .append(escapeHtml(formatChartValue(tickValue, true, true)))
                     .append("</text>\n");
                 } else {
-                svg.append("<text class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(tickValue)).append("\" data-decimals=\"0\"")
+                svg.append("<text class=\"js-chart-money tr-axis-label\" data-value-nok=\"").append(svgNumber(tickValue)).append("\" data-decimals=\"0\"")
                     .append(" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
                     .append("\" text-anchor=\"end\" font-size=\"12\" font-weight=\"600\" fill=\"#496077\">")
                     .append(escapeHtml(formatNumber(tickValue, 0) + " NOK"))
@@ -122,7 +122,7 @@ public class ChartBuilder {
                 }
         }
 
-        svg.append("<rect x=\"").append(svgNumber(left)).append("\" y=\"").append(svgNumber(top))
+        svg.append("<rect class=\"tr-plot-border\" x=\"").append(svgNumber(left)).append("\" y=\"").append(svgNumber(top))
                 .append("\" width=\"").append(svgNumber(plotWidth)).append("\" height=\"").append(svgNumber(plotHeight))
                 .append("\" fill=\"none\" stroke=\"#b9c8d7\" stroke-width=\"1.2\"/>\n");
 
@@ -175,10 +175,10 @@ public class ChartBuilder {
                     .append("</text>\n");
         }
 
-        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(chartZeroY))
+        svg.append("<line class=\"tr-axis-line\" x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(chartZeroY))
                 .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(chartZeroY))
             .append("\" stroke=\"#4d6073\" stroke-width=\"1.65\"/>\n");
-        svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
+        svg.append("<line class=\"tr-axis-line\" x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top))
                 .append("\" x2=\"").append(svgNumber(left)).append("\" y2=\"").append(svgNumber(top + plotHeight))
             .append("\" stroke=\"#4d6073\" stroke-width=\"1.65\"/>\n");
 
