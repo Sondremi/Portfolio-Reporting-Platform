@@ -1925,7 +1925,21 @@ public class PortfolioCalculator {
             return "";
         }
 
-        return buildPortfolioValueSparkline(yearPoints, SparklineMetric.VALUE);
+        double yearGrowthNok = calculateRangeGrowthNok(yearPoints);
+        double yearGrowthPct = calculateRangeGrowthPct(yearPoints);
+
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"sparkline-widget\">\n");
+        html.append("<div class=\"sparkline-return-summary js-sparkline-growth-summary\"></div>\n");
+        html.append("<div class=\"sparkline-panel is-active\" data-range=\"YEAR\" data-metric=\"value\" data-growth-nok=\"")
+            .append(svgNumber(yearGrowthNok))
+            .append("\" data-growth-pct=\"")
+            .append(svgNumber(yearGrowthPct))
+            .append("\">\n")
+            .append(buildPortfolioValueSparkline(yearPoints, SparklineMetric.VALUE))
+            .append("</div>\n");
+        html.append("</div>\n");
+        return html.toString();
     }
 
     public static String buildStandardPortfolioValueSparklineSvg(
@@ -1945,15 +1959,23 @@ public class PortfolioCalculator {
         String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"sparkline-widget\">\n");
+        html.append("<div class=\"sparkline-return-summary js-sparkline-growth-summary\"></div>\n");
 
         for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
             String range = entry.getKey();
+            ArrayList<PortfolioValuePoint> points = entry.getValue();
+            double rangeGrowthNok = calculateRangeGrowthNok(points);
+            double rangeGrowthPct = calculateRangeGrowthPct(points);
             html.append("<div class=\"sparkline-panel")
                 .append(range.equals(defaultRange) ? " is-active" : "")
                 .append("\" data-range=\"")
                 .append(range)
+                .append("\" data-growth-nok=\"")
+                .append(svgNumber(rangeGrowthNok))
+                .append("\" data-growth-pct=\"")
+                .append(svgNumber(rangeGrowthPct))
                 .append("\" data-metric=\"value\">\n")
-                .append(buildPortfolioValueSparkline(entry.getValue(), SparklineMetric.VALUE))
+                .append(buildPortfolioValueSparkline(points, SparklineMetric.VALUE))
                 .append("</div>\n");
         }
 
@@ -2091,6 +2113,30 @@ public class PortfolioCalculator {
             return 0.0;
         }
         return ((endFactor / startFactor) - 1.0) * 100.0;
+    }
+
+    private static double calculateRangeGrowthNok(ArrayList<PortfolioValuePoint> points) {
+        if (points == null || points.size() < 2) {
+            return 0.0;
+        }
+        PortfolioValuePoint start = points.get(0);
+        PortfolioValuePoint end = points.get(points.size() - 1);
+        if (!Double.isFinite(start.value) || !Double.isFinite(end.value)) {
+            return 0.0;
+        }
+        return end.value - start.value;
+    }
+
+    private static double calculateRangeGrowthPct(ArrayList<PortfolioValuePoint> points) {
+        if (points == null || points.size() < 2) {
+            return 0.0;
+        }
+        PortfolioValuePoint start = points.get(0);
+        PortfolioValuePoint end = points.get(points.size() - 1);
+        if (!Double.isFinite(start.value) || !Double.isFinite(end.value) || Math.abs(start.value) < 1e-9) {
+            return 0.0;
+        }
+        return ((end.value - start.value) / start.value) * 100.0;
     }
 
     public static OneYearChangeSummary buildStandardTrailingOneYearChangeSummary(
