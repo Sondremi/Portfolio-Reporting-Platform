@@ -1178,7 +1178,7 @@ public class ReportWriter {
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
-                String tickerToggle = "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>";
+                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
                 String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
@@ -2076,7 +2076,7 @@ public class ReportWriter {
                 String detailsRowId = "realized-details-" + detailsIndex;
                 String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
 
-                String tickerToggle = "<span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span>";
+                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
                 String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
