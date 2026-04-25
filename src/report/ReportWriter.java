@@ -1244,7 +1244,8 @@ public class ReportWriter {
         } catch (Exception ignored) {
             reportYear = defaultYear;
         }
-        reportYear = Math.max(2000, Math.min(2100, reportYear));
+        int currentYear = LocalDate.now().getYear();
+        reportYear = Math.max(2000, Math.min(currentYear, reportYear));
 
         String benchmarkTicker = System.getProperty("portfolio.report.benchmark", "^OSEAX");
         if (benchmarkTicker == null || benchmarkTicker.isBlank()) {
