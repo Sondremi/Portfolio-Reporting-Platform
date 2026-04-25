@@ -267,7 +267,7 @@ public class ChartBuilder {
             double y = mapValueToY(marketValueNok, 0.0, maxValue, top, plotHeight);
             double barHeight = (top + plotHeight) - y;
 
-            String color = getAllocationColor(i);
+            String color = getAllocationColor(i, rowsWithValue.size());
             String label = getCompactBarLabel(row);
 
                 svg.append("<rect class=\"chart-hover-target chart-hover-bar\" x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(y))
@@ -339,7 +339,7 @@ public class ChartBuilder {
             double fraction = marketValueNok / totalMarketValue;
             double sliceAngle = fraction * Math.PI * 2.0;
             double endAngle = currentAngle + sliceAngle;
-            String color = getAllocationColor(i);
+            String color = getAllocationColor(i, rowsWithValue.size());
 
             double x1 = centerX + radius * Math.cos(currentAngle);
             double y1 = centerY + radius * Math.sin(currentAngle);
@@ -700,7 +700,7 @@ public class ChartBuilder {
             double fraction = bucket.value / totalMarketValue;
             double sliceAngle = fraction * Math.PI * 2.0;
             double endAngle = currentAngle + sliceAngle;
-            String color = getAllocationColor(i);
+            String color = getAllocationColor(i, buckets.size());
 
             double x1 = centerX + radius * Math.cos(currentAngle);
             double y1 = centerY + radius * Math.sin(currentAngle);
@@ -744,7 +744,7 @@ public class ChartBuilder {
             double pctX = useTwoColumns
                     ? (columnIndex == 0 ? 214.0 : (width - 16.0))
                     : (width - 16.0);
-            String color = getAllocationColor(i);
+            String color = getAllocationColor(i, buckets.size());
             String displayLabel = abbreviateLegendLabel(bucket.label, useTwoColumns ? 22 : 36);
 
             svg.append("<circle cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
@@ -891,11 +891,32 @@ public class ChartBuilder {
         return fullLabel.substring(0, 23) + "...";
     }
 
-    private static String getAllocationColor(int index) {
+    private static String getAllocationColor(int index, int totalCount) {
         String[] palette = new String[] {
-                "#0a5a8f", "#1f7a3f", "#d97706", "#b42318", "#0f766e", "#1d4ed8", "#9a3412", "#0e7490", "#4d7c0f", "#7c2d12"
+                "#1E3A8A", "#047857", "#C2410C", "#B91C1C", "#0F766E",
+                "#1D4ED8", "#4C1D95", "#334155", "#0E7490", "#A16207",
+                "#166534", "#7C2D12"
         };
-        return palette[index % palette.length];
+        if (palette.length == 0) {
+            return "#1E3A8A";
+        }
+
+        int safeIndex = Math.max(0, index);
+        int colorIndex = safeIndex % palette.length;
+
+        if (totalCount > 1) {
+            int firstColorIndex = 0;
+            int previousColorIndex = (safeIndex - 1 + palette.length) % palette.length;
+
+            if (safeIndex == totalCount - 1 && colorIndex == firstColorIndex) {
+                colorIndex = (colorIndex + 1) % palette.length;
+            }
+            if (safeIndex > 0 && colorIndex == previousColorIndex) {
+                colorIndex = (colorIndex + 1) % palette.length;
+            }
+        }
+
+        return palette[colorIndex];
     }
 
     private static void adjustPieLabelPositions(List<PieSliceLabel> labels, boolean rightSide,
