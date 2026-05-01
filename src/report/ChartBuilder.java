@@ -19,6 +19,18 @@ public class ChartBuilder {
         }
     }
 
+    private static final class AllocationLegendEntry {
+        private final String label;
+        private final double pct;
+        private final String color;
+
+        private AllocationLegendEntry(String label, double pct, String color) {
+            this.label = label;
+            this.pct = pct;
+            this.color = color;
+        }
+    }
+
     private static final class PieSliceLabel {
         private final boolean rightSide;
         private final String color;
@@ -37,6 +49,16 @@ public class ChartBuilder {
             this.anchorY = anchorY;
             this.bendX = bendX;
             this.labelY = labelY;
+        }
+    }
+
+    private static final class SecurityShare {
+        private final String label;
+        private final double value;
+
+        private SecurityShare(String label, double value) {
+            this.label = label;
+            this.value = value;
         }
     }
 
@@ -417,22 +439,27 @@ public class ChartBuilder {
         int cashCount = cashValue > 0.0 ? 1 : 0;
         int cashDebtCount = cashDebtValue > 0.0 ? 1 : 0;
         int otherCount = 0;
+        Map<String, List<SecurityShare>> securityByAssetType = new LinkedHashMap<>();
 
         for (OverviewRow row : rows) {
             double marketValueNok = convertToNok(row.marketValue, row.currencyCode, ratesToNok);
             if (marketValueNok <= 0.0) continue;
+            String securityLabel = getOverviewRowLabel(row);
             switch (row.assetType) {
                 case "STOCK" -> {
                     stockValue += marketValueNok;
                     stockCount++;
+                    appendSecurityShare(securityByAssetType, "Stocks", securityLabel, marketValueNok);
                 }
                 case "FUND" -> {
                     fundValue += marketValueNok;
                     fundCount++;
+                    appendSecurityShare(securityByAssetType, "Funds", securityLabel, marketValueNok);
                 }
                 default -> {
                     otherValue += marketValueNok;
                     otherCount++;
+                    appendSecurityShare(securityByAssetType, "Other", securityLabel, marketValueNok);
                 }
             }
         }
@@ -452,40 +479,50 @@ public class ChartBuilder {
         List<String> labels = new ArrayList<>();
         List<Double> values = new ArrayList<>();
         List<String> colors = new ArrayList<>();
+        List<Boolean> drilldownDisabled = new ArrayList<>();
 
         if (stockValue > 0.0) {
             labels.add("Stocks");
             values.add(stockValue);
             colors.add("#1c7ed6");
+            drilldownDisabled.add(false);
         }
         if (fundValue > 0.0) {
             labels.add("Funds");
             values.add(fundValue);
             colors.add("#2f9e44");
+            drilldownDisabled.add(false);
         }
         if (cashValue > 0.0) {
             labels.add("Cash");
             values.add(cashValue);
             colors.add("#f59f00");
+            drilldownDisabled.add(true);
         }
         if (cashDebtValue > 0.0) {
             labels.add("Cash (Debt)");
             values.add(cashDebtValue);
             colors.add("#e03131");
+            drilldownDisabled.add(true);
         }
         if (otherValue > 0.0) {
             labels.add("Other");
             values.add(otherValue);
             colors.add("#868e96");
+            drilldownDisabled.add(false);
         }
 
         StringBuilder svg = new StringBuilder();
-        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+        svg.append("<svg class=\"chart-svg\" data-allocation-drilldown=\"1\" viewBox=\"0 0 ")
                 .append(svgNumber(width)).append(" ").append(svgNumber(height))
                 .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
 
         if (values.size() == 1) {
-                svg.append("<circle class=\"chart-hover-target chart-hover-slice\" cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
+                String singleItemsJson = toJsonLegendItems(securityByAssetType.get(labels.get(0)), totalValue);
+                svg.append("<circle class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(labels.get(0)))
+                    .append("\" data-drilldown-items=\"").append(escapeHtml(singleItemsJson)).append("\"")
+                    .append(drilldownDisabled.get(0) ? " data-drilldown-disabled=\"1\"" : "")
+                    .append(" cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
                     .append("\" r=\"").append(svgNumber(radius)).append("\" fill=\"").append(colors.get(0)).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(values.get(0))).append("\" data-decimals=\"2\" data-prefix=\"")
                     .append(escapeHtml(labels.get(0) + ": "))
@@ -507,7 +544,11 @@ public class ChartBuilder {
                 double y2 = centerY + radius * Math.sin(endAngle);
                 int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
-                svg.append("<path class=\"chart-hover-target chart-hover-slice\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                String itemsJson = toJsonLegendItems(securityByAssetType.get(labels.get(i)), totalValue);
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(labels.get(i)))
+                        .append("\" data-drilldown-items=\"").append(escapeHtml(itemsJson)).append("\"")
+                        .append(drilldownDisabled.get(i) ? " data-drilldown-disabled=\"1\"" : "")
+                        .append(" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                         .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                         .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                         .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
@@ -532,62 +573,24 @@ public class ChartBuilder {
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
                 .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#666\">Asset Mix</text>\n");
 
-        List<String> legendLabels = new ArrayList<>();
-        List<Double> legendPcts = new ArrayList<>();
-        List<String> legendColors = new ArrayList<>();
+        List<AllocationLegendEntry> legendEntries = new ArrayList<>();
 
         if (stockCount > 0) {
-            legendLabels.add("Stocks: " + stockCount);
-            legendPcts.add(stockPct);
-            legendColors.add("#1c7ed6");
+            legendEntries.add(new AllocationLegendEntry("Stocks: " + stockCount, stockPct, "#1c7ed6"));
         }
         if (fundCount > 0) {
-            legendLabels.add("Funds: " + fundCount);
-            legendPcts.add(fundPct);
-            legendColors.add("#2f9e44");
+            legendEntries.add(new AllocationLegendEntry("Funds: " + fundCount, fundPct, "#2f9e44"));
         }
         if (cashCount > 0) {
-            legendLabels.add("Cash");
-            legendPcts.add(cashPct);
-            legendColors.add("#f59f00");
+            legendEntries.add(new AllocationLegendEntry("Cash", cashPct, "#f59f00"));
         }
         if (cashDebtCount > 0) {
-            legendLabels.add("Cash (Debt)");
-            legendPcts.add(cashDebtPct);
-            legendColors.add("#e03131");
+            legendEntries.add(new AllocationLegendEntry("Cash (Debt)", cashDebtPct, "#e03131"));
         }
         if (otherCount > 0) {
-            legendLabels.add("Other: " + otherCount);
-            legendPcts.add(otherPct);
-            legendColors.add("#868e96");
+            legendEntries.add(new AllocationLegendEntry("Other: " + otherCount, otherPct, "#868e96"));
         }
-
-        boolean useTwoColumns = legendLabels.size() > 4;
-        int rowsPerColumn = useTwoColumns ? (legendLabels.size() + 1) / 2 : legendLabels.size();
-        double legendYStart = summaryY + 18.0;
-        double legendBottomY = height - 14.0;
-        double legendRowGap = computeLegendRowGap(rowsPerColumn, legendYStart, legendBottomY, 15.0);
-        for (int i = 0; i < legendLabels.size(); i++) {
-            int columnIndex = (useTwoColumns && i >= rowsPerColumn) ? 1 : 0;
-            int rowIndex = useTwoColumns ? (i % rowsPerColumn) : i;
-            double y = legendYStart + (rowIndex * legendRowGap);
-            double dotX = columnIndex == 0 ? 22.0 : 228.0;
-            double labelX = dotX + 9.0;
-            double pctX = useTwoColumns
-                    ? (columnIndex == 0 ? 214.0 : (width - 16.0))
-                    : (width - 16.0);
-            String displayLabel = abbreviateLegendLabel(legendLabels.get(i), useTwoColumns ? 14 : 24);
-
-            svg.append("<circle cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
-                    .append(legendColors.get(i)).append("\"/>\n");
-            svg.append("<text x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
-                    .append(escapeHtml(displayLabel))
-                    .append("</text>\n");
-            svg.append("<text x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
-                    .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
-                    .append(escapeHtml(formatNumber(legendPcts.get(i), 1) + "%"))
-                    .append("</text>\n");
-        }
+        appendAllocationLegend(svg, legendEntries, width, height, summaryY, 4, 14, 24);
 
         svg.append("</svg>\n");
         return svg.toString();
@@ -611,12 +614,14 @@ public class ChartBuilder {
         final double radius = 98.0;
 
         LinkedHashMap<String, Double> valueByCategory = new LinkedHashMap<>();
+        LinkedHashMap<String, Map<String, Double>> securityValueByCategory = new LinkedHashMap<>();
         double totalMarketValue = 0.0;
         for (OverviewRow row : rows) {
             double marketValueNok = convertToNok(row.marketValue, row.currencyCode, ratesToNok);
             if (marketValueNok <= 0.0) {
                 continue;
             }
+            String securityLabel = getOverviewRowLabel(row);
 
             if (sectorChart && row.sectorWeights != null && !row.sectorWeights.isEmpty()) {
                 double totalWeight = 0.0;
@@ -638,6 +643,7 @@ public class ChartBuilder {
                                 : entry.getKey();
                         double weightedValue = marketValueNok * (weight / totalWeight);
                         valueByCategory.merge(sectorLabel, weightedValue, Double::sum);
+                        mergeSecurityValue(securityValueByCategory, sectorLabel, securityLabel, weightedValue);
                     }
 
                     totalMarketValue += marketValueNok;
@@ -665,6 +671,7 @@ public class ChartBuilder {
                                 : entry.getKey();
                         double weightedValue = marketValueNok * (weight / totalWeight);
                         valueByCategory.merge(regionLabel, weightedValue, Double::sum);
+                        mergeSecurityValue(securityValueByCategory, regionLabel, securityLabel, weightedValue);
                     }
 
                     totalMarketValue += marketValueNok;
@@ -674,6 +681,7 @@ public class ChartBuilder {
 
             String category = sectorChart ? classifySector(row) : classifyRegion(row);
             valueByCategory.merge(category, marketValueNok, Double::sum);
+            mergeSecurityValue(securityValueByCategory, category, securityLabel, marketValueNok);
             totalMarketValue += marketValueNok;
         }
 
@@ -681,7 +689,7 @@ public class ChartBuilder {
         List<AllocationBucket> buckets = compactAllocationBuckets(valueByCategory, maxBuckets);
 
         StringBuilder svg = new StringBuilder();
-        svg.append("<svg class=\"chart-svg\" viewBox=\"0 0 ")
+        svg.append("<svg class=\"chart-svg\" data-allocation-drilldown=\"1\" viewBox=\"0 0 ")
                 .append(svgNumber(width)).append(" ").append(svgNumber(height))
                 .append("\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\">\n");
 
@@ -694,6 +702,7 @@ public class ChartBuilder {
             return svg.toString();
         }
 
+        Map<String, List<SecurityShare>> securityByBucket = buildSecuritySharesByBucket(securityValueByCategory, buckets);
         double currentAngle = -Math.PI / 2.0;
         for (int i = 0; i < buckets.size(); i++) {
             AllocationBucket bucket = buckets.get(i);
@@ -708,7 +717,9 @@ public class ChartBuilder {
             double y2 = centerY + radius * Math.sin(endAngle);
             int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
-                svg.append("<path class=\"chart-hover-target chart-hover-slice\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                String itemsJson = toJsonLegendItems(securityByBucket.get(bucket.label), totalMarketValue);
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(bucket.label))
+                    .append("\" data-drilldown-items=\"").append(escapeHtml(itemsJson)).append("\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                     .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                     .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
@@ -728,35 +739,14 @@ public class ChartBuilder {
                 .append(escapeHtml(centerTitle))
                 .append("</text>\n");
 
-        boolean useTwoColumns = buckets.size() > 6;
-        int rowsPerColumn = useTwoColumns ? (buckets.size() + 1) / 2 : buckets.size();
-        double legendYStart = summaryY + 18.0;
-        double legendBottomY = height - 14.0;
-        double legendRowGap = computeLegendRowGap(rowsPerColumn, legendYStart, legendBottomY, 15.0);
+        List<AllocationLegendEntry> legendEntries = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
             AllocationBucket bucket = buckets.get(i);
             double pct = (bucket.value / totalMarketValue) * 100.0;
-            int columnIndex = (useTwoColumns && i >= rowsPerColumn) ? 1 : 0;
-            int rowIndex = useTwoColumns ? (i % rowsPerColumn) : i;
-            double y = legendYStart + (rowIndex * legendRowGap);
-            double dotX = columnIndex == 0 ? 22.0 : 228.0;
-            double labelX = dotX + 9.0;
-            double pctX = useTwoColumns
-                    ? (columnIndex == 0 ? 214.0 : (width - 16.0))
-                    : (width - 16.0);
             String color = getAllocationColor(i, buckets.size());
-            String displayLabel = abbreviateLegendLabel(bucket.label, useTwoColumns ? 22 : 36);
-
-            svg.append("<circle cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0)).append("\" r=\"3.7\" fill=\"")
-                    .append(color).append("\"/>\n");
-            svg.append("<text x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y)).append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
-                    .append(escapeHtml(displayLabel))
-                    .append("</text>\n");
-            svg.append("<text x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
-                    .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
-                    .append(escapeHtml(formatNumber(pct, 1) + "%"))
-                    .append("</text>\n");
+            legendEntries.add(new AllocationLegendEntry(bucket.label, pct, color));
         }
+        appendAllocationLegend(svg, legendEntries, width, height, summaryY, 6, 22, 36);
 
         svg.append("</svg>\n");
         return svg.toString();
@@ -792,6 +782,121 @@ public class ChartBuilder {
             compacted.add(new AllocationBucket("Other", otherValue));
         }
         return compacted;
+    }
+
+    private static Map<String, List<SecurityShare>> buildSecuritySharesByBucket(
+            Map<String, Map<String, Double>> securityValueByCategory,
+            List<AllocationBucket> buckets) {
+        Map<String, List<SecurityShare>> securityByBucket = new LinkedHashMap<>();
+        Map<String, String> bucketByCategory = new LinkedHashMap<>();
+        for (AllocationBucket bucket : buckets) {
+            bucketByCategory.put(bucket.label, bucket.label);
+        }
+        for (String category : securityValueByCategory.keySet()) {
+            if (!bucketByCategory.containsKey(category)) {
+                bucketByCategory.put(category, "Other");
+            }
+        }
+
+        Map<String, Map<String, Double>> aggregate = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Double>> categoryEntry : securityValueByCategory.entrySet()) {
+            String category = categoryEntry.getKey();
+            String bucketLabel = bucketByCategory.getOrDefault(category, category);
+            Map<String, Double> bucketMap = aggregate.computeIfAbsent(bucketLabel, key -> new LinkedHashMap<>());
+            for (Map.Entry<String, Double> securityEntry : categoryEntry.getValue().entrySet()) {
+                bucketMap.merge(securityEntry.getKey(), securityEntry.getValue(), Double::sum);
+            }
+        }
+
+        for (AllocationBucket bucket : buckets) {
+            Map<String, Double> bucketMap = aggregate.get(bucket.label);
+            List<SecurityShare> shares = new ArrayList<>();
+            if (bucketMap != null) {
+                for (Map.Entry<String, Double> entry : bucketMap.entrySet()) {
+                    if (entry.getValue() > 0.0) {
+                        shares.add(new SecurityShare(entry.getKey(), entry.getValue()));
+                    }
+                }
+                shares.sort((a, b) -> Double.compare(b.value, a.value));
+            }
+            securityByBucket.put(bucket.label, shares);
+        }
+        return securityByBucket;
+    }
+
+    private static void mergeSecurityValue(Map<String, Map<String, Double>> target, String category,
+                                           String securityLabel, double value) {
+        if (value <= 0.0) {
+            return;
+        }
+        String safeCategory = (category == null || category.isBlank()) ? "Other" : category;
+        String safeLabel = (securityLabel == null || securityLabel.isBlank()) ? "-" : securityLabel;
+        Map<String, Double> bySecurity = target.computeIfAbsent(safeCategory, key -> new LinkedHashMap<>());
+        bySecurity.merge(safeLabel, value, Double::sum);
+    }
+
+    private static void appendSecurityShare(Map<String, List<SecurityShare>> target, String bucketLabel,
+                                            String securityLabel, double value) {
+        if (value <= 0.0) {
+            return;
+        }
+        String safeLabel = (securityLabel == null || securityLabel.isBlank()) ? "-" : securityLabel;
+        List<SecurityShare> shares = target.computeIfAbsent(bucketLabel, key -> new ArrayList<>());
+        shares.add(new SecurityShare(safeLabel, value));
+    }
+
+    private static String toJsonLegendItems(List<SecurityShare> shares, double totalValue) {
+        List<SecurityShare> safeShares = shares == null ? new ArrayList<>() : new ArrayList<>(shares);
+        safeShares.sort((a, b) -> Double.compare(b.value, a.value));
+        StringBuilder json = new StringBuilder();
+        json.append("[");
+        for (int i = 0; i < safeShares.size(); i++) {
+            SecurityShare share = safeShares.get(i);
+            double pct = totalValue > 0.0 ? (share.value / totalValue) * 100.0 : 0.0;
+            if (i > 0) {
+                json.append(",");
+            }
+            json.append("{\"label\":\"")
+                    .append(escapeJson(share.label))
+                    .append("\",\"pct\":")
+                    .append(svgNumber(pct))
+                    .append("}");
+        }
+        json.append("]");
+        return json.toString();
+    }
+
+    private static void appendAllocationLegend(StringBuilder svg, List<AllocationLegendEntry> entries,
+                                               double width, double height, double summaryY,
+                                               int twoColumnThreshold, int twoColumnMaxChars, int oneColumnMaxChars) {
+        boolean useTwoColumns = entries.size() > twoColumnThreshold;
+        int rowsPerColumn = useTwoColumns ? (entries.size() + 1) / 2 : entries.size();
+        double legendYStart = summaryY + 18.0;
+        double legendBottomY = height - 14.0;
+        double legendRowGap = computeLegendRowGap(rowsPerColumn, legendYStart, legendBottomY, 15.0);
+        for (int i = 0; i < entries.size(); i++) {
+            AllocationLegendEntry entry = entries.get(i);
+            int columnIndex = (useTwoColumns && i >= rowsPerColumn) ? 1 : 0;
+            int rowIndex = useTwoColumns ? (i % rowsPerColumn) : i;
+            double y = legendYStart + (rowIndex * legendRowGap);
+            double dotX = columnIndex == 0 ? 22.0 : 228.0;
+            double labelX = dotX + 9.0;
+            double pctX = useTwoColumns
+                    ? (columnIndex == 0 ? 214.0 : (width - 16.0))
+                    : (width - 16.0);
+            String displayLabel = abbreviateLegendLabel(entry.label, useTwoColumns ? twoColumnMaxChars : oneColumnMaxChars);
+
+            svg.append("<circle class=\"allocation-legend-default\" cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0))
+                    .append("\" r=\"3.7\" fill=\"").append(entry.color).append("\"/>\n");
+            svg.append("<text class=\"allocation-legend-default\" x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y))
+                    .append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
+                    .append(escapeHtml(displayLabel))
+                    .append("</text>\n");
+            svg.append("<text class=\"allocation-legend-default\" x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
+                    .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
+                    .append(escapeHtml(formatNumber(entry.pct, 1) + "%"))
+                    .append("</text>\n");
+        }
     }
 
     private static double mapValueToY(double value, double minValue, double maxValue, double chartTop, double chartHeight) {
@@ -844,6 +949,17 @@ public class ChartBuilder {
     private static String escapeHtml(String text) {
         if (text == null) return "";
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    private static String escapeJson(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", " ")
+                .replace("\r", " ");
     }
 
     private static String getOverviewRowLabel(OverviewRow row) {
