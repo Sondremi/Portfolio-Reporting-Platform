@@ -1009,12 +1009,12 @@ public class ChartBuilder {
 
     private static String getAllocationColor(int index, int totalCount) {
         String[] palette = new String[] {
-                "#1E3A8A", "#047857", "#C2410C", "#B91C1C", "#0F766E",
-                "#1D4ED8", "#4C1D95", "#334155", "#0E7490", "#A16207",
-                "#166534", "#7C2D12"
+            "#1B6BB0", "#2E9E6E", "#D4882C", "#C0393B", "#7B5EA7",
+            "#3AABCC", "#E07B54", "#5B8C3E", "#A0522D", "#4E8098",
+            "#C2A124", "#7D3C7A"
         };
         if (palette.length == 0) {
-            return "#1E3A8A";
+            return "#1B6BB0";
         }
 
         int safeIndex = Math.max(0, index);
