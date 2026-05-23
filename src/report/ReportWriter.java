@@ -155,6 +155,8 @@ public class ReportWriter {
             writer.write("        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(7) { width:160px; max-width:160px; }\n");
+            writer.write("        .realized-highlights { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:10px 0 14px; }\n");
+            writer.write("        @media (max-width:1060px) { .realized-highlights { grid-template-columns:repeat(3,minmax(0,1fr)); } }\n");
             writer.write("        .report-standard .realized-table { table-layout:auto; width:100%; }\n");
             writer.write("        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-standard .realized-table tr > *:nth-child(1)  { width:auto; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
@@ -195,6 +197,7 @@ public class ReportWriter {
             writer.write("        .report-standard .kpi-label.negative, .report-standard .kpi-value.negative { color:var(--bad); }\n");
             writer.write("        .report-standard .performer.positive { color:var(--good); }\n");
             writer.write("        .report-standard .performer.negative { color:var(--bad); }\n");
+            writer.write("        .report-standard .kpi-help { color:#7a96ae; }\n");
             writer.write("        .report-standard .cash-holdings-add-btn { border-color:#8da9c4; background:#eef5fb; color:#1f3a52; }\n");
             writer.write("        .report-standard .cash-holdings-add-btn:hover { background:#e4eff9; }\n");
             writer.write("        .report-standard .manual-cash-holding-line { color:#4f6780; }\n");
@@ -260,11 +263,12 @@ public class ReportWriter {
             writer.write("        .performer-metrics { display:block; }\n");
             writer.write("        .hero-side { position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
             writer.write("        .timeline-title-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }\n");
+            writer.write("        .timeline-title-row .annual-kpi-deck-title { margin:0; }\n");
             writer.write("        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin:0; }\n");
             writer.write("        .timeline-info-btn { width:18px; height:18px; border-radius:999px; border:1px solid rgba(235,245,255,.55); background:rgba(255,255,255,.14); color:#e8f2fb; font-size:.72rem; font-weight:800; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }\n");
             writer.write("        .timeline-info-btn:hover { background:rgba(255,255,255,.24); }\n");
-            writer.write("        .annual-graphs-section .timeline-info-btn { border-color:#8fa9c2; background:#eaf2fb; color:#24415a; }\n");
-            writer.write("        .annual-graphs-section .timeline-info-btn:hover { background:#ddeaf7; }\n");
+            writer.write("        .annual-graphs-section .timeline-info-btn,.annual-kpi-deck .timeline-info-btn { border-color:#8fa9c2; background:#eaf2fb; color:#24415a; }\n");
+            writer.write("        .annual-graphs-section .timeline-info-btn:hover,.annual-kpi-deck .timeline-info-btn:hover { background:#ddeaf7; }\n");
             writer.write("        .timeline-info-overlay[hidden] { display:none !important; }\n");
             writer.write("        .timeline-info-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12000; display:flex; align-items:center; justify-content:center; padding:18px; }\n");
             writer.write("        .timeline-info-dialog { width:min(560px,92vw); background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); }\n");
@@ -408,6 +412,10 @@ public class ReportWriter {
             writer.write("        body.theme-dark .allocation-drilldown-name { color:#d4e1ee; }\n");
             writer.write("        body.theme-dark .allocation-drilldown-pct { color:#c2d3e4; }\n");
             writer.write("        body.theme-dark .chart-hover-legend { opacity:1; }\n");
+            writer.write("        body.theme-dark .chart-tool-btn { background:#1f3347; border-color:#3a5878; color:#d8e7f5; }\n");
+            writer.write("        body.theme-dark .chart-tool-btn:hover { background:#2a4663; }\n");
+            writer.write("        body.theme-dark .chart-filter-input { background:#152535; border-color:#3a5878; color:#d8e7f5; }\n");
+            writer.write("        body.theme-dark .chart-filter-input::placeholder { color:#6a8daa; }\n");
             writer.write("        body.theme-dark .timeline-info-dialog { background:#122437; color:#d8e7f5; border-color:#2b4360; }\n");
             writer.write("        body.theme-dark .timeline-info-header { border-bottom-color:#2b4360; }\n");
             writer.write("        body.theme-dark .timeline-info-close { background:#1a3149; border-color:#3a5879; color:#d8e7f5; }\n");
@@ -425,8 +433,8 @@ public class ReportWriter {
             writer.write("        body.theme-dark .annual-summary-card .performer.negative { color:var(--bad); }\n");
             writer.write("        body.theme-dark .annual-graphs-heading h2 { color:#e5edf7; }\n");
             writer.write("        body.theme-dark .annual-graphs-heading p { color:#bad0e5; }\n");
-            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n");
-            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover { background:#2a4663; }\n");
+            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn,body.theme-dark .annual-kpi-deck .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n");
+            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n");
             writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
             writer.write("        body.theme-dark .total-return-graphs-section { background:linear-gradient(180deg,#15283b 0%,#122131 100%); border-color:#2e435a; }\n");
             writer.write("        body.theme-dark .total-return-chart .chart-svg { background:linear-gradient(180deg,#132436 0%,#122131 100%); border-color:#30495f; }\n");
@@ -1335,7 +1343,7 @@ public class ReportWriter {
         writer.write("</div>\n");
         writer.write("</section>\n");
         writer.write("<section class=\"annual-kpi-deck\">\n");
-        writer.write("<h2 class=\"annual-kpi-deck-title\">Portfolio Highlights</h2>\n");
+        writer.write("<div class=\"timeline-title-row\"><h2 class=\"annual-kpi-deck-title\">Portfolio Highlights</h2><button type=\"button\" class=\"timeline-info-btn\" aria-label=\"Show info about portfolio highlights\" title=\"What is shown here?\">i</button></div>\n");
         writer.write("<div class=\"annual-summary-grid\">\n");
         LinkedHashMap<String, Double> totalMarketBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalReturnBuckets = new LinkedHashMap<>();
@@ -1510,6 +1518,7 @@ public class ReportWriter {
             writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
         }
         writer.write("</div>\n");
+        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio highlights info\"><div class=\"timeline-info-header\"><h4>Portfolio Highlights — What is shown?</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>These figures cover your <strong>current portfolio</strong> — securities you still hold (or have partially held) at the time the report was generated.</p><ul><li><strong>Fully realized positions:</strong> If you have sold all shares in a security and no longer hold it, it is <em>not</em> included here. It only appears in the <strong>Realized Overview</strong> section below.</li><li><strong>Partially realized or repurchased:</strong> If you sold a security but still hold shares (or bought it back), it <em>is</em> included here and its realized gain is reflected in the return figures.</li><li><strong>Total Return, Dividends, Realized/Unrealized:</strong> All values reflect the holdings above only. For a full picture of closed trades, see the Realized Overview.</li></ul></div></div></div>\n");
         String valueTimelineSvg = PortfolioCalculator.buildStandardPortfolioValueSparklineSvg(store, ratesToNok);
         String returnTimelineSvg = PortfolioCalculator.buildStandardPortfolioReturnSparklineSvg(store, ratesToNok);
 
@@ -1561,7 +1570,7 @@ public class ReportWriter {
         }
 
         writer.write("<section class=\"annual-kpi-deck\">\n");
-        writer.write("<h2 class=\"annual-kpi-deck-title\">Risk Analytics</h2>\n");
+        writer.write("<div class=\"timeline-title-row\"><h2 class=\"annual-kpi-deck-title\">Risk Analytics</h2><button type=\"button\" class=\"timeline-info-btn\" aria-label=\"Show info about risk analytics\" title=\"How is this calculated?\">i</button></div>\n");
         writer.write("<div class=\"annual-summary-grid\">\n");
 
         if (analytics.hasAnalytics) {
@@ -1593,6 +1602,12 @@ public class ReportWriter {
         }
 
         writer.write("</div>\n");
+        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Risk analytics info\"><div class=\"timeline-info-header\"><h4>Risk Analytics — How it is calculated</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><ul>"
+            + "<li><strong>Volatility (Ann.):</strong> Standard deviation of monthly portfolio returns, multiplied by √12 to annualize. Measures how much your returns vary from month to month. A higher number means wider swings.</li>"
+            + "<li><strong>Sharpe Ratio:</strong> Average monthly return divided by the monthly return standard deviation, then annualized (×√12). Uses 0 % as the risk-free rate. A ratio above 1.0 is generally considered good — it means you are earning more return per unit of risk taken.</li>"
+            + "<li><strong>Beta:</strong> Covariance of your portfolio's monthly returns with the benchmark's monthly returns, divided by the benchmark's monthly return variance. Beta &gt; 1 means your portfolio tends to move more than the benchmark; Beta &lt; 1 means it moves less. Requires at least 6 months of overlapping benchmark data.</li>"
+            + "<li><strong>Monte Carlo:</strong> Simulates future portfolio value by randomly sampling monthly returns based on your historical mean return and volatility, repeated across many iterations. Shows the <strong>median</strong> projected terminal value, along with the 10th percentile (P10 — pessimistic) and 90th percentile (P90 — optimistic) outcomes. This is a statistical estimate, not a forecast.</li>"
+            + "</ul></div></div></div>\n");
         writer.write("</section>\n");
     }
 
@@ -2071,22 +2086,112 @@ public class ReportWriter {
         return "<span class=\"" + cssClass + "\">" + html + "</span>";
     }
 
+    private static String buildRealizedLeaderCard(String label, Security security, double value, String valueClass, Map<String, Double> ratesToNok) {
+        if (security == null) {
+            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
+        }
+        String currency = security.getCurrencyCode();
+        LinkedHashMap<String, Double> buckets = singleCurrencyBuckets(currency, value);
+        String formatted = formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok);
+        String ticker = escapeHtml(security.getTicker());
+        String name = escapeHtml(security.getDisplayName());
+        String cls = valueClass.isEmpty() ? "" : " " + valueClass;
+        return "<article class=\"kpi-card\">"
+            + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
+            + "<div class=\"kpi-value js-convert-money" + cls + "\" data-buckets=\"" + escapeHtml(toBucketsJson(buckets)) + "\" data-decimals=\"0\">" + formatted + "</div>"
+            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\"><strong>" + ticker + "</strong> · " + name + "</div>"
+            + "</article>\n";
+    }
+
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
+        ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
+
+        // Pre-pass: accumulate totals and track per-category leaders
+        LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedGainBuckets = new LinkedHashMap<>();
+        LinkedHashMap<String, Double> totalRealizedDividendsBuckets = new LinkedHashMap<>();
+        Security leadCostBasis = null, leadSalesValue = null, leadGain = null, leadDividends = null, leadTotalReturn = null;
+        double leadCostBasisNok = Double.NEGATIVE_INFINITY, leadSalesValueNok = Double.NEGATIVE_INFINITY;
+        double leadGainNok = Double.NEGATIVE_INFINITY, leadDividendsNok = Double.NEGATIVE_INFINITY, leadTotalReturnNok = Double.NEGATIVE_INFINITY;
+        double leadCostBasisVal = 0, leadSalesValueVal = 0, leadGainVal = 0, leadDividendsVal = 0, leadTotalReturnVal = 0;
+        for (Security security : soldSecurities) {
+            String currency = security.getCurrencyCode();
+            double costBasis = security.getRealizedCostBasis();
+            double salesValue = security.getRealizedSalesValue();
+            double gain = security.getRealizedGain();
+            double realizedDividends = security.isFullyRealized() ? security.getDividends() : 0.0;
+            double totalReturn = gain + realizedDividends;
+            addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
+            addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
+            addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
+            addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
+            double costBasisNok = convertBucketsToTarget(singleCurrencyBuckets(currency, costBasis), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double salesValueNok = convertBucketsToTarget(singleCurrencyBuckets(currency, salesValue), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double gainNok = convertBucketsToTarget(singleCurrencyBuckets(currency, gain), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double dividendsNok = convertBucketsToTarget(singleCurrencyBuckets(currency, realizedDividends), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double totalReturnNok = convertBucketsToTarget(singleCurrencyBuckets(currency, totalReturn), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            if (costBasisNok > leadCostBasisNok) { leadCostBasisNok = costBasisNok; leadCostBasis = security; leadCostBasisVal = costBasis; }
+            if (salesValueNok > leadSalesValueNok) { leadSalesValueNok = salesValueNok; leadSalesValue = security; leadSalesValueVal = salesValue; }
+            if (gainNok > leadGainNok) { leadGainNok = gainNok; leadGain = security; leadGainVal = gain; }
+            if (dividendsNok > leadDividendsNok) { leadDividendsNok = dividendsNok; leadDividends = security; leadDividendsVal = realizedDividends; }
+            if (totalReturnNok > leadTotalReturnNok) { leadTotalReturnNok = totalReturnNok; leadTotalReturn = security; leadTotalReturnVal = totalReturn; }
+        }
+        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedGainForPct = convertBucketsToTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double totalRealizedDividendsForPct = convertBucketsToTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        LinkedHashMap<String, Double> totalRealizedReturnBuckets = sumCurrencyBuckets(totalRealizedGainBuckets, totalRealizedDividendsBuckets);
+        double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
+        double totalReturnPct = totalCostBasisForPct > 0
+            ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
+            : 0.0;
+        String gainClass = signedClass(totalRealizedGainForPct);
+        String dividendsClass = signedClass(totalRealizedDividendsForPct);
+        String returnClass = signedClass(totalRealizedReturnForPct);
+
         writer.write("<h2>REALIZED OVERVIEW - ALL SALES</h2>\n");
+
+        // Highlights grid
+        writer.write("<section class=\"annual-kpi-deck\">\n");
+        writer.write("<h2 class=\"annual-kpi-deck-title\">Realized Highlights</h2>\n");
+        writer.write("<div class=\"realized-highlights\">\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Cost Basis</div>"
+            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + escapeHtml(toBucketsJson(totalCostBasisBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div></article>\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Sales Value</div>"
+            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + escapeHtml(toBucketsJson(totalSalesValueBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalSalesValueBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div></article>\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Gain / Loss</div>"
+            + "<div class=\"kpi-value js-convert-money " + gainClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedGainBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div></article>\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div>"
+            + "<div class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedDividendsBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div></article>\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Return</div>"
+            + "<div class=\"kpi-value js-convert-money " + returnClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedReturnBuckets)) + "\" data-decimals=\"0\">"
+            + formatBucketsInTarget(totalRealizedReturnBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
+            + "</div><div class=\"kpi-label " + returnClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</div></article>\n");
+        writer.write(buildRealizedLeaderCard("Highest Cost Basis", leadCostBasis, leadCostBasisVal, "", ratesToNok));
+        writer.write(buildRealizedLeaderCard("Highest Sales Value", leadSalesValue, leadSalesValueVal, "", ratesToNok));
+        writer.write(buildRealizedLeaderCard("Highest Gain / Loss", leadGain, leadGainVal, signedClass(leadGainNok), ratesToNok));
+        writer.write(buildRealizedLeaderCard("Highest Dividends", leadDividends, leadDividendsVal, "", ratesToNok));
+        writer.write(buildRealizedLeaderCard("Highest Total Return", leadTotalReturn, leadTotalReturnVal, signedClass(leadTotalReturnNok), ratesToNok));
+        writer.write("</div>\n");
+        writer.write("</section>\n");
+
+        // Table
         writer.write("<div class=\"overview-mode-shell\" role=\"group\" aria-label=\"Realized details controls\">\n");
         writer.write("<button type=\"button\" class=\"overview-mode-btn overview-details-toggle-btn\" data-detail-label=\"Open all details\" onclick=\"toggleDetailGroup('realized-details', this)\">Open all details ▸</button>\n");
         writer.write("</div>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
-        ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
-        LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
-        LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
-        LinkedHashMap<String, Double> totalRealizedGainBuckets = new LinkedHashMap<>();
-        LinkedHashMap<String, Double> totalRealizedDividendsBuckets = new LinkedHashMap<>();
         String previousAssetType = null;
         int detailsIndex = 0;
-
         for (Security security : soldSecurities) {
             String currency = security.getCurrencyCode();
             double salesValue = security.getRealizedSalesValue();
@@ -2102,42 +2207,29 @@ public class ReportWriter {
                     + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
                 totalReturnValue);
 
-            addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
-            addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
-            addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
-            addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
-                String detailsRowId = "realized-details-" + detailsIndex;
-                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
+            String detailsRowId = "realized-details-" + detailsIndex;
+            String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
+            String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+            String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
+            ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+                tickerToggle,
+                securityToggle,
+                HtmlFormatter.formatMoney(costBasis, currency, 2),
+                HtmlFormatter.formatMoney(salesValue, currency, 2),
+                signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
+                signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
+                totalReturnCombined);
 
-                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-                String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
-                ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                    tickerToggle,
-                    securityToggle,
-                    HtmlFormatter.formatMoney(costBasis, currency, 2),
-                    HtmlFormatter.formatMoney(salesValue, currency, 2),
-                    signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
-                    signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
-                    totalReturnCombined);
-
-                writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
-                writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
-                writer.write(buildRealizedSaleTradesDetailsHtml(security));
-                writer.write("    </td>\n");
-                writer.write("</tr>\n");
+            writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
+            writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
+            writer.write(buildRealizedSaleTradesDetailsHtml(security));
+            writer.write("    </td>\n");
+            writer.write("</tr>\n");
 
             previousAssetType = currentAssetType;
-                detailsIndex++;
+            detailsIndex++;
         }
 
-        double totalCostBasisForPct = convertBucketsToTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
-        double totalRealizedGainForPct = convertBucketsToTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
-        double totalRealizedDividendsForPct = convertBucketsToTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
-        LinkedHashMap<String, Double> totalRealizedReturnBuckets = sumCurrencyBuckets(totalRealizedGainBuckets, totalRealizedDividendsBuckets);
-        double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
-        double totalReturnPct = totalCostBasisForPct > 0
-            ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
-            : 0.0;
         writer.write("<tr class=\"total-row\">\n");
         writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
@@ -4385,7 +4477,7 @@ public class ReportWriter {
         writer.write("  document.querySelectorAll('.timeline-info-btn').forEach(function(openBtn) {\n");
         writer.write("    if (openBtn.dataset.timelineInfoBound === '1') return;\n");
         writer.write("    openBtn.dataset.timelineInfoBound = '1';\n");
-        writer.write("    var host = openBtn.closest('.hero-side, .annual-graphs-section');\n");
+        writer.write("    var host = openBtn.closest('.hero-side, .annual-graphs-section, .annual-kpi-deck');\n");
         writer.write("    var overlay = host ? host.querySelector('.timeline-info-overlay') : null;\n");
         writer.write("    if (!overlay) return;\n");
         writer.write("    var closeBtn = overlay.querySelector('.timeline-info-close');\n");
