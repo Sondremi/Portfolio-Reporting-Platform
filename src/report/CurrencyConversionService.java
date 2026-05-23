@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 public final class CurrencyConversionService {
 
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
-    private static final Path FX_CACHE_FILE = Path.of(".cache", "fx-rates-to-nok.csv");
+    private static final Path FX_CACHE_FILE = Path.of("/tmp", "fx-rates-to-nok.csv");
     private static final Duration FX_CACHE_TTL = Duration.ofHours(12);
     private static final Map<String, CacheEntry> MEMORY_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
     private static final Set<String> COMMON_TARGET_CURRENCIES = Set.of(
