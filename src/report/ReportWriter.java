@@ -2398,10 +2398,15 @@ public class ReportWriter {
             final String unrealizedPct;
             final String unrealizedClass;
             final String unrealizedPctClass;
+            // Raw numeric values for BUY rows so JS can refresh unrealized on price update.
+            // Zero for non-BUY entries (DIVIDEND etc.).
+            final double rawLotUnits;
+            final double rawLotCostBasis;
 
             DetailEntry(LocalDate date, int order, String type, String units, String price,
                         String amount, String unrealized, String unrealizedPct,
-                        String unrealizedClass, String unrealizedPctClass) {
+                        String unrealizedClass, String unrealizedPctClass,
+                        double rawLotUnits, double rawLotCostBasis) {
                 this.date = date;
                 this.order = order;
                 this.type = type;
@@ -2412,6 +2417,8 @@ public class ReportWriter {
                 this.unrealizedPct = unrealizedPct;
                 this.unrealizedClass = unrealizedClass;
                 this.unrealizedPctClass = unrealizedPctClass;
+                this.rawLotUnits = rawLotUnits;
+                this.rawLotCostBasis = rawLotCostBasis;
             }
         }
 
@@ -2442,7 +2449,9 @@ public class ReportWriter {
                     unrealizedText,
                     unrealizedPctText,
                     unrealizedClass,
-                    unrealizedPctClass
+                    unrealizedPctClass,
+                    lot.getUnits(),   // raw lot units for JS refresh
+                    lotCostBasis      // raw cost basis for JS refresh
             ));
         }
 
@@ -2458,7 +2467,9 @@ public class ReportWriter {
                     "-",
                     "-",
                     "",
-                    ""
+                    "",
+                    0.0, // not a lot row — JS won't update
+                    0.0
             ));
         }
 
@@ -2475,14 +2486,29 @@ public class ReportWriter {
         html.append("<table class=\"details-table\">\n");
         html.append("<tr><th>Date</th><th>Type</th><th>Shares</th><th>Price/Share</th><th>Amount</th><th>Unrealized</th><th>Unrealized (%)</th></tr>\n");
         for (DetailEntry entry : entries) {
-            html.append("<tr>");
+            // BUY rows carry raw numeric attributes so JS can refresh unrealized on price update.
+            boolean isBuyLot = entry.rawLotUnits > 0.0 && entry.rawLotCostBasis > 0.0;
+            if (isBuyLot) {
+                html.append(String.format(Locale.US,
+                    "<tr data-lot-units=\"%.8f\" data-lot-cost-basis=\"%.8f\" data-overview-security-key=\"%s\" data-currency=\"%s\">",
+                    entry.rawLotUnits, entry.rawLotCostBasis,
+                    escapeHtml(row.securityKey), escapeHtml(row.currencyCode)));
+            } else {
+                html.append("<tr>");
+            }
             html.append("<td>").append(escapeHtml(formatDetailDate(entry.date))).append("</td>");
             html.append("<td>").append(entry.type).append("</td>");
             html.append("<td>").append(escapeHtml(entry.units)).append("</td>");
             html.append("<td>").append(escapeHtml(entry.price)).append("</td>");
             html.append("<td>").append(escapeHtml(entry.amount)).append("</td>");
-            html.append("<td class=\"").append(escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
-            html.append("<td class=\"").append(escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+            // js-lot-unrealized / js-lot-unrealized-pct let refreshOpenDetailPanels() update these cells
+            if (isBuyLot) {
+                html.append("<td class=\"js-lot-unrealized").append(entry.unrealizedClass.isEmpty() ? "" : " " + escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
+                html.append("<td class=\"js-lot-unrealized-pct").append(entry.unrealizedPctClass.isEmpty() ? "" : " " + escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+            } else {
+                html.append("<td class=\"").append(escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
+                html.append("<td class=\"").append(escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+            }
             html.append("</tr>\n");
         }
         html.append("</table>\n</div>\n");
@@ -2865,7 +2891,10 @@ public class ReportWriter {
         writer.write("    throw new Error(message);\n");
         writer.write("  }\n");
         writer.write("  var data = await response.json();\n");
-        writer.write("  return data && data.prices && typeof data.prices === 'object' ? data.prices : {};\n");
+        writer.write("  return {\n");
+        writer.write("    prices: (data && data.prices && typeof data.prices === 'object') ? data.prices : {},\n");
+        writer.write("    previousCloses: (data && data.previousCloses && typeof data.previousCloses === 'object') ? data.previousCloses : {}\n");
+        writer.write("  };\n");
         writer.write("}\n");
         writer.write("async function fetchLatestDaySeriesFromApi(tickers) {\n");
         writer.write("  var apiUrl = resolvePriceRefreshApiUrl();\n");
@@ -3020,18 +3049,53 @@ public class ReportWriter {
         writer.write("    });\n");
         writer.write("  });\n");
         writer.write("}\n");
+        writer.write("async function fetchPriceDataFromYahooDirect(ticker) {\n");
+        writer.write("  var symbol = String(ticker || '').trim().toUpperCase();\n");
+        writer.write("  if (!symbol) return { price: 0, previousClose: 0 };\n");
+        writer.write("  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=5d';\n");
+        writer.write("  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n");
+        writer.write("  if (!response.ok) return { price: 0, previousClose: 0 };\n");
+        writer.write("  var data = await response.json();\n");
+        writer.write("  var result = data && data.chart && data.chart.result && data.chart.result[0];\n");
+        writer.write("  if (!result) return { price: 0, previousClose: 0 };\n");
+        writer.write("  var meta = result.meta || {};\n");
+        writer.write("  var marketPrice = Number(meta.regularMarketPrice || 0);\n");
+        writer.write("  var price = (Number.isFinite(marketPrice) && marketPrice > 0) ? marketPrice : 0;\n");
+        writer.write("  if (!price) {\n");
+        writer.write("    var closesArr = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
+        writer.write("    if (Array.isArray(closesArr)) {\n");
+        writer.write("      for (var i = closesArr.length - 1; i >= 0; i -= 1) {\n");
+        writer.write("        var v = Number(closesArr[i]);\n");
+        writer.write("        if (Number.isFinite(v) && v > 0) { price = v; break; }\n");
+        writer.write("      }\n");
+        writer.write("    }\n");
+        writer.write("  }\n");
+        writer.write("  var prevClose = Number(meta.chartPreviousClose || meta.previousClose || 0);\n");
+        writer.write("  if (!prevClose || !Number.isFinite(prevClose)) {\n");
+        writer.write("    var closes2 = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
+        writer.write("    if (Array.isArray(closes2) && closes2.length >= 2) {\n");
+        writer.write("      var validCloses = closes2.map(Number).filter(function(x) { return Number.isFinite(x) && x > 0; });\n");
+        writer.write("      if (validCloses.length >= 2) prevClose = validCloses[validCloses.length - 2];\n");
+        writer.write("    }\n");
+        writer.write("  }\n");
+        writer.write("  return { price: price, previousClose: prevClose };\n");
+        writer.write("}\n");
         writer.write("async function fetchLatestPricesDirect(tickers) {\n");
         writer.write("  var prices = {};\n");
+        writer.write("  var previousCloses = {};\n");
         writer.write("  for (var i = 0; i < tickers.length; i += 1) {\n");
         writer.write("    var symbol = String(tickers[i] || '').trim().toUpperCase();\n");
         writer.write("    if (!symbol) continue;\n");
         writer.write("    try {\n");
-        writer.write("      prices[symbol] = await fetchLatestPriceFromYahooDirect(symbol);\n");
+        writer.write("      var pd = await fetchPriceDataFromYahooDirect(symbol);\n");
+        writer.write("      prices[symbol] = pd.price;\n");
+        writer.write("      previousCloses[symbol] = pd.previousClose;\n");
         writer.write("    } catch (_) {\n");
         writer.write("      prices[symbol] = 0;\n");
+        writer.write("      previousCloses[symbol] = 0;\n");
         writer.write("    }\n");
         writer.write("  }\n");
-        writer.write("  return prices;\n");
+        writer.write("  return { prices: prices, previousCloses: previousCloses };\n");
         writer.write("}\n");
         writer.write("async function fetchLatestPrices(tickers) {\n");
         writer.write("  try {\n");
@@ -3373,6 +3437,39 @@ public class ReportWriter {
         writer.write("  if (!node) return;\n");
         writer.write("  node.textContent = formatReportRefreshTimestamp(dateValue);\n");
         writer.write("}\n");
+        // Refresh per-lot unrealized values in any open detail panels after a price update.
+        // Lot rows carry data-lot-units, data-lot-cost-basis, data-overview-security-key,
+        // and data-currency so the calculation can be done without server contact.
+        writer.write("function refreshOpenDetailPanels(priceBySecurityKey) {\n");
+        writer.write("  var lotRows = Array.prototype.slice.call(\n");
+        writer.write("    document.querySelectorAll('tr[data-lot-units][data-lot-cost-basis][data-overview-security-key]')\n");
+        writer.write("  );\n");
+        writer.write("  lotRows.forEach(function(row) {\n");
+        writer.write("    var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
+        writer.write("    var nextPrice = Number(priceBySecurityKey[secKey] || 0);\n");
+        writer.write("    if (!nextPrice || !Number.isFinite(nextPrice)) return;\n");
+        writer.write("    var units = Number(row.getAttribute('data-lot-units') || 0);\n");
+        writer.write("    var costBasis = Number(row.getAttribute('data-lot-cost-basis') || 0);\n");
+        writer.write("    var currency = String(row.getAttribute('data-currency') || 'NOK');\n");
+        writer.write("    if (units <= 0 || costBasis <= 0) return;\n");
+        writer.write("    var unrealized = units * nextPrice - costBasis;\n");
+        writer.write("    var unrealizedPct = (unrealized / costBasis) * 100;\n");
+        writer.write("    var unrealizedCell = row.querySelector('.js-lot-unrealized');\n");
+        writer.write("    var unrealizedPctCell = row.querySelector('.js-lot-unrealized-pct');\n");
+        writer.write("    if (unrealizedCell) {\n");
+        writer.write("      unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2);\n");
+        writer.write("      unrealizedCell.classList.remove('positive', 'negative');\n");
+        writer.write("      if (unrealized > 0) unrealizedCell.classList.add('positive');\n");
+        writer.write("      else if (unrealized < 0) unrealizedCell.classList.add('negative');\n");
+        writer.write("    }\n");
+        writer.write("    if (unrealizedPctCell) {\n");
+        writer.write("      unrealizedPctCell.textContent = formatPercentValue(unrealizedPct, 2);\n");
+        writer.write("      unrealizedPctCell.classList.remove('positive', 'negative');\n");
+        writer.write("      if (unrealizedPct > 0) unrealizedPctCell.classList.add('positive');\n");
+        writer.write("      else if (unrealizedPct < 0) unrealizedPctCell.classList.add('negative');\n");
+        writer.write("    }\n");
+        writer.write("  });\n");
+        writer.write("}\n");
         writer.write("function initPriceRefreshButton() {\n");
         writer.write("  var button = document.getElementById('refresh-prices-btn');\n");
         writer.write("  var status = document.getElementById('refresh-prices-status');\n");
@@ -3389,17 +3486,37 @@ public class ReportWriter {
         writer.write("    button.disabled = true;\n");
         writer.write("    if (status) status.textContent = 'Updating portfolio data...';\n");
         writer.write("    try {\n");
-        writer.write("      var prices = await fetchLatestPrices(tickers);\n");
+        writer.write("      var priceData = await fetchLatestPrices(tickers);\n");
+        writer.write("      var prices = priceData.prices || {};\n");
+        writer.write("      var previousCloses = priceData.previousCloses || {};\n");
+        writer.write("      // Update data-previous-close on every linked row BEFORE computing day change\n");
+        writer.write("      rows.forEach(function(row) {\n");
+        writer.write("        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
+        writer.write("        var newPrevClose = Number(previousCloses[ticker] || 0);\n");
+        writer.write("        if (newPrevClose > 0) {\n");
+        writer.write("          var securityKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
+        writer.write("          var linkedRows = securityKey ? findOverviewRowsBySecurityKey(securityKey) : [];\n");
+        writer.write("          if (!linkedRows.length) linkedRows = [row];\n");
+        writer.write("          linkedRows.forEach(function(lr) {\n");
+        writer.write("            lr.setAttribute('data-previous-close', String(newPrevClose));\n");
+        writer.write("          });\n");
+        writer.write("        }\n");
+        writer.write("      });\n");
+        writer.write("      // Build securityKey→price map for detail panel refresh\n");
+        writer.write("      var securityKeyToPrice = {};\n");
         writer.write("      var updatedRows = 0;\n");
         writer.write("      rows.forEach(function(row) {\n");
         writer.write("        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
         writer.write("        var nextPrice = Number(prices[ticker] || 0);\n");
+        writer.write("        var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
+        writer.write("        if (nextPrice > 0 && secKey) securityKeyToPrice[secKey] = nextPrice;\n");
         writer.write("        if (applyOverviewRowPrice(row, nextPrice)) {\n");
         writer.write("          updatedRows += 1;\n");
         writer.write("        }\n");
         writer.write("      });\n");
         writer.write("      recalculateOverviewAndHeaderTotalsAfterPriceRefresh();\n");
         writer.write("      initOverviewDayCharts();\n");
+        writer.write("      refreshOpenDetailPanels(securityKeyToPrice);\n");
         writer.write("      var refreshedAt = new Date();\n");
         writer.write("      updateReportDateChip(refreshedAt);\n");
         writer.write("      if (status) status.textContent = 'Updated portfolio for ' + updatedRows + ' holdings at ' + formatReportRefreshTimestamp(refreshedAt) + '.';\n");
