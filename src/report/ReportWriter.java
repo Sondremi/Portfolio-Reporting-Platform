@@ -155,7 +155,7 @@ public class ReportWriter {
             writer.write("        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
             writer.write("        .report-annual .realized-table tr > *:nth-child(7) { width:160px; max-width:160px; }\n");
-            writer.write("        .realized-highlights { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:10px 0 14px; }\n");
+            writer.write("        .realized-highlights { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin:10px 0 14px; }\n");
             writer.write("        @media (max-width:1060px) { .realized-highlights { grid-template-columns:repeat(3,minmax(0,1fr)); } }\n");
             writer.write("        .report-standard .realized-table { table-layout:auto; width:100%; }\n");
             writer.write("        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
@@ -1520,7 +1520,7 @@ public class ReportWriter {
             writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
         }
         writer.write("</div>\n");
-        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio highlights info\"><div class=\"timeline-info-header\"><h4>Portfolio Highlights — What is shown?</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><p>These figures cover your <strong>current portfolio</strong> — securities you still hold (or have partially held) at the time the report was generated.</p><ul><li><strong>Fully realized positions:</strong> If you have sold all shares in a security and no longer hold it, it is <em>not</em> included here. It only appears in the <strong>Realized Overview</strong> section below.</li><li><strong>Partially realized or repurchased:</strong> If you sold a security but still hold shares (or bought it back), it <em>is</em> included here and its realized gain is reflected in the return figures.</li><li><strong>Total Return, Dividends, Realized/Unrealized:</strong> All values reflect the holdings above only. For a full picture of closed trades, see the Realized Overview.</li></ul></div></div></div>\n");
+        writer.write("<div class=\"timeline-info-overlay\" hidden><div class=\"timeline-info-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Portfolio highlights info\"><div class=\"timeline-info-header\"><h4>Portfolio Highlights — What is shown?</h4><button type=\"button\" class=\"timeline-info-close\" aria-label=\"Close\">×</button></div><div class=\"timeline-info-body\"><ul><li><strong>Total Return &amp; 1-Year Change:</strong> Include <em>everything</em> — both current holdings and all realized positions. This gives your true all-in return across the full portfolio history.</li><li><strong>Unrealized Return:</strong> Only the open positions you currently hold. Fully sold securities are not counted here.</li><li><strong>Realized Return &amp; Dividends:</strong> Only positions still in the portfolio (fully realized positions that you no longer hold appear exclusively in the Realized Overview below).</li><li><strong>Day Change, Market Value, Cost Basis:</strong> Current portfolio only — what you hold right now.</li><li><strong>Fully realized positions:</strong> If you have sold all shares in a security and no longer hold it, it does <em>not</em> appear here. See the <strong>Realized Overview</strong> section for those.</li><li><strong>Partially realized or repurchased:</strong> If you sold some shares but still hold others (or bought back in), the position <em>is</em> included here and the realized gain on the sold portion is reflected in the return figures.</li></ul></div></div></div>\n");
         String valueTimelineSvg = PortfolioCalculator.buildStandardPortfolioValueSparklineSvg(store, ratesToNok);
         String returnTimelineSvg = PortfolioCalculator.buildStandardPortfolioReturnSparklineSvg(store, ratesToNok);
 
@@ -2105,6 +2105,21 @@ public class ReportWriter {
             + "</article>\n";
     }
 
+    /** Leader card showing a percentage value (gain/loss %) rather than a money amount. */
+    private static String buildRealizedLeaderPctCard(String label, Security security, double pctValue) {
+        if (security == null || pctValue == Double.NEGATIVE_INFINITY) {
+            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
+        }
+        String ticker = escapeHtml(security.getTicker());
+        String name = escapeHtml(security.getDisplayName());
+        String cls = pctValue > 0 ? " positive" : pctValue < 0 ? " negative" : "";
+        return "<article class=\"kpi-card\">"
+            + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
+            + "<div class=\"kpi-value" + cls + "\">" + HtmlFormatter.formatPercent(pctValue, 2) + "</div>"
+            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\"><strong>" + ticker + "</strong> · " + name + "</div>"
+            + "</article>\n";
+    }
+
     private static void writeRealizedSummaryTableHtml(FileWriter writer, TransactionStore store, Map<String, Double> ratesToNok) throws IOException {
         ArrayList<Security> soldSecurities = getSortedSoldSecurities(store);
 
@@ -2113,9 +2128,10 @@ public class ReportWriter {
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalRealizedGainBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalRealizedDividendsBuckets = new LinkedHashMap<>();
-        Security leadCostBasis = null, leadSalesValue = null, leadGain = null, leadDividends = null, leadTotalReturn = null;
+        Security leadCostBasis = null, leadSalesValue = null, leadGain = null, leadGainPct = null, leadDividends = null, leadTotalReturn = null;
         double leadCostBasisNok = Double.NEGATIVE_INFINITY, leadSalesValueNok = Double.NEGATIVE_INFINITY;
-        double leadGainNok = Double.NEGATIVE_INFINITY, leadDividendsNok = Double.NEGATIVE_INFINITY, leadTotalReturnNok = Double.NEGATIVE_INFINITY;
+        double leadGainNok = Double.NEGATIVE_INFINITY, leadGainPctVal = Double.NEGATIVE_INFINITY;
+        double leadDividendsNok = Double.NEGATIVE_INFINITY, leadTotalReturnNok = Double.NEGATIVE_INFINITY;
         double leadCostBasisVal = 0, leadSalesValueVal = 0, leadGainVal = 0, leadDividendsVal = 0, leadTotalReturnVal = 0;
         for (Security security : soldSecurities) {
             String currency = security.getCurrencyCode();
@@ -2133,9 +2149,11 @@ public class ReportWriter {
             double gainNok = convertBucketsToTarget(singleCurrencyBuckets(currency, gain), DEFAULT_TOTAL_CURRENCY, ratesToNok);
             double dividendsNok = convertBucketsToTarget(singleCurrencyBuckets(currency, realizedDividends), DEFAULT_TOTAL_CURRENCY, ratesToNok);
             double totalReturnNok = convertBucketsToTarget(singleCurrencyBuckets(currency, totalReturn), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double secGainPct = costBasis > 0.0 ? (gain / costBasis) * 100.0 : Double.NEGATIVE_INFINITY;
             if (costBasisNok > leadCostBasisNok) { leadCostBasisNok = costBasisNok; leadCostBasis = security; leadCostBasisVal = costBasis; }
             if (salesValueNok > leadSalesValueNok) { leadSalesValueNok = salesValueNok; leadSalesValue = security; leadSalesValueVal = salesValue; }
             if (gainNok > leadGainNok) { leadGainNok = gainNok; leadGain = security; leadGainVal = gain; }
+            if (secGainPct > leadGainPctVal) { leadGainPctVal = secGainPct; leadGainPct = security; }
             if (dividendsNok > leadDividendsNok) { leadDividendsNok = dividendsNok; leadDividends = security; leadDividendsVal = realizedDividends; }
             if (totalReturnNok > leadTotalReturnNok) { leadTotalReturnNok = totalReturnNok; leadTotalReturn = security; leadTotalReturnVal = totalReturn; }
         }
@@ -2144,6 +2162,7 @@ public class ReportWriter {
         double totalRealizedDividendsForPct = convertBucketsToTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
         LinkedHashMap<String, Double> totalRealizedReturnBuckets = sumCurrencyBuckets(totalRealizedGainBuckets, totalRealizedDividendsBuckets);
         double totalRealizedReturnForPct = totalRealizedGainForPct + totalRealizedDividendsForPct;
+        double totalGainPct = totalCostBasisForPct > 0.0 ? (totalRealizedGainForPct / totalCostBasisForPct) * 100.0 : 0.0;
         double totalReturnPct = totalCostBasisForPct > 0
             ? (totalRealizedReturnForPct / totalCostBasisForPct) * 100.0
             : 0.0;
@@ -2169,6 +2188,9 @@ public class ReportWriter {
             + "<div class=\"kpi-value js-convert-money " + gainClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedGainBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Gain / Loss %</div>"
+            + "<div class=\"kpi-value " + gainClass + "\">" + HtmlFormatter.formatPercent(totalGainPct, 2)
+            + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div>"
             + "<div class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedDividendsBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
@@ -2180,6 +2202,7 @@ public class ReportWriter {
         writer.write(buildRealizedLeaderCard("Highest Cost Basis", leadCostBasis, leadCostBasisVal, "", ratesToNok));
         writer.write(buildRealizedLeaderCard("Highest Sales Value", leadSalesValue, leadSalesValueVal, "", ratesToNok));
         writer.write(buildRealizedLeaderCard("Highest Gain / Loss", leadGain, leadGainVal, signedClass(leadGainNok), ratesToNok));
+        writer.write(buildRealizedLeaderPctCard("Highest %", leadGainPct, leadGainPctVal));
         writer.write(buildRealizedLeaderCard("Highest Dividends", leadDividends, leadDividendsVal, "", ratesToNok));
         writer.write(buildRealizedLeaderCard("Highest Total Return", leadTotalReturn, leadTotalReturnVal, signedClass(leadTotalReturnNok), ratesToNok));
         writer.write("</div>\n");
@@ -2236,7 +2259,11 @@ public class ReportWriter {
         writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok), totalRealizedGainForPct) + "</td>\n");
+        writer.write("    <td>"
+            + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedGainBuckets, 2, ratesToNok), totalRealizedGainForPct)
+            + " "
+            + signedSpan("(" + HtmlFormatter.formatPercent(totalGainPct, 2) + ")", totalRealizedGainForPct)
+            + "</td>\n");
         writer.write("    <td>" + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedDividendsBuckets, 2, ratesToNok), totalRealizedDividendsForPct) + "</td>\n");
         writer.write("    <td>"
             + signedWrapHtml(renderConvertibleMoneyCell(totalRealizedReturnBuckets, 2, ratesToNok), totalRealizedReturnForPct)
