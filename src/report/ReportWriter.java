@@ -3546,7 +3546,9 @@ public class ReportWriter {
         writer.write("      refreshOpenDetailPanels(securityKeyToPrice);\n");
         writer.write("      var refreshedAt = new Date();\n");
         writer.write("      updateReportDateChip(refreshedAt);\n");
-        writer.write("      if (status) status.textContent = 'Updated portfolio for ' + updatedRows + ' holdings at ' + formatReportRefreshTimestamp(refreshedAt) + '.';\n");
+        writer.write("      var staleTickers = tickers.filter(function(t) { return !(Number(prices[t]) > 0); });\n");
+        writer.write("      var staleNote = staleTickers.length ? ' (' + staleTickers.length + ' unavailable, showing last known)' : '';\n");
+        writer.write("      if (status) status.textContent = 'Updated portfolio for ' + updatedRows + ' holdings at ' + formatReportRefreshTimestamp(refreshedAt) + staleNote + '.';\n");
         writer.write("    } catch (error) {\n");
         writer.write("      if (status) status.textContent = 'Could not update portfolio: ' + (error && error.message ? error.message : 'Unknown error');\n");
         writer.write("    } finally {\n");
