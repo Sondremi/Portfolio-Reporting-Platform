@@ -486,6 +486,10 @@ public class ReportWriter {
             writer.write("        @media (max-width:1200px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));} }\n");
             writer.write("        @media (max-width:760px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }\n");
             writer.write("        @media (max-width:560px) { .report-standard .annual-summary-grid,.annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .realized-highlights{grid-template-columns:repeat(2,minmax(0,1fr));} .page{padding:12px 6px 20px;} .hero-title h1{font-size:1.45rem;} .annual-kpi-deck-title{font-size:.96rem;} }\n");
+            // The Summary tab keeps .overview-table's fixed/100% layout, so on small screens it shrinks-to-fit
+            // and ellipsizes instead of scrolling like Holdings/Fundamentals. On mobile, switch it to the same
+            // max-content layout so it scrolls horizontally and shows full (untruncated) values.
+            writer.write("        @media (max-width:760px) { .report-standard .overview-summary-table{table-layout:auto; width:max-content; min-width:100%;} .report-standard .overview-summary-table th, .report-standard .overview-summary-table td{overflow:visible !important; text-overflow:clip !important;} .report-standard .overview-summary-table tr > *:nth-child(n+3){overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important;} }\n");
             writer.write("    </style>\n");
             writer.write("</head>\n");
             writer.write("<body class=\"report-" + reportConfig.reportType + "\">\n");
