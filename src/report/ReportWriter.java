@@ -179,8 +179,9 @@ public class ReportWriter {
             writer.write("        .hero-meta { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }\n");
             writer.write("        .meta-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; border:1px solid rgba(235,245,255,.28); background:rgba(255,255,255,.1); color:#d7e6f4; font-size:.84rem; font-weight:600; }\n");
             writer.write("        .meta-chip strong { color:#ffffff; font-weight:700; }\n");
-            writer.write("        .currency-input { width:56px; border:1px solid rgba(235,245,255,.45); border-radius:6px; background:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; padding:2px 6px; outline:none; }\n");
-            writer.write("        .currency-input:focus { border-color:#fff; background:rgba(255,255,255,.26); }\n");
+            writer.write("        .currency-select { border:1px solid rgba(235,245,255,.45); border-radius:6px; background-color:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; font-size:.84rem; padding:2px 20px 2px 6px; outline:none; cursor:pointer; -webkit-appearance:none; appearance:none; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1 5 5 9 1' fill='none' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 6px center; background-size:9px 6px; }\n");
+            writer.write("        .currency-select:focus { border-color:#fff; background-color:rgba(255,255,255,.28); }\n");
+            writer.write("        .currency-select option { color:#16202a; background:#ffffff; text-transform:none; font-weight:600; }\n");
             writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n");
             writer.write("        .annual-headline-grid { margin-top:0; }\n");
             writer.write("        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n");
@@ -682,6 +683,27 @@ public class ReportWriter {
         }
     }
 
+    // Options for the header display-currency dropdown: the default currency first,
+    // then every currency we have an FX rate for (so all options are convertible).
+    private static String buildCurrencyOptionsHtml(Map<String, Double> ratesToNok) {
+        java.util.TreeSet<String> codes = new java.util.TreeSet<>();
+        if (ratesToNok != null) {
+            for (String code : ratesToNok.keySet()) {
+                if (code != null && !code.isBlank()) codes.add(code.trim().toUpperCase(Locale.ROOT));
+            }
+        }
+        codes.add(DEFAULT_TOTAL_CURRENCY);
+        StringBuilder sb = new StringBuilder();
+        sb.append("<option value=\"").append(escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("\" selected>")
+          .append(escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("</option>");
+        for (String code : codes) {
+            if (code.equals(DEFAULT_TOTAL_CURRENCY)) continue;
+            sb.append("<option value=\"").append(escapeHtml(code)).append("\">")
+              .append(escapeHtml(code)).append("</option>");
+        }
+        return sb.toString();
+    }
+
         private static void writeAnnualHeaderSummaryHtml(
             FileWriter writer,
             TransactionStore store,
@@ -698,7 +720,7 @@ public class ReportWriter {
         writer.write("<span class=\"meta-chip\">Files: <strong>" + store.getLoadedCsvFileCount() + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Transactions: <strong>" + metrics.transactionCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Holdings: <strong>" + metrics.holdingsCount + "</strong></span>\n");
-        writer.write("<span class=\"meta-chip\">Currency: <strong><input id=\"portfolio-currency-input\" class=\"currency-input\" type=\"text\" value=\"" + DEFAULT_TOTAL_CURRENCY + "\" maxlength=\"3\" autocomplete=\"off\" spellcheck=\"false\" title=\"Skriv valutakode (f.eks. NOK, USD) og trykk Enter\"></strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Currency: <strong><select id=\"portfolio-currency-input\" class=\"currency-select\" aria-label=\"Display currency\" title=\"Choose display currency\">" + buildCurrencyOptionsHtml(ratesToNok) + "</select></strong></span>\n");
         writer.write("<button id=\"report-theme-toggle\" class=\"hero-theme-btn\" type=\"button\">Dark mode</button>\n");
         writer.write("</div>\n");
 
@@ -1349,7 +1371,7 @@ public class ReportWriter {
         writer.write("<span class=\"meta-chip\">Files: <strong>" + s.fileCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Transactions: <strong>" + s.transactionCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Holdings: <strong>" + s.holdingsCount + "</strong></span>\n");
-        writer.write("<span class=\"meta-chip\">Currency: <strong><input id=\"portfolio-currency-input\" class=\"currency-input\" type=\"text\" value=\"" + DEFAULT_TOTAL_CURRENCY + "\" maxlength=\"3\" autocomplete=\"off\" spellcheck=\"false\" title=\"Skriv valutakode (f.eks. NOK, USD) og trykk Enter\"></strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Currency: <strong><select id=\"portfolio-currency-input\" class=\"currency-select\" aria-label=\"Display currency\" title=\"Choose display currency\">" + buildCurrencyOptionsHtml(ratesToNok) + "</select></strong></span>\n");
         writer.write("<button id=\"refresh-prices-btn\" class=\"hero-refresh-btn\" type=\"button\">Update</button>\n");
         writer.write("<button id=\"report-theme-toggle\" class=\"hero-theme-btn\" type=\"button\">Dark mode</button>\n");
         writer.write("</div>\n");
