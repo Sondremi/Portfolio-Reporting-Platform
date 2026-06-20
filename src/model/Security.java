@@ -2189,17 +2189,18 @@ public class Security {
                 ? conn.getInputStream()
                 : conn.getErrorStream();
         if (stream == null) {
-            conn.disconnect();
             return "";
         }
 
+        // Fully consume and close the stream WITHOUT calling conn.disconnect(): that lets
+        // Java's HTTP keep-alive pool reuse the socket for the next call to the same Yahoo
+        // host, avoiding a fresh TCP/TLS handshake per security.
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 response.append(line);
             }
         }
-        conn.disconnect();
         return response.toString();
     }
 
