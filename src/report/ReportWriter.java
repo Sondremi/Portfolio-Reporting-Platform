@@ -250,8 +250,10 @@ public class ReportWriter {
             writer.write("        .cash-tx-edit-amount { width:88px; }\n");
             writer.write("        .cash-tx-edit-currency { width:58px; text-transform:uppercase; }\n");
             writer.write("        .cash-manager-empty { margin:0 0 8px; font-size:.78rem; color:#56708a; }\n");
-            writer.write("        .cash-transaction-list { margin:0 0 8px; padding-left:16px; display:grid; gap:4px; }\n");
-            writer.write("        .cash-transaction-item { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.78rem; }\n");
+            writer.write("        .cash-transaction-list { margin:0 0 8px; padding-left:16px; display:grid; gap:3px; }\n");
+            writer.write("        .cash-transaction-item { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.76rem; }\n");
+            writer.write("        .cash-transaction-item .cash-manager-btn { height:24px; padding:0 8px; font-size:.72rem; border-radius:6px; }\n");
+            writer.write("        .cash-account-caret { color:#5c7795; font-weight:400; }\n");
             writer.write("        .annual-headline-grid .kpi-card { min-height:116px; }\n");
             writer.write("        .kpi-label { color:#c8d9eb; font-size:.8rem; text-transform:uppercase; }\n");
             writer.write("        .kpi-value { margin-top:2px; font-size:1.02rem; font-weight:700; color:#fff; }\n");
