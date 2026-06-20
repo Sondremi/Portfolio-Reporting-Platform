@@ -137,6 +137,10 @@ public class CsvLoader {
         boolean balanceBackedRow = recordPortfolioCashSnapshot(row, indexes, tradeDateForTracking, sortId, store);
         store.incrementTransactionRowCount();
 
+        if (isCancelledTransaction(row, indexes, transactionType)) {
+            return true;
+        }
+
         String securityName = getCell(row, indexes.securityName);
         if (securityName.isEmpty()) {
             processStandaloneCashTransaction(row, indexes, transactionType, tradeDateForTracking, balanceBackedRow, store);
@@ -189,6 +193,15 @@ public class CsvLoader {
         if (Math.abs(cashDelta) > 1e-9) {
             store.addCashEvent(new Events.CashEvent(tradeDate, cashDelta, isExternalCashFlowEventType(transactionType)));
         }
+    }
+
+    private static boolean isCancelledTransaction(ArrayList<String> row, HeaderIndexes indexes, String transactionType) {
+        boolean hasCancellationDate = indexes.cancellationDate >= 0
+                && !getCell(row, indexes.cancellationDate).isBlank();
+        if (hasCancellationDate) {
+            return true;
+        }
+        return transactionType.startsWith("MAKULERT") || transactionType.startsWith("MAK ");
     }
 
     private static void processTransaction(Security security, ArrayList<String> row, HeaderIndexes indexes,
@@ -623,7 +636,8 @@ public class CsvLoader {
                n.contains("UTTAK") || n.contains("UTBETAL") || n.contains("WITHDRAW") ||
                n.contains("OVERF") || n.contains("TRANSFER") || n.contains("TRUSTLY") ||
                n.contains("GEBYR") || n.contains("FEE") || n.contains("KOSTNAD") ||
-               n.contains("RENTE") || n.contains("OVERBEL") || n.contains("PLATTFORMAVG");
+               n.contains("RENTE") || n.contains("OVERBEL") || n.contains("PLATTFORMAVG") ||
+               n.contains("TILBAKEBETAL");
     }
 
     private static boolean isExternalCashFlowEventType(String transactionType) {
