@@ -26,9 +26,18 @@ public class PortfolioReportGenerator {
             System.out.println("Loaded " + filesProcessed + " CSV file(s) from '" + INPUT_DIRECTORY + "'.");
         }
 
-        System.out.println("Generating report...");
+        System.out.println("Resolving market data...");
+        long resolveStartNanos = System.nanoTime();
+        store.resolveSecurityMarketData();
+        long resolveMs = (System.nanoTime() - resolveStartNanos) / 1_000_000;
+        System.out.println("Resolved market data for " + store.getSecurities().size()
+                + " securities in " + resolveMs + " ms.");
 
+        System.out.println("Generating report...");
+        long reportStartNanos = System.nanoTime();
         ReportWriter.writeHtmlReport(store, OUTPUT_FILE);
+        long reportMs = (System.nanoTime() - reportStartNanos) / 1_000_000;
+        System.out.println("Generated report in " + reportMs + " ms.");
 
         System.out.println("Done! Report generated: " + OUTPUT_FILE);
         openGeneratedReport();

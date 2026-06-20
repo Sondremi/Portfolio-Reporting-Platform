@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -27,11 +28,13 @@ public class Security {
     private static final DateTimeFormatter CSV_DATE_OUTPUT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final double EPSILON = 0.0000001;
     private static final long YAHOO_AUTH_TTL_MS = 10 * 60 * 1000L;
-    private static final Map<String, String> FUND_QUOTE_SUMMARY_CACHE = new LinkedHashMap<>();
-    private static final Map<String, LinkedHashMap<String, Double>> FUND_SECTOR_WEIGHT_CACHE = new LinkedHashMap<>();
-    private static final Map<String, LinkedHashMap<String, Double>> FUND_REGION_WEIGHT_CACHE = new LinkedHashMap<>();
-    private static final Map<String, String> HOLDING_SYMBOL_REGION_CACHE = new LinkedHashMap<>();
-    private static final Map<String, FundamentalsSnapshot> FUNDAMENTALS_SNAPSHOT_CACHE = new LinkedHashMap<>();
+    // Synchronized: securities are resolved in parallel (see TransactionStore.resolveSecurityMarketData).
+    private static final Map<String, String> FUND_QUOTE_SUMMARY_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static final Map<String, LinkedHashMap<String, Double>> FUND_SECTOR_WEIGHT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static final Map<String, LinkedHashMap<String, Double>> FUND_REGION_WEIGHT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static final Map<String, String> HOLDING_SYMBOL_REGION_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static final Map<String, FundamentalsSnapshot> FUNDAMENTALS_SNAPSHOT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static final Object YAHOO_AUTH_LOCK = new Object();
 
     private static String yahooAuthCookieHeader = "";
     private static String yahooAuthCrumb = "";
@@ -256,10 +259,26 @@ public class Security {
         }
     }
 
+    private volatile boolean marketDataResolved = false;
+
     public Security(String n, String i) {
         name = n;
         isin = i;
-        setTicker();
+    }
+
+    // Network enrichment (Yahoo ticker/price/classification) is deferred out of the
+    // constructor so securities can be resolved in parallel. Idempotent and thread-safe.
+    public void resolveMarketData() {
+        if (marketDataResolved) {
+            return;
+        }
+        synchronized (this) {
+            if (marketDataResolved) {
+                return;
+            }
+            setTicker();
+            marketDataResolved = true;
+        }
     }
 
     public String getName() { return name; }
@@ -1470,6 +1489,8 @@ public class Security {
     }
 
     private boolean ensureYahooAuthSession() {
+        // Serialize crumb acquisition so parallel security resolution shares one auth session.
+        synchronized (YAHOO_AUTH_LOCK) {
         if (System.currentTimeMillis() < yahooAuthExpiresAtMs
                 && yahooAuthCookieHeader != null && !yahooAuthCookieHeader.isBlank()
                 && yahooAuthCrumb != null && !yahooAuthCrumb.isBlank()) {
@@ -1509,6 +1530,7 @@ public class Security {
             return true;
         } catch (Exception ignored) {
             return false;
+        }
         }
     }
 
@@ -2167,17 +2189,18 @@ public class Security {
                 ? conn.getInputStream()
                 : conn.getErrorStream();
         if (stream == null) {
-            conn.disconnect();
             return "";
         }
 
+        // Fully consume and close the stream WITHOUT calling conn.disconnect(): that lets
+        // Java's HTTP keep-alive pool reuse the socket for the next call to the same Yahoo
+        // host, avoiding a fresh TCP/TLS handshake per security.
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 response.append(line);
             }
         }
-        conn.disconnect();
         return response.toString();
     }
 

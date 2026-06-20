@@ -4,6 +4,10 @@ import model.Events;
 import model.Security;
 
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class TransactionStore {
 
@@ -89,6 +93,36 @@ public class TransactionStore {
 
     public List<Security> getSecurities() {
         return new ArrayList<>(securities);
+    }
+
+    // Resolves each security's market data (Yahoo ticker/price/classification) concurrently.
+    // Call once after all CSVs are loaded and before building the report. Idempotent per security.
+    public void resolveSecurityMarketData() {
+        List<Security> pending = new ArrayList<>(securities);
+        if (pending.isEmpty()) {
+            return;
+        }
+        int workerCount = Math.max(1, Math.min(8, pending.size()));
+        ExecutorService executor = Executors.newFixedThreadPool(workerCount);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (Security security : pending) {
+                futures.add(executor.submit(security::resolveMarketData));
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (ExecutionException e) {
+                    // A single security failing to resolve must not abort the rest;
+                    // it keeps its safe defaults (handled inside setTicker).
+                }
+            }
+        } finally {
+            executor.shutdown();
+        }
     }
 
     public List<Events.UnitEvent> getUnitEvents() {
