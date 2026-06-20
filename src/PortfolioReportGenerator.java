@@ -26,6 +26,9 @@ public class PortfolioReportGenerator {
             System.out.println("Loaded " + filesProcessed + " CSV file(s) from '" + INPUT_DIRECTORY + "'.");
         }
 
+        System.out.println("Resolving market data...");
+        store.resolveSecurityMarketData();
+
         System.out.println("Generating report...");
 
         ReportWriter.writeHtmlReport(store, OUTPUT_FILE);
