@@ -334,10 +334,10 @@ public class ReportWriter {
             writer.write("        .report-standard .annual-graph-card { min-height:410px; }\n");
             writer.write("        .annual-graph-card.full-span { grid-column:1 / -1; }\n");
             writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
-            writer.write("        .total-return-graphs-section { background:linear-gradient(180deg,#f7fbff 0%,#eef5fc 100%); border-color:#c7d6e6; }\n");
+            writer.write("        .total-return-graphs-section { background:var(--card); border-color:var(--line); }\n");
             writer.write("        .total-return-chart { min-height:426px; }\n");
-            writer.write("        .total-return-chart .chart-svg { background:linear-gradient(180deg,#fbfdff 0%,#f1f7ff 100%); border-color:#c5d5e5; border-radius:10px; }\n");
-            writer.write("        .total-return-bar-chart .tr-plot-bg { fill:#f6fbff; stroke:#d6e1ed; }\n");
+            writer.write("        .total-return-chart .chart-svg { background:var(--card); border-color:var(--line); border-radius:10px; }\n");
+            writer.write("        .total-return-bar-chart .tr-plot-bg { fill:#fafcfe; stroke:#e2e8ef; }\n");
             writer.write("        .total-return-bar-chart .tr-grid-line { stroke:#d8e3ee; }\n");
             writer.write("        .total-return-bar-chart .tr-axis-label { fill:#496077; }\n");
             writer.write("        .total-return-bar-chart .tr-plot-border { stroke:#b9c8d7; }\n");
@@ -441,9 +441,9 @@ public class ReportWriter {
             writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn,body.theme-dark .annual-kpi-deck .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n");
             writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n");
             writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
-            writer.write("        body.theme-dark .total-return-graphs-section { background:linear-gradient(180deg,#15283b 0%,#122131 100%); border-color:#2e435a; }\n");
-            writer.write("        body.theme-dark .total-return-chart .chart-svg { background:linear-gradient(180deg,#132436 0%,#122131 100%); border-color:#30495f; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:#1a2f44 !important; stroke:#36506a !important; }\n");
+            writer.write("        body.theme-dark .total-return-graphs-section { background:var(--card); border-color:#2a3a4f; }\n");
+            writer.write("        body.theme-dark .total-return-chart .chart-svg { background:#162231; border-color:#2b3a4d; }\n");
+            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:#1c2c3e !important; stroke:#33485f !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-grid-line { stroke:#3e5872 !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-label { fill:#c8d9ea !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-border { stroke:#4b6580 !important; }\n");
