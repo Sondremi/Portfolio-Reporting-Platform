@@ -1201,7 +1201,7 @@ final class ReportClientScript {
         writer.write("  var accountsContainer = overlay.querySelector('.cash-manager-accounts');\n");
         writer.write("  var message = overlay.querySelector('.cash-manager-message');\n");
         writer.write("  function close() { overlay.hidden = true; }\n");
-        writer.write("  function open() { overlay.hidden = false; if (accountNameInput) accountNameInput.focus(); }\n");
+        writer.write("  function open() { overlay.hidden = false; }\n");
         writer.write("  closeButton.addEventListener('click', close);\n");
         writer.write("  overlay.addEventListener('click', function(event) { if (event.target === overlay) close(); });\n");
         writer.write("  document.addEventListener('keydown', function(event) { if (event.key === 'Escape' && !overlay.hidden) close(); });\n");
