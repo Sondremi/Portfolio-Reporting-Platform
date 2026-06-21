@@ -2128,13 +2128,12 @@ public class ReportWriter {
         String currency = security.getCurrencyCode();
         LinkedHashMap<String, Double> buckets = singleCurrencyBuckets(currency, value);
         String formatted = formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok);
-        String ticker = escapeHtml(security.getTicker());
         String name = escapeHtml(security.getDisplayName());
         String cls = valueClass.isEmpty() ? "" : " " + valueClass;
         return "<article class=\"kpi-card\">"
             + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
             + "<div class=\"kpi-value js-convert-money" + cls + "\" data-buckets=\"" + escapeHtml(toBucketsJson(buckets)) + "\" data-decimals=\"0\">" + formatted + "</div>"
-            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\"><strong>" + ticker + "</strong> · " + name + "</div>"
+            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">" + name + "</div>"
             + "</article>\n";
     }
 
@@ -2143,13 +2142,12 @@ public class ReportWriter {
         if (security == null || pctValue == Double.NEGATIVE_INFINITY) {
             return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
         }
-        String ticker = escapeHtml(security.getTicker());
         String name = escapeHtml(security.getDisplayName());
         String cls = pctValue > 0 ? " positive" : pctValue < 0 ? " negative" : "";
         return "<article class=\"kpi-card\">"
             + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
             + "<div class=\"kpi-value" + cls + "\">" + HtmlFormatter.formatPercent(pctValue, 2) + "</div>"
-            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\"><strong>" + ticker + "</strong> · " + name + "</div>"
+            + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">" + name + "</div>"
             + "</article>\n";
     }
 
