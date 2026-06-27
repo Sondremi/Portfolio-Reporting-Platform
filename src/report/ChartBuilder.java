@@ -68,11 +68,11 @@ public class ChartBuilder {
 
     public static String buildOverviewBarChartSvg(List<OverviewRow> rows, boolean percentChart, Map<String, Double> ratesToNok) {
         final double width = percentChart ? 1100.0 : 1040.0;
-        final double height = 450.0;
+        final double height = 438.0;
         final double left = percentChart ? 68.0 : 92.0;
         final double right = percentChart ? 22.0 : 38.0;
         final double top = 16.0;
-        final double bottom = 120.0;
+        final double bottom = 108.0;
         final double plotWidth = width - left - right;
         final double plotHeight = height - top - bottom;
 
@@ -154,8 +154,6 @@ public class ChartBuilder {
 
         double slotWidth = rows.isEmpty() ? plotWidth : plotWidth / rows.size();
         double barWidth = Math.max(8.0, slotWidth * 0.62);
-        double labelRotation = rows.size() > 14 ? -42.0 : -34.0;
-        double labelFontSize = rows.size() > 14 ? 11.0 : 12.0;
 
         for (int i = 0; i < rows.size(); i++) {
             OverviewRow row = rows.get(i);
@@ -173,7 +171,6 @@ public class ChartBuilder {
             String barColor = value >= 0.0 ? "url(#" + positiveGradientId + ")" : "url(#" + negativeGradientId + ")";
             String barBorderColor = value >= 0.0 ? "#1f6f31" : "#8f2b24";
             String label = getOverviewRowLabel(row);
-            String compactLabel = getCompactOverviewLabel(row);
 
                 svg.append("<rect class=\"chart-hover-target chart-hover-bar\" x=\"").append(svgNumber(x)).append("\" y=\"").append(svgNumber(barY))
                     .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
@@ -195,9 +192,9 @@ public class ChartBuilder {
             double labelAnchorX = x + (barWidth / 2.0);
                 double labelAnchorY = height - bottom + 16.0;
                 svg.append("<text class=\"chart-total-return-label\" x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
-                    .append("\" transform=\"rotate(").append(svgNumber(labelRotation)).append(" ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
-                    .append(")\" text-anchor=\"end\" font-size=\"").append(svgNumber(labelFontSize)).append("\" font-weight=\"700\" fill=\"#1f2933\">")
-                    .append(escapeHtml(compactLabel))
+                    .append("\" transform=\"rotate(-30 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
+                    .append(")\" text-anchor=\"end\" font-size=\"10\" font-weight=\"600\" fill=\"#1f2933\">")
+                    .append(escapeHtml(getCompactBarLabel(row)))
                     .append("</text>\n");
         }
 
@@ -994,24 +991,6 @@ public class ChartBuilder {
         }
 
         return fullLabel.substring(0, 21) + "...";
-    }
-
-    private static String getCompactOverviewLabel(OverviewRow row) {
-        String fullLabel = getOverviewRowLabel(row);
-        if (fullLabel == null || fullLabel.isBlank()) {
-            return "-";
-        }
-
-        if (fullLabel.length() <= 26) {
-            return fullLabel;
-        }
-
-        boolean hasTicker = row.tickerText != null && !row.tickerText.isBlank() && !"-".equals(row.tickerText);
-        if ("STOCK".equals(row.assetType) && hasTicker) {
-            return row.tickerText;
-        }
-
-        return fullLabel.substring(0, 23) + "...";
     }
 
     private static String getAllocationColor(int index, int totalCount) {
