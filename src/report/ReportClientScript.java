@@ -1725,7 +1725,8 @@ final class ReportClientScript {
         writer.write("    if (existing) return existing;\n");
         writer.write("    var toolbar = document.createElement('div');\n");
         writer.write("    toolbar.className = 'chart-toolbar';\n");
-        writer.write("    row.insertAdjacentElement('afterend', toolbar);\n");
+        writer.write("    var heading = row.querySelector(':scope > h3, :scope > h4, :scope > .hero-side-title');\n");
+        writer.write("    if (heading) { heading.insertAdjacentElement('afterend', toolbar); } else { row.appendChild(toolbar); }\n");
         writer.write("    return toolbar;\n");
         writer.write("  }\n");
         writer.write("  function attachControls(container) {\n");

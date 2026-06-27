@@ -376,13 +376,14 @@ public class ReportWriter {
             writer.write("        .chart-security-label { font-weight:700; letter-spacing:.05px; paint-order:stroke; stroke:#ffffff; stroke-width:1.6; stroke-linejoin:round; }\n");
             writer.write("        .chart-tooltip { position:fixed; pointer-events:none; z-index:10000; max-width:340px; padding:7px 10px; border-radius:8px; background:rgba(16,28,40,.94); color:#f6fbff; font-size:.8rem; font-weight:600; line-height:1.3; box-shadow:0 8px 18px rgba(7,16,26,.28); border:1px solid rgba(255,255,255,.14); opacity:0; transform:translateY(4px); transition:opacity .1s ease, transform .1s ease; }\n");
             writer.write("        .chart-tooltip.visible { opacity:1; transform:translateY(0); }\n");
-            writer.write("        .chart-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px; }\n");
+            writer.write("        .chart-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; }\n");
+            writer.write("        .chart-title-row > .chart-download-btn { margin-left:auto; }\n");
             writer.write("        .chart-title-row > h3, .chart-title-row > h4, .chart-title-row > .hero-side-title { margin:0; }\n");
             writer.write("        .chart-title-row > h3, .chart-title-row > h4 { white-space:nowrap; }\n");
             writer.write("        .chart-download-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }\n");
             writer.write("        .chart-download-btn:hover { background:#e6f1fb; }\n");
             writer.write("        .chart-download-btn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }\n");
-            writer.write("        .chart-toolbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0 0 8px; position:relative; z-index:3; }\n");
+            writer.write("        .chart-toolbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0; position:relative; z-index:3; }\n");
             writer.write("        .chart-tool-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:28px; height:28px; padding:0 7px; font-size:.74rem; font-weight:700; cursor:pointer; }\n");
             writer.write("        .chart-tool-btn:hover { background:#e6f1fb; }\n");
             writer.write("        .chart-filter-input { border:1px solid #a5bbcf; border-radius:7px; height:28px; min-width:130px; padding:0 8px; font-size:.74rem; background:#ffffff; color:#20384f; }\n");
@@ -484,6 +485,7 @@ public class ReportWriter {
             writer.write("        @media (max-width:1060px) { .report-hero{grid-template-columns:1fr;} .hero-kpis,.annual-headline-grid{grid-template-columns:1fr;} .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .annual-graphs-row{grid-template-columns:1fr;} .overview-charts{grid-template-columns:1fr;} .allocation-row-top,.allocation-row-bottom{grid-template-columns:1fr;} .page{width:100%; padding:16px 8px 22px;} .table-wrap{overflow-x:auto;} .report-standard .overview-table{min-width:0;} .report-standard .realized-table{min-width:0;} .report-annual .table-wrap table{min-width:980px;} }\n");
             writer.write("        @media (max-width:760px) { .annual-summary-grid{grid-template-columns:1fr;} .annual-graphs-heading{flex-direction:column; align-items:flex-start;} }\n");
             writer.write("        @media (max-width:760px) { .annual-graph-card, .total-return-chart, .report-standard .total-return-chart, .report-standard .annual-graph-card { min-height:0; } }\n");
+            writer.write("        @media (max-width:760px) { .chart-title-row > .chart-toolbar { order:3; flex-basis:100%; } }\n");
             writer.write("        @media (max-width:760px) { .total-return-chart .chart-viewport, .security-bar-panel .chart-viewport, .security-pie-panel .chart-viewport { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; } }\n");
             writer.write("        @media (max-width:760px) { .total-return-chart .chart-svg { min-width:640px; height:auto; } }\n");
             writer.write("        @media (max-width:760px) { .security-bar-panel .chart-svg, .security-pie-panel .chart-svg { width:100%; min-width:520px; height:auto; margin:6px 0 10px; } }\n");
