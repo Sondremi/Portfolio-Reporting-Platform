@@ -355,7 +355,7 @@ public class ReportWriter {
             writer.write("        .allocation-row-bottom { grid-template-columns:repeat(2,minmax(0,1fr)); }\n");
             writer.write("        .allocation-panel { border:1px solid var(--line); border-radius:10px; padding:16px; background:#fafcfe; overflow:hidden; }\n");
             writer.write("        .allocation-panel-title { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; color:#41576d; letter-spacing:.3px; white-space:nowrap; }\n");
-            writer.write("        .allocation-drilldown-list { margin:4px 2% 0; border:1px solid #d5e1ec; border-radius:8px; background:#fff; max-height:200px; overflow:auto; padding:8px 10px; }\n");
+            writer.write("        .allocation-drilldown-list { box-sizing:border-box; width:100%; margin:10px 0 0; border:1px solid #d5e1ec; border-radius:8px; background:#fff; overflow:hidden; padding:8px 10px; }\n");
             writer.write("        .allocation-drilldown-list[hidden] { display:none !important; }\n");
             writer.write("        .allocation-drilldown-grid { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:start; }\n");
             writer.write("        .allocation-drilldown-selected { margin:0 0 8px; font-size:.78rem; font-weight:700; color:#2e4963; }\n");
