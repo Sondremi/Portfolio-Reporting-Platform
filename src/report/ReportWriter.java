@@ -2236,7 +2236,7 @@ public class ReportWriter {
         writer.write(buildRealizedLeaderCard("Highest Sales Value", leadSalesValue, leadSalesValueVal, "", ratesToNok));
         writer.write(buildRealizedLeaderCard("Highest Gain / Loss", leadGain, leadGainVal, signedClass(leadGainNok), ratesToNok));
         writer.write(buildRealizedLeaderPctCard("Highest %", leadGainPct, leadGainPctVal));
-        writer.write(buildRealizedLeaderCard("Highest Dividends", leadDividends, leadDividendsVal, "", ratesToNok));
+        writer.write(buildRealizedLeaderCard("Highest Dividends", leadDividends, leadDividendsVal, signedClass(leadDividendsNok), ratesToNok));
         writer.write(buildRealizedLeaderCard("Highest Total Return", leadTotalReturn, leadTotalReturnVal, signedClass(leadTotalReturnNok), ratesToNok));
         writer.write("</div>\n");
         writer.write("</section>\n");
