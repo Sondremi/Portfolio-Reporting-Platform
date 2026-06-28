@@ -1465,6 +1465,7 @@ public class ReportWriter {
         String realizedClass = signedClass(totalRealizedInDefaultCurrency);
         String dayChangeClass = signedClass(dayChangeNok);
         String oneYearChangeClass = oneYearChangeSummary.hasData ? signedClass(oneYearChangeSummary.returnNok) : "";
+        String dividendsClass = signedClass(convertBucketsToTarget(totalDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok));
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Market Value</div><div id=\"hero-total-market-value\" class=\"kpi-value js-convert-money\" data-buckets=\""
             + escapeHtml(toBucketsJson(totalMarketBuckets)) + "\" data-decimals=\"0\">"
@@ -1482,7 +1483,7 @@ public class ReportWriter {
             + formatBucketsInTarget(totalReturnBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div id=\"hero-total-return-pct\" class=\"kpi-label " + totalClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct) + "</div></article>\n");
 
-        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div><div id=\"hero-dividends-value\" class=\"kpi-value js-convert-money\" data-buckets=\""
+        writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div><div id=\"hero-dividends-value\" class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\""
             + escapeHtml(toBucketsJson(totalDividendsBuckets))
             + "\" data-sold-only-dividends-buckets=\"" + escapeHtml(toBucketsJson(soldOnlyDividendsBuckets))
             + "\" data-decimals=\"0\">"
