@@ -540,14 +540,10 @@ public class ReportWriter {
         LinkedHashMap<String, Double> realizedGainBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.realizedGainNok);
         LinkedHashMap<String, Double> dividendsBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.dividendsNok);
         LinkedHashMap<String, Double> realizedTotalBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, summary.realizedTotalNok);
-        LinkedHashMap<String, Double> bestReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.best.returnNok);
-        LinkedHashMap<String, Double> worstReturnBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, metrics.worst.returnNok);
 
         String portfolioClass = signedClass(summary.portfolioReturnNok);
         double benchmarkDelta = summary.hasBenchmarkData ? (summary.portfolioReturnPct - summary.benchmarkReturnPct) : 0.0;
         String deltaClass = signedClass(benchmarkDelta);
-        String bestClass = signedClass(metrics.best.returnNok);
-        String worstClass = signedClass(metrics.worst.returnNok);
         String valueWarningHtml = buildAnnualValueWarningHtml(snapshotRows);
 
         writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Value</h4><div class=\"annual-summary-value\">"
@@ -571,7 +567,8 @@ public class ReportWriter {
             + renderConvertibleMoneyCell(realizedGainBuckets, 2, ratesToNok)
             + "</div><div class=\"annual-summary-sub\">Closed sales in selected year</div></article>\n");
 
-        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Dividends</h4><div class=\"annual-summary-value\">"
+        String dividendsClass = signedClass(summary.dividendsNok);
+        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Dividends</h4><div class=\"annual-summary-value " + dividendsClass + "\">"
             + renderConvertibleMoneyCell(dividendsBuckets, 2, ratesToNok)
             + "</div><div class=\"annual-summary-sub\">Dividend cash flows in selected year</div></article>\n");
 
@@ -596,17 +593,12 @@ public class ReportWriter {
                 + "</div><div class=\"annual-summary-sub\">Portfolio minus 0.00% fallback benchmark</div></article>\n");
         }
 
-        writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Best / Worst</h4><div class=\"performer " + bestClass + "\"><strong>"
-            + escapeHtml(metrics.best.label)
-            + "</strong><span class=\"performer-metrics\">"
-            + renderConvertibleMoneyCell(bestReturnBuckets, 0, ratesToNok)
-            + " | " + HtmlFormatter.formatPercent(metrics.best.returnPct)
-            + "</span></div><div class=\"performer " + worstClass + "\"><strong>"
-            + escapeHtml(metrics.worst.label)
-            + "</strong><span class=\"performer-metrics\">"
-            + renderConvertibleMoneyCell(worstReturnBuckets, 0, ratesToNok)
-            + " | " + HtmlFormatter.formatPercent(metrics.worst.returnPct)
-            + "</span></div></article>\n");
+        writer.write(buildAnnualPerformerCard("Best / Worst", metrics.best, metrics.worst, ratesToNok));
+        if (metrics.hasPctExtremes) {
+            writer.write(buildAnnualPerformerCard("Best / Worst %", metrics.bestPct, metrics.worstPct, ratesToNok));
+        } else {
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Best / Worst %</h4><div class=\"performer\"><strong>N/A</strong><span class=\"performer-metrics\">No percentage return data available.</span></div></article>\n");
+        }
 
         if (summary.hasAnalytics) {
             writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Volatility (Ann.)</h4><div class=\"annual-summary-value\">"
@@ -636,6 +628,26 @@ public class ReportWriter {
                 + "<div class=\"annual-summary-sub\">P10: " + renderConvertibleMoneyCell(p10Buckets, 0, ratesToNok) + " | P90: " + renderConvertibleMoneyCell(p90Buckets, 0, ratesToNok) + "</div></article>\n");
         }
 
+    }
+
+    private static String buildAnnualPerformerCard(
+            String label,
+            AnnualSecurityPerformance best,
+            AnnualSecurityPerformance worst,
+            Map<String, Double> ratesToNok) {
+        LinkedHashMap<String, Double> bestBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, best.returnNok);
+        LinkedHashMap<String, Double> worstBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, worst.returnNok);
+        return "<article class=\"kpi-card annual-summary-card\"><h4>" + escapeHtml(label) + "</h4><div class=\"performer " + signedClass(best.returnNok) + "\"><strong>"
+            + escapeHtml(best.label)
+            + "</strong><span class=\"performer-metrics\">"
+            + renderConvertibleMoneyCell(bestBuckets, 0, ratesToNok)
+            + " | " + HtmlFormatter.formatPercent(best.returnPct)
+            + "</span></div><div class=\"performer " + signedClass(worst.returnNok) + "\"><strong>"
+            + escapeHtml(worst.label)
+            + "</strong><span class=\"performer-metrics\">"
+            + renderConvertibleMoneyCell(worstBuckets, 0, ratesToNok)
+            + " | " + HtmlFormatter.formatPercent(worst.returnPct)
+            + "</span></div></article>\n";
     }
 
     private static String buildAnnualValueWarningHtml(List<AnnualSnapshotRow> snapshotRows) {
@@ -669,18 +681,27 @@ public class ReportWriter {
         private final double cashHoldingsNok;
         private final AnnualSecurityPerformance best;
         private final AnnualSecurityPerformance worst;
+        private final boolean hasPctExtremes;
+        private final AnnualSecurityPerformance bestPct;
+        private final AnnualSecurityPerformance worstPct;
 
         private AnnualHeroMetrics(
                 int transactionCount,
                 int holdingsCount,
                 double cashHoldingsNok,
                 AnnualSecurityPerformance best,
-                AnnualSecurityPerformance worst) {
+                AnnualSecurityPerformance worst,
+                boolean hasPctExtremes,
+                AnnualSecurityPerformance bestPct,
+                AnnualSecurityPerformance worstPct) {
             this.transactionCount = transactionCount;
             this.holdingsCount = holdingsCount;
             this.cashHoldingsNok = cashHoldingsNok;
             this.best = best;
             this.worst = worst;
+            this.hasPctExtremes = hasPctExtremes;
+            this.bestPct = bestPct;
+            this.worstPct = worstPct;
         }
     }
 
@@ -763,12 +784,11 @@ public class ReportWriter {
         String returnChartSvg = PortfolioCalculator.buildAnnualPortfolioReturnSparklineSvg(store, ratesToNok, safeYear);
 
         writer.write("<section class=\"annual-graphs-section\">\n");
-        writer.write("<div class=\"annual-graphs-heading\"><h2>Yearly Trend</h2><p>Value and return development month by month for " + safeYear + ".</p></div>\n");
+        writer.write("<div class=\"annual-graphs-heading\"><h2>Yearly Trend</h2></div>\n");
         writer.write("<div class=\"annual-graphs-row\">\n");
 
         writer.write("<article class=\"annual-graph-card\">\n");
         writer.write("<h3>Portfolio Value</h3>\n");
-        writer.write("<p class=\"annual-graph-note\">Month-end portfolio value in selected year (latest available date for current month).</p>\n");
         writer.write("<div class=\"annual-graph-content\">\n");
         if (valueChartSvg == null || valueChartSvg.isBlank()) {
             writer.write("<div class=\"app-shell-note\">Timeline data is not available for the selected year.</div>\n");
@@ -780,7 +800,6 @@ public class ReportWriter {
 
         writer.write("<article class=\"annual-graph-card\">\n");
         writer.write("<h3>Portfolio Return</h3>\n");
-        writer.write("<p class=\"annual-graph-note\">Month-end portfolio return in selected year (latest available date for current month).</p>\n");
         writer.write("<div class=\"annual-graph-content\">\n");
         if (returnChartSvg == null || returnChartSvg.isBlank()) {
             writer.write("<div class=\"app-shell-note\">Return timeline is not available for the selected year.</div>\n");
@@ -807,6 +826,8 @@ public class ReportWriter {
 
         AnnualSecurityPerformance best = new AnnualSecurityPerformance("No yearly realized data", 0.0, 0.0);
         AnnualSecurityPerformance worst = best;
+        AnnualSecurityPerformance bestPct = best;
+        AnnualSecurityPerformance worstPct = best;
         boolean hasBestWorst = false;
 
         for (Security security : store.getSecurities()) {
@@ -857,6 +878,12 @@ public class ReportWriter {
             if (!hasBestWorst || current.returnNok < worst.returnNok) {
                 worst = current;
             }
+            if (!hasBestWorst || current.returnPct > bestPct.returnPct) {
+                bestPct = current;
+            }
+            if (!hasBestWorst || current.returnPct < worstPct.returnPct) {
+                worstPct = current;
+            }
             hasBestWorst = true;
         }
 
@@ -865,7 +892,10 @@ public class ReportWriter {
                 holdingsCount,
                 cashHoldingsNok,
                 best,
-            worst
+                worst,
+                hasBestWorst,
+                bestPct,
+                worstPct
         );
     }
 
@@ -1001,10 +1031,11 @@ public class ReportWriter {
             int reportYear) throws IOException {
 
         int safeYear = Math.max(2000, Math.min(2100, reportYear));
+        String snapshotLabel = resolveYearSnapshotDate(safeYear).format(DETAIL_DATE_FORMATTER);
 
-        writer.write("<h2>PORTFOLIO OVERVIEW - 31.12." + safeYear + "</h2>\n");
+        writer.write("<h2>PORTFOLIO OVERVIEW - " + snapshotLabel + "</h2>\n");
         if (rows.isEmpty()) {
-            writer.write("<p class=\"app-shell-note\">No holdings found at 31.12." + safeYear + ".</p>\n");
+            writer.write("<p class=\"app-shell-note\">No holdings found at " + snapshotLabel + ".</p>\n");
             return;
         }
 
@@ -1238,15 +1269,9 @@ public class ReportWriter {
             double costBasis = yearlySales.stream().mapToDouble(Security.SaleTrade::getCostBasis).sum();
             double gain = yearlySales.stream().mapToDouble(Security.SaleTrade::getGainLoss).sum();
 
-            double totalReturnValue = gain + realizedDividends;
-            double rowTotalReturnPct = costBasis > 0.0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currency = security.getCurrencyCode();
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
-                String totalReturnCombined = signedSpan(
-                    HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
-                        + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
-                    totalReturnValue);
 
             addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
             addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
@@ -1254,23 +1279,8 @@ public class ReportWriter {
             addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
 
             String detailsRowId = "realized-year-details-" + detailsIndex;
-                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
-                String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-                String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
-                ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                    tickerToggle,
-                    securityToggle,
-                    HtmlFormatter.formatMoney(costBasis, currency, 2),
-                    HtmlFormatter.formatMoney(salesValue, currency, 2),
-                    signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
-                    signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
-                    totalReturnCombined);
-
-            writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details-year\">\n");
-            writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
-            writer.write(buildRealizedSaleTradesDetailsHtml(security, safeYear));
-            writer.write("    </td>\n");
-            writer.write("</tr>\n");
+            writeRealizedTableRow(writer, security, currency, costBasis, salesValue, gain, realizedDividends,
+                rowClass, detailsRowId, "realized-details-year", buildRealizedSaleTradesDetailsHtml(security, safeYear));
 
             previousAssetType = currentAssetType;
             detailsIndex++;
@@ -2257,33 +2267,12 @@ public class ReportWriter {
             double costBasis = security.getRealizedCostBasis();
             double gain = security.getRealizedGain();
             double realizedDividends = security.isFullyRealized() ? security.getDividends() : 0.0;
-            double totalReturnValue = gain + realizedDividends;
-            double rowTotalReturnPct = costBasis > 0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
             String currentAssetType = security.getAssetType().name();
             String rowClass = isStockFundBoundary(previousAssetType, currentAssetType) ? "asset-split" : null;
-            String totalReturnCombined = signedSpan(
-                HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
-                    + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
-                totalReturnValue);
 
             String detailsRowId = "realized-details-" + detailsIndex;
-            String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(currentAssetType)) + "\"";
-            String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-            String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
-            ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                tickerToggle,
-                securityToggle,
-                HtmlFormatter.formatMoney(costBasis, currency, 2),
-                HtmlFormatter.formatMoney(salesValue, currency, 2),
-                signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
-                signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
-                totalReturnCombined);
-
-            writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"realized-details\">\n");
-            writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
-            writer.write(buildRealizedSaleTradesDetailsHtml(security));
-            writer.write("    </td>\n");
-            writer.write("</tr>\n");
+            writeRealizedTableRow(writer, security, currency, costBasis, salesValue, gain, realizedDividends,
+                rowClass, detailsRowId, "realized-details", buildRealizedSaleTradesDetailsHtml(security));
 
             previousAssetType = currentAssetType;
             detailsIndex++;
@@ -2307,6 +2296,44 @@ public class ReportWriter {
         writer.write("</tr>\n");
 
         writer.write("</table>\n</div>\n\n");
+    }
+
+    private static void writeRealizedTableRow(
+            FileWriter writer,
+            Security security,
+            String currency,
+            double costBasis,
+            double salesValue,
+            double gain,
+            double realizedDividends,
+            String rowClass,
+            String detailsRowId,
+            String detailsGroup,
+            String detailsHtml) throws IOException {
+        double totalReturnValue = gain + realizedDividends;
+        double rowTotalReturnPct = costBasis > 0.0 ? (totalReturnValue / costBasis) * 100.0 : 0.0;
+        String totalReturnCombined = signedSpan(
+            HtmlFormatter.formatMoney(totalReturnValue, currency, 2)
+                + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
+            totalReturnValue);
+
+        String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(security.getAssetType().name())) + "\"";
+        String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
+        String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
+        ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
+            tickerToggle,
+            securityToggle,
+            HtmlFormatter.formatMoney(costBasis, currency, 2),
+            HtmlFormatter.formatMoney(salesValue, currency, 2),
+            signedSpan(HtmlFormatter.formatMoney(gain, currency, 2), gain),
+            signedSpan(HtmlFormatter.formatMoney(realizedDividends, currency, 2), realizedDividends),
+            totalReturnCombined);
+
+        writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"" + detailsGroup + "\">\n");
+        writer.write("    <td class=\"details-cell\" colspan=\"7\">\n");
+        writer.write(detailsHtml);
+        writer.write("    </td>\n");
+        writer.write("</tr>\n");
     }
 
     private static String buildRealizedSaleTradesDetailsHtml(Security security) {
