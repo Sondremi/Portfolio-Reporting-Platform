@@ -295,12 +295,12 @@ public class CsvLoader {
 
     // ====================== Parsing Helpers ======================
 
-    private static double parseDoubleOrZero(String value) {
+    public static double parseDoubleOrZero(String value) {
         Double parsed = parseDoubleOrNull(value);
         return parsed == null ? 0.0 : parsed;
     }
 
-    private static Double parseDoubleOrNull(String value) {
+    public static Double parseDoubleOrNull(String value) {
         if (value == null || value.trim().isEmpty()) return null;
         String normalized = value.trim()
                 .replace("\u00A0", "")
