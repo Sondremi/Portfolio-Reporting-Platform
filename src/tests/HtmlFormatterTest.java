@@ -3,7 +3,7 @@ package tests;
 import report.HtmlFormatter;
 
 /**
- * Unit test for HtmlFormatter. Locks two CLAUDE.md hard rules into code:
+ * Unit test for HtmlFormatter. Locks two hard report rules into code:
  *   - numeric values are never truncated/ellipsized,
  *   - escapeHtml neutralizes markup (XSS safety).
  * Also covers currency fallback, MIXED handling, percent and unit trimming.
