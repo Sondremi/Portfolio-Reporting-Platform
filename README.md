@@ -1,42 +1,83 @@
 # Portfolio Reporting Platform
 
-Portfolio Reporting Platform is a program that reads investment transactions and generates a browser-based portfolio report. It gives you a consolidated view of current holdings, realized and unrealized return, dividends, detailed sale-trade history across both stocks and funds, and visual charts for total return and market value allocation.
+Portfolio Reporting Platform is a program that turn raw broker/bank investment transactions into a browser-based portfolio report. It gives you a consolidated view of current holdings, realized and unrealized return, dividends, full sale-trade history, visual charts for total return and market value allocation, across both stocks and funds, in mixed currencies.
 
-Request access to the web app by email. 
+The same Java engine runs in two places: a **local CLI** and a **hosted web app**.
 
-[Web app](https://indsetsportfolioreport.web.app)
+![Portfolio report example](portfolio_report_example.png)
 
-## The web app includes:
-- Email/password login
-- Upload and manage transaction files per user
-- Select portfolio and report type (Portfolio report or Annual report)
-- Send report requests to the report API and render results in the browser
-- Store uploaded files and generated reports for each user
+## Features
 
-You can also run the program locally on your own machine without the web features.
+- **Broker-agnostic CSV ingestion** — comma, semicolon, and tab-separated files, with charset auto-detection and tolerant numeric parsing.
+- **Transaction tracking** — buys, sells, dividends, corporate actions, and cancelled orders, consolidated into current holdings.
+- **Returns** — FIFO cost basis, realized and unrealized P&L, dividends, and a per-security sale-trade breakdown.
+- **Mixed currencies** — per-holding figures stay in native currency; totals are aggregated using cached FX rates. The report embeds the rate table and lets you switch the displayed currency on the fly, no regeneration needed.
+- **Market-data enrichment** — ticker, latest price, sector and region resolved from Yahoo Finance (in parallel) for richer labeling and allocation charts.
+- **Two report types** — a **Standard** portfolio snapshot and an **Annual** report (per-year return, benchmark comparison, volatility / Sharpe / beta, and a Monte Carlo projection).
+- **Self-contained output** — one HTML file with inline CSS/JS and SVG charts; responsive down to mobile.
 
-## What The Java Program Does
-- Reads CSV exports from one or more brokers/banks
-- Supports comma, semicolon, and tab-separated formats
-- Tracks buys, sells, dividends, and current holdings
-- Calculates realized and unrealized return (FIFO)
-- Resolves ticker and metadata for better report labeling
-- Generates a complete HTML report with tables and charts
+## Requirements
 
-## Quick Start
-1. Export transaction history to CSV.
-2. Put files in `transaction_files/` (files with `example` in the filename are ignored).
+- JDK 21+ (`java -version` should report 21 or newer).
+
+## Quick Start (local CLI)
+
+1. Export your transaction history to CSV.
+2. Put the files in `transaction_files/` (filenames containing `example` are skipped, so the bundled sample won't be mixed into your own runs).
 3. Compile and run:
+
+   ```bash
+   javac -d out src/*.java src/*/*.java
+   java -cp out PortfolioReportGenerator
+   ```
+
+This writes **`portfolio-report.html`** in the project root. Open it in any browser.
+
+> Market-data enrichment (prices, sector, region) needs network access to Yahoo
+> Finance. Offline, the report still generates. Transaction figures such as units,
+> cost basis, realized gain and dividends are unaffected, while price-dependent
+> values display a placeholder instead of a guessed number.
+
+## Web App
+
+A hosted version adds an authenticated, multi-file workflow on top of the same
+engine:
+
+- Email/password login.
+- Upload and manage transaction files per user.
+- Choose portfolio and report type (Standard or Annual).
+- Generate reports server-side and render them in the browser.
+- An in-report **Update** button refreshes live prices without re-reading transactions.
+- Uploaded files and generated reports are stored per user.
+
+Access is by request on mail. → **https://indsetsportfolioreport.web.app**
+
+## Example Data
+
+`transaction_files/transactions_example.csv` is a realistic sample with both
+gains and losses — useful for trying the CLI without your own exports.
+
+## Development
+
+Run the test suite (offline, deterministic) after any change to the Java core:
 
 ```bash
 javac -d out src/*.java src/*/*.java
-java -cp out PortfolioReportGenerator
+java -cp out tests.RunAll
 ```
 
-The program generates `portfolio-report.html`.
+It covers the calculation golden masters plus CSV parsing, currency conversion,
+security identity, date/number/JSON parsing, and HTML formatting.
 
-## Example Data
-- `transaction_files/transactions_example.csv` contains realistic sample transactions with both gains and losses.
+## Project Layout
 
-## Portfolio Example
-![Portfolio report example](portfolio_report_example.png)
+```
+src/                  Java core: CSV parsing, calculations, report generation
+  csv/                CSV loading + in-memory transaction store
+  model/              Security and event domain model
+  report/             Calculator, HTML writer, chart builder, formatters
+  util/               Date / JSON helpers
+  tests/              Offline test suite (run via tests.RunAll)
+transaction_files/    Local CSV inputs (example file bundled)
+portfolio-report.html Generated output (local runs)
+```
