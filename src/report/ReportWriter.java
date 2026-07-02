@@ -250,6 +250,7 @@ public class ReportWriter {
             writer.write("        .cash-tx-edit-row input { border:1px solid #a8bfd4; border-radius:6px; height:26px; padding:0 6px; font-size:.78rem; }\n");
             writer.write("        .cash-tx-edit-amount { width:88px; }\n");
             writer.write("        .cash-tx-edit-currency { width:58px; text-transform:uppercase; }\n");
+            writer.write("        .cash-account-name-edit { width:150px; }\n");
             writer.write("        .cash-manager-empty { margin:0 0 8px; font-size:.78rem; color:#56708a; }\n");
             writer.write("        .cash-transaction-list { margin:0 0 8px; padding-left:16px; display:grid; gap:3px; }\n");
             writer.write("        .cash-transaction-item { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.76rem; }\n");
