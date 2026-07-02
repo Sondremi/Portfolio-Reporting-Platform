@@ -1691,7 +1691,7 @@ public class ReportWriter {
         writer.write("</div>\n");
         writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"summary\">\n<table class=\"overview-table overview-summary-table\">\n");
         ReportTemplateHelper.writeHtmlRow(writer, true,
-            "Ticker", "Security", "Change %", "Change", "Day Chart", "52-Wk Range", "Shares", "Avg Cost", "Last Price",
+            "Ticker", "Security", "Change %", "Change", "7D %", "1M %", "Day Chart", "52-Wk Range", "Shares", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value");
 
         LinkedHashMap<String, Double> totalMarketValueBuckets = new LinkedHashMap<>();
@@ -1723,8 +1723,13 @@ public class ReportWriter {
             Security security = securityByKey.get(row.securityKey);
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
             String dayChangeValueCell = formatDayChangeValueCell(row);
+            String change7dCell = formatChangePctCell(row.change7dPct, row.hasChange7dPct, "js-row-change-7d");
+            String change1mCell = formatChangePctCell(row.change1mPct, row.hasChange1mPct, "js-row-change-1m");
             String dayChartCell = formatDayChartCell(row);
             String fiftyTwoWeekRangeCell = format52WeekRangeCell(row, fundamentalsByKey.get(row.securityKey));
+
+            double change7dRef = row.hasChange7dPct ? row.latestPrice / (1.0 + row.change7dPct / 100.0) : 0.0;
+            double change1mRef = row.hasChange1mPct ? row.latestPrice / (1.0 + row.change1mPct / 100.0) : 0.0;
 
             String rowAttributes = "data-overview-row=\"1\""
                 + " data-overview-security-key=\"" + escapeHtml(row.securityKey) + "\""
@@ -1737,7 +1742,9 @@ public class ReportWriter {
                 + " data-dividends=\"" + String.format(Locale.US, "%.8f", row.dividends) + "\""
                 + " data-historical-cost-basis=\"" + String.format(Locale.US, "%.8f", row.historicalCostBasis) + "\""
                 + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
-                + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
+                + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\""
+                + " data-change-7d-ref=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, change7dRef)) + "\""
+                + " data-change-1m-ref=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, change1mRef)) + "\"";
 
             String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
             String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
@@ -1746,6 +1753,8 @@ public class ReportWriter {
                     securityToggle,
                     dayChangeCell,
                     dayChangeValueCell,
+                    change7dCell,
+                    change1mCell,
                     dayChartCell,
                     fiftyTwoWeekRangeCell,
                     HtmlFormatter.formatUnits(row.units),
@@ -1755,7 +1764,7 @@ public class ReportWriter {
                     "<span class=\"js-row-market-value\">" + (row.latestPrice > 0 ? HtmlFormatter.formatMoney(row.marketValue, row.currencyCode, 2) : "-") + "</span>");
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
-                    writer.write("    <td class=\"details-cell\" colspan=\"11\">\n");
+                    writer.write("    <td class=\"details-cell\" colspan=\"13\">\n");
                     writer.write(buildHoldingDetailsTableHtml(security, row));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
@@ -1793,7 +1802,7 @@ public class ReportWriter {
             : renderConvertibleMoneyCellWithId("holdings-total-day-change-value", signedClass(totalDayChangeForPct), totalDayChangeBuckets, 2, ratesToNok);
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("</tr>\n");
@@ -1960,6 +1969,22 @@ public class ReportWriter {
             return "<span class=\"js-row-day-change " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
         }
         return "<span class=\"js-row-day-change\">" + escapeHtml(valueText) + "</span>";
+    }
+
+    private static String formatChangePctCell(double changePct, boolean hasChangePct, String markerClass) {
+        if (!hasChangePct || !Double.isFinite(changePct)) {
+            return "<span class=\"" + markerClass + "\">-</span>";
+        }
+
+        String cssClass = changePct > 0.0
+                ? "positive"
+                : (changePct < 0.0 ? "negative" : "");
+
+        String valueText = HtmlFormatter.formatPercent(changePct, 2);
+        if (!cssClass.isBlank()) {
+            return "<span class=\"" + markerClass + " " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+        }
+        return "<span class=\"" + markerClass + "\">" + escapeHtml(valueText) + "</span>";
     }
 
     private static String formatDayChangeValueCell(OverviewRow row) {

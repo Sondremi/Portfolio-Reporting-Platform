@@ -11,6 +11,10 @@ public class OverviewRow {
     public final double dayChangePct;
     public final double previousClose;
     public final boolean hasDayChangePct;
+    public final double change7dPct;
+    public final boolean hasChange7dPct;
+    public final double change1mPct;
+    public final boolean hasChange1mPct;
     public final String assetType;
     public final String sectorLabel;
     public final Map<String, Double> sectorWeights;
@@ -40,6 +44,10 @@ public class OverviewRow {
             double dayChangePct,
             double previousClose,
             boolean hasDayChangePct,
+            double change7dPct,
+            boolean hasChange7dPct,
+            double change1mPct,
+            boolean hasChange1mPct,
             String assetType,
             String sectorLabel,
             Map<String, Double> sectorWeights,
@@ -68,6 +76,10 @@ public class OverviewRow {
         this.dayChangePct = dayChangePct;
         this.previousClose = previousClose;
         this.hasDayChangePct = hasDayChangePct;
+        this.change7dPct = change7dPct;
+        this.hasChange7dPct = hasChange7dPct;
+        this.change1mPct = change1mPct;
+        this.hasChange1mPct = hasChange1mPct;
         this.assetType = assetType != null ? assetType : "UNKNOWN";
         this.sectorLabel = sectorLabel != null ? sectorLabel : "Other";
         this.sectorWeights = sectorWeights != null ? new LinkedHashMap<>(sectorWeights) : Map.of();

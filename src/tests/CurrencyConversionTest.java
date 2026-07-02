@@ -82,6 +82,7 @@ public class CurrencyConversionTest {
                                    double totalReturn, double historicalCostBasis, double totalReturnPct) {
         return new OverviewRow(
                 name, "T", name, 0.0, 0.0, false,
+                0.0, false, 0.0, false,
                 "STOCK", "Other", null, "Global", null,
                 currency, "0.00",
                 1.0, 0.0, 0.0, 0.0, 0.0, historicalCostBasis,

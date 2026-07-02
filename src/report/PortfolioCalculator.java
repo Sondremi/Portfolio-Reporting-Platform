@@ -215,6 +215,10 @@ public class PortfolioCalculator {
             double previousClose = security.getPreviousClose();
             boolean hasDayChangePct = security.hasDayChangePct();
             double dayChangePct = hasDayChangePct ? security.getDayChangePct() : 0.0;
+            boolean hasChange7dPct = security.hasChange7dPct();
+            double change7dPct = hasChange7dPct ? security.getChange7dPct() : 0.0;
+            boolean hasChange1mPct = security.hasChange1mPct();
+            double change1mPct = hasChange1mPct ? security.getChange1mPct() : 0.0;
             double positionCostBasis = units * avgCost;
                 double realizedCostBasis = security.getRealizedCostBasis();
                 double historicalCostBasis = positionCostBasis + realizedCostBasis;
@@ -235,6 +239,10 @@ public class PortfolioCalculator {
                     dayChangePct,
                     previousClose,
                     hasDayChangePct,
+                    change7dPct,
+                    hasChange7dPct,
+                    change1mPct,
+                    hasChange1mPct,
                     security.getAssetType().name(),
                     security.getResolvedSector(),
                     security.getResolvedSectorWeights(),

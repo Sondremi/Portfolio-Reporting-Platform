@@ -1,5 +1,6 @@
 package model;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -98,6 +99,8 @@ public class Security {
     private double realizedSalesValue = 0.0;
     private double latestPrice = 0.0;
     private double previousClose = 0.0;
+    private double close7dRef = 0.0;
+    private double close1mRef = 0.0;
     private String currencyCode = "NOK";
     private LocalDate firstHoldingDate = null;
 
@@ -126,10 +129,14 @@ public class Security {
     private static final class LatestQuote {
         private final double latestPrice;
         private final double previousClose;
+        private final double close7dRef;
+        private final double close1mRef;
 
-        private LatestQuote(double latestPrice, double previousClose) {
+        private LatestQuote(double latestPrice, double previousClose, double close7dRef, double close1mRef) {
             this.latestPrice = latestPrice;
             this.previousClose = previousClose;
+            this.close7dRef = close7dRef;
+            this.close1mRef = close1mRef;
         }
     }
 
@@ -388,6 +395,24 @@ public class Security {
             return 0.0;
         }
         return ((latestPrice / previousClose) - 1.0) * 100.0;
+    }
+    public boolean hasChange7dPct() {
+        return close7dRef > EPSILON && latestPrice > EPSILON;
+    }
+    public double getChange7dPct() {
+        if (!hasChange7dPct()) {
+            return 0.0;
+        }
+        return ((latestPrice / close7dRef) - 1.0) * 100.0;
+    }
+    public boolean hasChange1mPct() {
+        return close1mRef > EPSILON && latestPrice > EPSILON;
+    }
+    public double getChange1mPct() {
+        if (!hasChange1mPct()) {
+            return 0.0;
+        }
+        return ((latestPrice / close1mRef) - 1.0) * 100.0;
     }
 
     public boolean isFullyRealized() {
@@ -854,6 +879,8 @@ public class Security {
             ticker = "";
             latestPrice = 0.0;
             previousClose = 0.0;
+            close7dRef = 0.0;
+            close1mRef = 0.0;
             currencyCode = "NOK";
             resolvedSectorWeights.clear();
             resolvedRegionWeights.clear();
@@ -878,6 +905,8 @@ public class Security {
                 ticker = "";
                 latestPrice = 0.0;
                 previousClose = 0.0;
+                close7dRef = 0.0;
+                close1mRef = 0.0;
                 currencyCode = "NOK";
                 resolvedSector = "Other";
                 resolvedRegion = "Global";
@@ -889,6 +918,8 @@ public class Security {
             ticker = "";
             latestPrice = 0.0;
             previousClose = 0.0;
+            close7dRef = 0.0;
+            close1mRef = 0.0;
             currencyCode = "NOK";
             resolvedSector = "Other";
             resolvedRegion = "Global";
@@ -921,6 +952,8 @@ public class Security {
                 ? candidate.regularMarketPrice
                 : quote.latestPrice;
         previousClose = quote.previousClose > EPSILON ? quote.previousClose : 0.0;
+        close7dRef = quote.close7dRef;
+        close1mRef = quote.close1mRef;
     }
 
     private void applyGeneralTickerAndNameFallback() {
@@ -2122,24 +2155,123 @@ public class Security {
 
     private LatestQuote fetchLatestQuote(String symbol) {
         if (symbol == null || symbol.isBlank()) {
-            return new LatestQuote(0.0, 0.0);
+            return new LatestQuote(0.0, 0.0, 0.0, 0.0);
         }
 
         try {
+            // One request over a 1-month daily series feeds both day-change and the
+            // 7d/1M reference closes without extra round-trips.
             String quoteUrl = "https://query1.finance.yahoo.com/v8/finance/chart/"
                     + URLEncoder.encode(symbol, "UTF-8")
-                    + "?interval=1d&range=1d";
+                    + "?interval=1d&range=1mo";
             String quoteResponse = httpGetRequest(quoteUrl);
             double regularMarketPrice = extractNumericValue(quoteResponse, "regularMarketPrice");
             double chartPreviousClose = extractNumericValue(quoteResponse, "chartPreviousClose");
+
+            Object parsed = SimpleJson.parse(quoteResponse);
+            List<Object> timestamps = getListAtPath(parsed, "chart", "result", 0, "timestamp");
+            List<Object> closes = getListAtPath(parsed, "chart", "result", 0, "indicators", "quote", 0, "close");
+
+            // Prior session close from the series: with range=1mo meta.chartPreviousClose
+            // is a month-old close, so it cannot drive day-change.
+            double lastClose = lastNonNullClose(closes);
+            double priorClose = priorSessionClose(closes);
             double resolvedLatestPrice = regularMarketPrice > EPSILON
                     ? regularMarketPrice
-                    : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0);
-            double resolvedPreviousClose = chartPreviousClose > EPSILON ? chartPreviousClose : 0.0;
-            return new LatestQuote(resolvedLatestPrice, resolvedPreviousClose);
+                    : (lastClose > EPSILON ? lastClose
+                        : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0));
+            double resolvedPreviousClose = priorClose > EPSILON ? priorClose : 0.0;
+
+            double close7dRef = referenceCloseDaysAgo(timestamps, closes, 7, false);
+            double close1mRef = referenceCloseDaysAgo(timestamps, closes, 30, true);
+
+            return new LatestQuote(resolvedLatestPrice, resolvedPreviousClose, close7dRef, close1mRef);
         } catch (Exception ignored) {
-            return new LatestQuote(0.0, 0.0);
+            return new LatestQuote(0.0, 0.0, 0.0, 0.0);
         }
+    }
+
+    private static double lastNonNullClose(List<Object> closes) {
+        if (closes == null) {
+            return 0.0;
+        }
+        for (int i = closes.size() - 1; i >= 0; i--) {
+            double c = toClose(closes.get(i));
+            if (c > EPSILON) {
+                return c;
+            }
+        }
+        return 0.0;
+    }
+
+    private static double priorSessionClose(List<Object> closes) {
+        if (closes == null) {
+            return 0.0;
+        }
+        int seen = 0;
+        for (int i = closes.size() - 1; i >= 0; i--) {
+            double c = toClose(closes.get(i));
+            if (c > EPSILON) {
+                seen++;
+                if (seen == 2) {
+                    return c;
+                }
+            }
+        }
+        return 0.0;
+    }
+
+    // Latest close at or before (now - daysBack). When the series doesn't reach that far
+    // back, fall back to the earliest close only if it lands within ~5 days of the target.
+    private static double referenceCloseDaysAgo(List<Object> timestamps, List<Object> closes,
+                                                int daysBack, boolean allowTolerance) {
+        if (timestamps == null || closes == null || timestamps.isEmpty()) {
+            return 0.0;
+        }
+        long now = Instant.now().getEpochSecond();
+        long target = now - (long) daysBack * 86400L;
+        int n = Math.min(timestamps.size(), closes.size());
+        double bestClose = 0.0;
+        long bestTs = Long.MIN_VALUE;
+        double earliestClose = 0.0;
+        long earliestTs = Long.MAX_VALUE;
+        for (int i = 0; i < n; i++) {
+            Long ts = toEpoch(timestamps.get(i));
+            double c = toClose(closes.get(i));
+            if (ts == null || c <= EPSILON) {
+                continue;
+            }
+            if (ts < earliestTs) {
+                earliestTs = ts;
+                earliestClose = c;
+            }
+            if (ts <= target && ts > bestTs) {
+                bestTs = ts;
+                bestClose = c;
+            }
+        }
+        if (bestClose > EPSILON) {
+            return bestClose;
+        }
+        if (allowTolerance && earliestClose > EPSILON
+                && (now - earliestTs) >= (long) daysBack * 86400L - 5L * 86400L) {
+            return earliestClose;
+        }
+        return 0.0;
+    }
+
+    private static Long toEpoch(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
+    }
+
+    private static double toClose(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return 0.0;
     }
 
     private String getExchangeSuffix(String exchangeName) {
