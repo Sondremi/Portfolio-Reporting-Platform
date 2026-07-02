@@ -336,7 +336,6 @@ public class ReportWriter {
             writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
             writer.write("        .total-return-graphs-section { background:var(--card); border-color:var(--line); }\n");
             writer.write("        .total-return-chart { min-height:426px; }\n");
-            writer.write("        .total-return-chart .chart-svg { background:var(--card); border-color:var(--line); border-radius:10px; }\n");
             writer.write("        .total-return-bar-chart .tr-plot-bg { fill:#fafcfe; stroke:#e2e8ef; }\n");
             writer.write("        .total-return-bar-chart .tr-grid-line { stroke:#d8e3ee; }\n");
             writer.write("        .total-return-bar-chart .tr-axis-label { fill:#496077; }\n");
@@ -362,7 +361,7 @@ public class ReportWriter {
             writer.write("        .allocation-drilldown-name { min-width:0; display:flex; align-items:flex-start; gap:6px; color:#2f2f2f; font-size:.8rem; line-height:1.25; word-break:break-word; overflow-wrap:anywhere; }\n");
             writer.write("        .allocation-drilldown-dot { flex:0 0 auto; width:7px; height:7px; border-radius:999px; background:#3b5978; margin-top:4px; }\n");
             writer.write("        .allocation-drilldown-pct { color:#4a4a4a; font-size:.8rem; line-height:1.25; text-align:right; white-space:nowrap; }\n");
-            writer.write("        .chart-svg { width:100%; height:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }\n");
+            writer.write("        .chart-svg { width:100%; height:auto; }\n");
             writer.write("        .allocation-panel .chart-svg { width:96%; margin:6px auto 10px; display:block; }\n");
             writer.write("        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:100%; }\n");
             writer.write("        .chart-hover-target { cursor:pointer; transform-box:fill-box; transform-origin:center; transition:transform .14s ease, filter .14s ease, opacity .14s ease; }\n");
@@ -443,7 +442,6 @@ public class ReportWriter {
             writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n");
             writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
             writer.write("        body.theme-dark .total-return-graphs-section { background:var(--card); border-color:#2a3a4f; }\n");
-            writer.write("        body.theme-dark .total-return-chart .chart-svg { background:#162231; border-color:#2b3a4d; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:#1c2c3e !important; stroke:#33485f !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-grid-line { stroke:#3e5872 !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-label { fill:#c8d9ea !important; }\n");
@@ -460,7 +458,6 @@ public class ReportWriter {
             writer.write("        body.theme-dark .sparkline-return-summary.negative { color:var(--bad); }\n");
             writer.write("        body.theme-dark .kpi-help { color:#b6c9dc; }\n");
             writer.write("        body.theme-dark .chart-title-row > h3, body.theme-dark .chart-title-row > h4, body.theme-dark .chart-title-row > .hero-side-title { color:#dce8f5; }\n");
-            writer.write("        body.theme-dark .chart-svg { background:#162231; border-color:#2b3a4d; }\n");
             writer.write("        body.theme-dark .chart-svg text { fill:#d4e1ee !important; }\n");
             writer.write("        body.theme-dark .chart-total-return-label, body.theme-dark .chart-security-bar-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.0; }\n");
             writer.write("        body.theme-dark .chart-security-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.05; }\n");
