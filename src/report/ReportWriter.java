@@ -170,6 +170,16 @@ public class ReportWriter {
             writer.write("        body.inline-cell-dragging { user-select:none; cursor:grabbing; }\n");
             writer.write("        .total-row { font-weight:700; background:#f3f7fb; color:#1a2b3a; }\n");
             writer.write("        .asset-split td { border-top:3px solid #8a9eb3 !important; }\n");
+            writer.write("        .asset-divider-row td { border-top:3px solid #8a9eb3 !important; padding:0 !important; }\n");
+            writer.write("        .asset-divider-toggle { display:flex; align-items:center; gap:8px; width:100%; background:transparent; border:0; cursor:pointer; font:inherit; padding:7px 10px; color:#4a5f74; font-weight:600; font-size:.78rem; letter-spacing:.3px; }\n");
+            writer.write("        .asset-divider-toggle:hover { background:rgba(138,158,179,.16); }\n");
+            writer.write("        .asset-divider-chevron, .subtotal-toggle-chevron { display:inline-block; transition:transform .15s ease; }\n");
+            writer.write("        .asset-divider-chevron { font-size:.9rem; color:#6b7f94; }\n");
+            writer.write("        .asset-divider-row.is-open .asset-divider-chevron, .total-row.is-open .subtotal-toggle-chevron { transform:rotate(90deg); }\n");
+            writer.write("        .asset-subtotal-row { background:#eef4fa; color:#2a3f54; font-weight:600; }\n");
+            writer.write("        .asset-subtotal-row td { border-top:1px dashed rgba(138,158,179,.55); }\n");
+            writer.write("        .subtotal-toggle-btn { background:transparent; border:0; cursor:pointer; font:inherit; color:inherit; font-weight:700; display:inline-flex; align-items:center; gap:6px; padding:0; }\n");
+            writer.write("        .subtotal-toggle-chevron { font-size:.82rem; color:#6b7f94; }\n");
             writer.write("        .positive { color:var(--good); } .negative { color:var(--bad); }\n");
             writer.write("        .report-hero { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; background:linear-gradient(120deg,#0f2238 0%,#18344f 60%,#164663 100%); border-radius:18px; padding:22px; color:#f4f8fc; box-shadow:0 14px 26px rgba(10,24,38,.2); margin-bottom:18px; }\n");
             writer.write("        .annual-hero { grid-template-columns:1fr; gap:14px; margin-bottom:12px; }\n");
@@ -400,6 +410,10 @@ public class ReportWriter {
             writer.write("        .price-refresh-status { font-size:.76rem; color:#d7e6f4; margin-top:8px; min-height:1.1em; }\n");
             writer.write("        body.theme-dark .table-wrap, body.theme-dark .overview-chart, body.theme-dark .allocation-card, body.theme-dark .allocation-panel, body.theme-dark .details-table, body.theme-dark .annual-kpi-deck, body.theme-dark .annual-graphs-section { border-color:#2a3a4f; box-shadow:none; }\n");
             writer.write("        body.theme-dark .total-row { background:#1a2a3b; color:#ecf3fb; }\n");
+            writer.write("        body.theme-dark .asset-subtotal-row { background:#152436; color:#dbe7f4; }\n");
+            writer.write("        body.theme-dark .asset-divider-toggle { color:#9fb4c9; }\n");
+            writer.write("        body.theme-dark .asset-divider-toggle:hover { background:rgba(120,145,168,.22); }\n");
+            writer.write("        body.theme-dark .asset-divider-chevron, body.theme-dark .subtotal-toggle-chevron { color:#9fb4c9; }\n");
             writer.write("        body.theme-dark td, body.theme-dark th { border-bottom-color:#2a3a4d; }\n");
             writer.write("        body.theme-dark th { background:#1d2a3a; color:#d8e4f2; }\n");
             writer.write("        body.theme-dark .details-cell { background:#111d2b; }\n");
@@ -1699,6 +1713,19 @@ public class ReportWriter {
         LinkedHashMap<String, Double> totalHistoricalCostBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalDayChangeBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalPrevCloseValueBuckets = new LinkedHashMap<>();
+
+        boolean hasStockGroup = false;
+        boolean hasFundGroup = false;
+        for (OverviewRow row : rows) {
+            if ("FUND".equals(normalizeAssetBoundaryGroup(row.assetType))) {
+                hasFundGroup = true;
+            } else {
+                hasStockGroup = true;
+            }
+        }
+        boolean showAssetSubtotals = hasStockGroup && hasFundGroup;
+        GroupBuckets stockGroup = new GroupBuckets();
+        GroupBuckets fundGroup = new GroupBuckets();
         String previousAssetType = null;
 
         int detailsIndex = 0;
@@ -1715,7 +1742,12 @@ public class ReportWriter {
                 addToCurrencyBuckets(totalDayChangeBuckets, row.currencyCode, rowDayChangeValue);
                 addToCurrencyBuckets(totalPrevCloseValueBuckets, row.currencyCode, rowPrevCloseValue);
             }
-            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
+            accumulateGroupBuckets("FUND".equals(normalizeAssetBoundaryGroup(row.assetType)) ? fundGroup : stockGroup, row);
+            if (showAssetSubtotals && isStockFundBoundary(previousAssetType, row.assetType)) {
+                writer.write(buildSummarySubtotalRow("STOCK", "overview-stock", "Stocks total", stockGroup, ratesToNok));
+                writer.write(buildAssetDividerRow(13));
+            }
+            String rowClass = null;
             String detailsRowId = "overview-details-" + detailsIndex;
             Security security = securityByKey.get(row.securityKey);
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
@@ -1798,8 +1830,11 @@ public class ReportWriter {
             ? "<span id=\"holdings-total-day-change-value\" class=\"js-convert-money\" data-buckets=\"{}\" data-decimals=\"2\">-</span>"
             : renderConvertibleMoneyCellWithId("holdings-total-day-change-value", signedClass(totalDayChangeForPct), totalDayChangeBuckets, 2, ratesToNok);
 
+        if (showAssetSubtotals) {
+            writer.write(buildSummarySubtotalRow("FUND", "overview-fund", "Funds total", fundGroup, ratesToNok));
+        }
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td><strong>TOTAL</strong></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("</tr>\n");
@@ -1814,7 +1849,11 @@ public class ReportWriter {
         previousAssetType = null;
         int holdingsDetailsIndex = 0;
         for (OverviewRow row : rows) {
-            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
+            if (showAssetSubtotals && isStockFundBoundary(previousAssetType, row.assetType)) {
+                writer.write(buildHoldingsSubtotalRow("STOCK", "holdings-stock", "Stocks total", stockGroup, ratesToNok));
+                writer.write(buildAssetDividerRow(13));
+            }
+            String rowClass = null;
             Security security = securityByKey.get(row.securityKey);
             String detailsRowId = "holdings-details-" + holdingsDetailsIndex;
                 String unrealizedText = row.hasPrice
@@ -1872,9 +1911,12 @@ public class ReportWriter {
                     holdingsDetailsIndex++;
         }
 
+        if (showAssetSubtotals) {
+            writer.write(buildHoldingsSubtotalRow("FUND", "holdings-fund", "Funds total", fundGroup, ratesToNok));
+        }
         writer.write("<tr class=\"total-row\">\n");
         String totalDayChangePctClassAttr = totalDayChangePctClass.isBlank() ? "" : " class=\"" + totalDayChangePctClass + "\"";
-        writer.write("    <td></td><td><strong>TOTAL</strong></td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
+        writer.write("    <td></td><td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", signedClass(totalUnrealizedForPct), totalUnrealizedBuckets, 2, ratesToNok)
@@ -2642,6 +2684,101 @@ public class ReportWriter {
                 .thenComparing(Security::getRealizedSalesValue, Comparator.reverseOrder())
                 .thenComparing(Security::getName, String.CASE_INSENSITIVE_ORDER));
         return sold;
+    }
+
+    // Per-group (stock vs fund) accumulation for the expandable subtotal rows.
+    private static final class GroupBuckets {
+        final LinkedHashMap<String, Double> market = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> cost = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> unrealized = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> realized = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> dividends = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> historical = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> dayChange = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> prevClose = new LinkedHashMap<>();
+    }
+
+    private static void accumulateGroupBuckets(GroupBuckets group, OverviewRow row) {
+        addToCurrencyBuckets(group.market, row.currencyCode, row.marketValue);
+        addToCurrencyBuckets(group.cost, row.currencyCode, row.positionCostBasis);
+        addToCurrencyBuckets(group.unrealized, row.currencyCode, row.unrealized);
+        addToCurrencyBuckets(group.realized, row.currencyCode, row.realized);
+        addToCurrencyBuckets(group.dividends, row.currencyCode, row.dividends);
+        addToCurrencyBuckets(group.historical, row.currencyCode, row.historicalCostBasis);
+        if (row.latestPrice > 0.0 && row.previousClose > 0.0 && row.units > 0.0) {
+            addToCurrencyBuckets(group.dayChange, row.currencyCode, (row.latestPrice - row.previousClose) * row.units);
+            addToCurrencyBuckets(group.prevClose, row.currencyCode, row.previousClose * row.units);
+        }
+    }
+
+    private static String buildTotalLabelCell(boolean withToggle) {
+        if (!withToggle) {
+            return "<strong>TOTAL</strong>";
+        }
+        return "<button type=\"button\" class=\"subtotal-toggle-btn\" aria-expanded=\"false\">"
+                + "<span class=\"subtotal-toggle-chevron\" aria-hidden=\"true\">▸</span><strong>TOTAL</strong></button>";
+    }
+
+    private static String buildAssetDividerRow(int columnCount) {
+        return "<tr class=\"asset-divider-row\" data-asset-divider=\"1\">"
+                + "<td colspan=\"" + columnCount + "\">"
+                + "<button type=\"button\" class=\"asset-divider-toggle\" aria-expanded=\"false\">"
+                + "<span class=\"asset-divider-chevron\" aria-hidden=\"true\">▸</span>"
+                + "<span class=\"asset-divider-label\">Show stock &amp; fund subtotals</span>"
+                + "</button></td></tr>\n";
+    }
+
+    private static String buildSummarySubtotalRow(String group, String idPrefix, String label,
+            GroupBuckets buckets, Map<String, Double> ratesToNok) {
+        return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
+                + "    <td></td><td><strong>" + escapeHtml(label) + "</strong></td>"
+                + "<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-market-value", buckets.market, 2, ratesToNok) + "</td>\n"
+                + "</tr>\n";
+    }
+
+    private static String buildHoldingsSubtotalRow(String group, String idPrefix, String label,
+            GroupBuckets buckets, Map<String, Double> ratesToNok) {
+        LinkedHashMap<String, Double> returnBuckets = sumCurrencyBuckets(buckets.unrealized, buckets.realized, buckets.dividends);
+        double returnNok = convertBucketsToTarget(returnBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double historicalNok = convertBucketsToTarget(buckets.historical, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double costNok = convertBucketsToTarget(buckets.cost, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double unrealizedNok = convertBucketsToTarget(buckets.unrealized, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double realizedNok = convertBucketsToTarget(buckets.realized, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double dayChangeNok = convertBucketsToTarget(buckets.dayChange, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double prevCloseNok = convertBucketsToTarget(buckets.prevClose, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+
+        double returnPct = historicalNok > 0 ? (returnNok / historicalNok) * 100.0 : 0.0;
+        double unrealizedPct = costNok > 0 ? (unrealizedNok / costNok) * 100.0 : 0.0;
+        double realizedPct = costNok > 0 ? (realizedNok / costNok) * 100.0 : 0.0;
+        double dayChangePct = prevCloseNok > 0.0 ? (dayChangeNok / prevCloseNok) * 100.0 : 0.0;
+
+        String dayChangePctCell = "-";
+        String dayChangePctClass = "";
+        if (!buckets.dayChange.isEmpty() && prevCloseNok > 0.0) {
+            dayChangePctClass = dayChangePct > 0.0 ? "positive" : (dayChangePct < 0.0 ? "negative" : "");
+            dayChangePctCell = escapeHtml(HtmlFormatter.formatPercent(dayChangePct, 2));
+        }
+        String dayChangePctClassAttr = dayChangePctClass.isBlank() ? "" : " class=\"" + dayChangePctClass + "\"";
+        String dayChangeValueCell = buckets.dayChange.isEmpty()
+                ? "<span id=\"" + idPrefix + "-day-change-value\" class=\"js-convert-money\" data-buckets=\"{}\" data-decimals=\"2\">-</span>"
+                : renderConvertibleMoneyCellWithId(idPrefix + "-day-change-value", signedClass(dayChangeNok), buckets.dayChange, 2, ratesToNok);
+
+        return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
+                + "    <td></td><td><strong>" + escapeHtml(label) + "</strong></td>"
+                + "<td><span id=\"" + idPrefix + "-day-change-pct\"" + dayChangePctClassAttr + ">" + dayChangePctCell + "</span></td>"
+                + "<td>" + dayChangeValueCell + "</td><td></td><td></td><td></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-market-value", buckets.market, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-unrealized-value", signedClass(unrealizedNok), buckets.unrealized, 2, ratesToNok)
+                + " <span class=\"" + signedClass(unrealizedNok) + "\">(<span id=\"" + idPrefix + "-unrealized-pct\" class=\"" + signedClass(unrealizedNok) + "\">" + HtmlFormatter.formatPercent(unrealizedPct, 2) + "</span>)</span></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-realized-value", signedClass(realizedNok), buckets.realized, 2, ratesToNok)
+                + " <span class=\"" + signedClass(realizedNok) + "\">(<span id=\"" + idPrefix + "-realized-pct\" class=\"" + signedClass(realizedNok) + "\">" + HtmlFormatter.formatPercent(realizedPct, 2) + "</span>)</span></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-dividends-value", buckets.dividends, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-total-return-value", signedClass(returnNok), returnBuckets, 2, ratesToNok)
+                + " <span class=\"" + signedClass(returnNok) + "\">(<span id=\"" + idPrefix + "-total-return-pct\" class=\"" + signedClass(returnNok) + "\">" + HtmlFormatter.formatPercent(returnPct, 2) + "</span>)</span></td>\n"
+                + "</tr>\n";
     }
 
     private static boolean isStockFundBoundary(String previousAssetType, String currentAssetType) {
