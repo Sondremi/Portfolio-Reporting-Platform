@@ -362,10 +362,10 @@ public class ReportWriter {
             writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
             writer.write("        .total-return-graphs-section { background:var(--card); border-color:var(--line); }\n");
             writer.write("        .total-return-chart { min-height:426px; }\n");
-            writer.write("        .total-return-bar-chart .tr-plot-bg { fill:#fafcfe; stroke:#e2e8ef; }\n");
+            writer.write("        .total-return-bar-chart .tr-plot-bg { fill:none; stroke:none; }\n");
             writer.write("        .total-return-bar-chart .tr-grid-line { stroke:#d8e3ee; }\n");
             writer.write("        .total-return-bar-chart .tr-axis-label { fill:#496077; }\n");
-            writer.write("        .total-return-bar-chart .tr-plot-border { stroke:#b9c8d7; }\n");
+            writer.write("        .total-return-bar-chart .tr-plot-border { stroke:none; }\n");
             writer.write("        .total-return-bar-chart .tr-axis-line { stroke:#4d6073; }\n");
             writer.write("        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n");
             writer.write("        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-start; min-height:0; }\n");
@@ -378,7 +378,7 @@ public class ReportWriter {
             writer.write("        .allocation-row { display:grid; gap:10px; }\n");
             writer.write("        .allocation-row-top { grid-template-columns:repeat(3,minmax(0,1fr)); }\n");
             writer.write("        .allocation-row-bottom { grid-template-columns:repeat(2,minmax(0,1fr)); }\n");
-            writer.write("        .allocation-panel { border:1px solid var(--line); border-radius:10px; padding:16px; background:#fafcfe; overflow:hidden; }\n");
+            writer.write("        .allocation-panel { border:1px solid #d4dfeb; border-radius:13px; padding:14px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
             writer.write("        .allocation-panel-title { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; color:#41576d; letter-spacing:.3px; white-space:nowrap; }\n");
             writer.write("        .allocation-drilldown-list { box-sizing:border-box; width:100%; margin:10px 0 0; border:1px solid #d5e1ec; border-radius:8px; background:#fff; overflow:hidden; padding:8px 10px; }\n");
             writer.write("        .allocation-drilldown-list[hidden] { display:none !important; }\n");
@@ -413,7 +413,7 @@ public class ReportWriter {
             writer.write("        .chart-tool-btn:hover { background:#e6f1fb; }\n");
             writer.write("        .chart-filter-input { border:1px solid #a5bbcf; border-radius:7px; height:28px; min-width:130px; padding:0 8px; font-size:.74rem; background:#ffffff; color:#20384f; }\n");
             writer.write("        .chart-filter-input::placeholder { color:#6f8498; }\n");
-            writer.write("        .chart-viewport { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:8px; background:var(--card); z-index:1; }\n");
+            writer.write("        .chart-viewport { position:relative; overflow:hidden; border:none; border-radius:8px; background:transparent; z-index:1; }\n");
             writer.write("        .chart-hover-legend { cursor:pointer; }\n");
             writer.write("        .chart-svg { transform-origin:0 0; transition:transform .12s ease-out; }\n");
             writer.write("        .chart-viewport .chart-svg { border:none; border-radius:0; margin:0 !important; }\n");
@@ -438,7 +438,7 @@ public class ReportWriter {
             writer.write("        body.theme-dark .details-table { background:#162231; border-color:#2a3a4d; }\n");
             writer.write("        body.theme-dark .details-table th { background:#1b2b3d; color:#d7e4f2; }\n");
             writer.write("        body.theme-dark .details-table td { color:#dbe7f4; border-bottom-color:#2a3a4d; }\n");
-            writer.write("        body.theme-dark .allocation-panel { background:#132235; }\n");
+            writer.write("        body.theme-dark .allocation-panel { background:#1a2d42; border-color:#2e4258; box-shadow:none; }\n");
             writer.write("        body.theme-dark .allocation-panel-title { color:#c8d8e8; }\n");
             writer.write("        body.theme-dark .allocation-drilldown-list { border-color:#32485f; background:#102033; }\n");
             writer.write("        body.theme-dark .allocation-drilldown-selected { color:#c8d9ea; }\n");
@@ -472,10 +472,10 @@ public class ReportWriter {
             writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n");
             writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
             writer.write("        body.theme-dark .total-return-graphs-section { background:var(--card); border-color:#2a3a4f; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:#1c2c3e !important; stroke:#33485f !important; }\n");
+            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:none !important; stroke:none !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-grid-line { stroke:#3e5872 !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-label { fill:#c8d9ea !important; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-border { stroke:#4b6580 !important; }\n");
+            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-border { stroke:none !important; }\n");
             writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-line { stroke:#8da7c1 !important; }\n");
             writer.write("        body.theme-dark .annual-graph-card h3 { color:#bdd1e4; }\n");
             writer.write("        body.theme-dark .annual-graph-note { color:#bad0e5; }\n");
