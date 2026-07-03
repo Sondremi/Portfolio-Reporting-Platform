@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 
 public final class CurrencyConversionService {
 
+    private static final Pattern CURRENCY_CODE = Pattern.compile("[A-Z]{3}");
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Path FX_CACHE_FILE = Path.of("/tmp", "fx-rates-to-nok.csv");
     private static final Duration FX_CACHE_TTL = Duration.ofHours(12);
@@ -239,7 +240,7 @@ public final class CurrencyConversionService {
         }
 
         String normalized = code.trim().toUpperCase(Locale.ROOT);
-        if (!normalized.matches("[A-Z]{3}")) {
+        if (!CURRENCY_CODE.matcher(normalized).matches()) {
             return null;
         }
         return normalized;

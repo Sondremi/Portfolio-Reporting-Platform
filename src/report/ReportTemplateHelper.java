@@ -7,20 +7,10 @@ final class ReportTemplateHelper {
 
     private ReportTemplateHelper() {}
 
-    static String buildTickerHeaderCell(String groupName) {
-        return "<span class=\"details-head\">Ticker"
-            + "<button class=\"detail-group-toggle\" onclick=\"toggleDetailGroup('" + groupName + "', this)\" title=\"Expand/collapse all details\">▸</button>"
-            + "</span>";
-    }
-
-    static void writeHtmlRow(FileWriter writer, boolean isHeader, String... cells) throws IOException {
+    static void writeHtmlRow(FileWriter writer, String... cells) throws IOException {
         writer.write("<tr>\n");
         for (String cell : cells) {
-            if (isHeader) {
-                writer.write("    <th>" + (cell != null ? cell : "") + "</th>\n");
-            } else {
-                writer.write("    <td>" + (cell != null ? cell : "") + "</td>\n");
-            }
+            writer.write("    <th>" + (cell != null ? cell : "") + "</th>\n");
         }
         writer.write("</tr>\n");
     }
@@ -39,7 +29,7 @@ final class ReportTemplateHelper {
         writer.write("</tr>\n");
     }
 
-    private static String escapeHtml(String text) {
+    public static String escapeHtml(String text) {
         if (text == null) {
             return "";
         }

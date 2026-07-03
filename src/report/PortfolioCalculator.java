@@ -30,6 +30,12 @@ public class PortfolioCalculator {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final String DEFAULT_CURRENCY_CODE = "NOK";
+    private static final Pattern CURRENCY_CODE = Pattern.compile("[A-Z]{3}");
+
+    // Per-run caches: the historical fetch range is always now-180mo..now, so a ticker's
+    // series is identical across every timeline build in a run. Reset at report start.
+    private static final Map<String, NavigableMap<LocalDate, Double>> SHARED_PRICE_SERIES_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<Integer, ArrayList<PortfolioValuePoint>> TIMELINE_MEMO = new java.util.concurrent.ConcurrentHashMap<>();
     private static final Pattern YAHOO_TIMESTAMP_ARRAY = Pattern.compile("\\\"timestamp\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_ADJ_CLOSE_ARRAY = Pattern.compile("\\\"adjclose\\\"\\s*:\\s*\\[\\s*\\{\\s*\\\"adjclose\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
     private static final Pattern YAHOO_CLOSE_ARRAY = Pattern.compile("\\\"close\\\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
@@ -330,7 +336,6 @@ public class PortfolioCalculator {
         }
 
         double totalReturnPct = totalHistoricalCostBasis > 0 ? (totalReturn / totalHistoricalCostBasis) * 100.0 : 0.0;
-        String sparklineSvg = buildPortfolioValueSparklineWidget(store, ratesToNok);
 
         return new HeaderSummary(
                 LocalDate.now().format(DATE_FORMATTER),
@@ -349,8 +354,7 @@ public class PortfolioCalculator {
                 worstLabel,
                 worstCurrencyCode,
                 worstReturn,
-                worstReturnPct,
-                sparklineSvg
+                worstReturnPct
         );
     }
 
@@ -369,71 +373,6 @@ public class PortfolioCalculator {
         }
 
         return amount * rateToNok;
-    }
-
-    private static String buildPortfolioValueSparklineWidget(TransactionStore store, Map<String, Double> ratesToNok) {
-        ArrayList<PortfolioValuePoint> allPoints = buildPortfolioValueTimeline(store, ratesToNok, 60);
-        if (allPoints.isEmpty()) {
-            return "";
-        }
-
-        LinkedHashMap<String, ArrayList<PortfolioValuePoint>> byRange = buildStandardSparklineRanges(allPoints);
-
-        String defaultRange = byRange.containsKey("1Y") ? "1Y" : byRange.keySet().iterator().next();
-        String defaultMetric = "value";
-
-        StringBuilder html = new StringBuilder();
-        html.append("<div class=\"sparkline-widget\">\n");
-        html.append("<div class=\"sparkline-metric-controls\">\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn is-active\" data-metric=\"value\">Value</button>\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn js-return-amount-label\" data-metric=\"return-nok\">Return (NOK)</button>\n");
-        html.append("<button type=\"button\" class=\"sparkline-metric-btn\" data-metric=\"return-pct\">Return (%)</button>\n");
-        html.append("</div>\n");
-
-        html.append("<div class=\"sparkline-controls\">\n");
-        for (String range : byRange.keySet()) {
-            String active = range.equals(defaultRange) ? " is-active" : "";
-            html.append("<button type=\"button\" class=\"sparkline-range-btn")
-                .append(active)
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\">")
-                .append(range)
-                .append("</button>\n");
-        }
-        html.append("</div>\n");
-
-        for (Map.Entry<String, ArrayList<PortfolioValuePoint>> entry : byRange.entrySet()) {
-            String range = entry.getKey();
-            ArrayList<PortfolioValuePoint> points = entry.getValue();
-
-            html.append("<div class=\"sparkline-panel")
-                .append(range.equals(defaultRange) && "value".equals(defaultMetric) ? " is-active" : "")
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\" data-metric=\"value\">\n")
-                .append(buildPortfolioValueSparkline(points, SparklineMetric.VALUE))
-                .append("</div>\n");
-
-            html.append("<div class=\"sparkline-panel")
-                .append(range.equals(defaultRange) && "return-nok".equals(defaultMetric) ? " is-active" : "")
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\" data-metric=\"return-nok\">\n")
-                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_NOK))
-                .append("</div>\n");
-
-            html.append("<div class=\"sparkline-panel")
-                .append(range.equals(defaultRange) && "return-pct".equals(defaultMetric) ? " is-active" : "")
-                .append("\" data-range=\"")
-                .append(range)
-                .append("\" data-metric=\"return-pct\">\n")
-                .append(buildPortfolioValueSparkline(points, SparklineMetric.RETURN_PCT))
-                .append("</div>\n");
-        }
-
-        html.append("</div>\n");
-        return html.toString();
     }
 
     private static LinkedHashMap<String, ArrayList<PortfolioValuePoint>> buildStandardSparklineRanges(ArrayList<PortfolioValuePoint> allPoints) {
@@ -780,7 +719,35 @@ public class PortfolioCalculator {
         return selected;
     }
 
+    // Clears the per-run caches. Call once at report start so a reused JVM (local CLI)
+    // never serves stale series/timelines from a previous run.
+    public static void resetPerRunCaches() {
+        SHARED_PRICE_SERIES_CACHE.clear();
+        TIMELINE_MEMO.clear();
+    }
+
+    // Warms the on-disk history cache for a ticker using the exact range the report phase
+    // fetches, so the later serial timeline builds hit the cache instead of the network.
+    public static void warmHistoricalCloseSeries(String ticker) {
+        if (ticker == null || ticker.isBlank() || "-".equals(ticker)) {
+            return;
+        }
+        fetchHistoricalCloseSeries(ticker, LocalDate.now().minusMonths(180), LocalDate.now());
+    }
+
+    // Memoized per run by month count: store and rates are constant within a report run.
+    // Returns a defensive copy so callers can never mutate the cached timeline.
     private static ArrayList<PortfolioValuePoint> buildPortfolioValueTimeline(TransactionStore store, Map<String, Double> ratesToNok, int months) {
+        ArrayList<PortfolioValuePoint> memoized = TIMELINE_MEMO.get(months);
+        if (memoized != null) {
+            return new ArrayList<>(memoized);
+        }
+        ArrayList<PortfolioValuePoint> computed = computePortfolioValueTimeline(store, ratesToNok, months);
+        TIMELINE_MEMO.put(months, computed);
+        return new ArrayList<>(computed);
+    }
+
+    private static ArrayList<PortfolioValuePoint> computePortfolioValueTimeline(TransactionStore store, Map<String, Double> ratesToNok, int months) {
         ArrayList<PortfolioValuePoint> timeline = new ArrayList<>();
         List<Events.UnitEvent> unitEvents = store.getUnitEvents();
         List<Events.CashEvent> cashEvents = store.getCashEvents();
@@ -808,7 +775,7 @@ public class PortfolioCalculator {
         }
 
         Map<String, Double> unitsBySecurity = new HashMap<>();
-        Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache = new HashMap<>();
+        Map<String, NavigableMap<LocalDate, Double>> priceSeriesCache = SHARED_PRICE_SERIES_CACHE;
 
         int monthCount = Math.max(2, months);
         YearMonth endMonth = YearMonth.now();
@@ -1464,7 +1431,7 @@ public class PortfolioCalculator {
         }
 
         String normalized = currencyCode.trim().toUpperCase(Locale.ROOT);
-        if (!normalized.matches("[A-Z]{3}")) {
+        if (!CURRENCY_CODE.matcher(normalized).matches()) {
             return DEFAULT_CURRENCY_CODE;
         }
         return normalized;
@@ -1519,14 +1486,14 @@ public class PortfolioCalculator {
                 rateToNok = ratesToNok == null ? 1.0 : ratesToNok.getOrDefault(DEFAULT_CURRENCY_CODE, 1.0);
             }
 
-            for (Security.SaleTrade saleTrade : security.getSaleTradesSortedByDate()) {
+            for (Security.SaleTrade saleTrade : security.getSaleTrades()) {
                 if (saleTrade == null || saleTrade.getTradeDate() == null || saleTrade.getTradeDate().getYear() != safeYear) {
                     continue;
                 }
                 realizedGainNok += saleTrade.getGainLoss() * rateToNok;
             }
 
-            for (Security.DividendEvent dividendEvent : security.getAllDividendEventsSortedByDate()) {
+            for (Security.DividendEvent dividendEvent : security.getAllDividendEvents()) {
                 if (dividendEvent == null || dividendEvent.getTradeDate() == null || dividendEvent.getTradeDate().getYear() != safeYear) {
                     continue;
                 }

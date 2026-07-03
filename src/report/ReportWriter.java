@@ -29,6 +29,467 @@ public class ReportWriter {
     private static final String REPORT_TYPE_ANNUAL = "annual";
     private static final double EPSILON = 0.0000001;
 
+    private static final String REPORT_CSS_1 =
+            "        .page { width:100%; max-width:100%; margin:0; padding:24px 8px 32px; }\n"
+            + "        h2 { margin:26px 2px 12px; font-size:1.14rem; color:var(--ink); }\n"
+            + "        table { width:100%; border-collapse:collapse; min-width:0; table-layout:fixed; background:var(--card); }\n"
+            + "        th, td { padding:5px 5px; border-bottom:1px solid #edf2f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }\n"
+            + "        th { background:#f5f8fb; text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.2px; color:#374556; border-bottom:1px solid var(--line); }\n"
+            + "        th.sortable-header { cursor:pointer; user-select:none; position:relative; padding-right:16px; }\n"
+            + "        th.sortable-header::after { content:'↕'; position:absolute; right:5px; top:50%; transform:translateY(-50%); font-size:.62rem; opacity:.45; }\n"
+            + "        th.sortable-header.sort-asc::after { content:'▲'; opacity:.85; }\n"
+            + "        th.sortable-header.sort-desc::after { content:'▼'; opacity:.85; }\n"
+            + "        td { font-size:.72rem; }\n"
+            + "        td.num, th.num { text-align:right; }\n"
+            + "        .table-wrap { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-gutter:auto; box-shadow:0 5px 14px rgba(15,23,33,.06); }\n"
+            + "        .table-wrap::-webkit-scrollbar { height:12px; }\n"
+            + "        .table-wrap::-webkit-scrollbar-track { background:transparent; border-radius:999px; }\n"
+            + "        .table-wrap::-webkit-scrollbar-thumb { background:#9db0c3; border-radius:999px; border:2px solid transparent; background-clip:padding-box; }\n"
+            + "        .overview-mode-shell { display:flex; align-items:flex-end; gap:0; margin:10px 0 -1px; }\n"
+            + "        .overview-mode-btn { border:1px solid var(--line); border-bottom:none; background:#e9f2fb; color:#24435a; font-size:.74rem; font-weight:700; padding:6px 10px; cursor:pointer; }\n"
+            + "        .overview-mode-btn + .overview-mode-btn { border-left:none; }\n"
+            + "        .overview-mode-btn:first-child { border-top-left-radius:10px; }\n"
+            + "        .overview-mode-btn:last-child { border-top-right-radius:10px; }\n"
+            + "        .overview-mode-btn.is-active { background:var(--card); color:var(--ink); }\n"
+            + "        .overview-details-toggle-btn { margin-left:8px; border-left:1px solid var(--line) !important; background:#eef4fb; }\n"
+            + "        .overview-details-toggle-btn:disabled { opacity:.55; cursor:not-allowed; }\n"
+            + "        body.theme-dark .overview-mode-btn { background:#1f3347; color:#d8e7f5; border-color:#2f445a; }\n"
+            + "        body.theme-dark .overview-mode-btn.is-active { background:#162231; color:#edf5ff; }\n"
+            + "        body.theme-dark .overview-details-toggle-btn { border-left-color:#2f445a !important; background:#22384e; }\n"
+            + "        .report-standard .overview-table-wrap { width:100%; max-width:100%; overflow-x:auto; }\n"
+            + "        .report-standard .overview-table { table-layout:fixed; width:100%; }\n"
+            + "        .report-standard .overview-table th, .report-standard .overview-table td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.67rem; padding:4px 4px; }\n"
+            + "        .report-standard .overview-table tr > * { min-width:0; }\n"
+            + "        .report-standard .overview-summary-table { table-layout:auto; width:max-content; min-width:100%; }\n"
+            + "        .report-standard .overview-summary-table th, .report-standard .overview-summary-table td { padding:4px 3px; }\n"
+            + "        .report-standard .overview-summary-table tr > *:nth-child(1)  { width:1%; min-width:64px; max-width:100px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-summary-table tr > *:nth-child(2)  { width:1.5%; min-width:120px; max-width:200px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-summary-table tr > *:nth-child(n+3) { width:auto; min-width:max-content; max-width:none; }\n"
+            + "        .report-standard .overview-summary-table .ticker-scroll { max-width:92px; }\n"
+            + "        .report-standard .overview-summary-table .security-scroll { max-width:188px; }\n"
+            + "        .report-standard .overview-holdings-table tr > *:nth-child(1)  { width:1%; min-width:40px; max-width:70px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-holdings-table tr > *:nth-child(2)  { width:1.5%; min-width:50px; max-width:130px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-holdings-table tr > *:nth-child(3), .report-standard .overview-holdings-table tr > *:nth-child(4), .report-standard .overview-holdings-table tr > *:nth-child(5), .report-standard .overview-holdings-table tr > *:nth-child(6), .report-standard .overview-holdings-table tr > *:nth-child(7), .report-standard .overview-holdings-table tr > *:nth-child(8), .report-standard .overview-holdings-table tr > *:nth-child(9), .report-standard .overview-holdings-table tr > *:nth-child(10), .report-standard .overview-holdings-table tr > *:nth-child(11), .report-standard .overview-holdings-table tr > *:nth-child(12), .report-standard .overview-holdings-table tr > *:nth-child(13) { width:auto; min-width:max-content; max-width:none; }\n"
+            + "        .report-standard .overview-table tr > *:nth-child(n+3) { overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-summary-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n"
+            + "        .report-standard .overview-summary-table tr.total-row td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; font-variant-numeric:tabular-nums; }\n"
+            + "        .report-standard .overview-holdings-table th, .report-standard .overview-holdings-table td { white-space:nowrap; overflow:visible !important; text-overflow:clip !important; }\n"
+            + "        .report-standard .overview-holdings-table tr > *:nth-child(1), .report-standard .overview-holdings-table tr > *:nth-child(2) { overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-holdings-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n"
+            + "        .report-standard .overview-holdings-table { table-layout:auto; width:max-content; min-width:100%; }\n"
+            + "        .report-standard .overview-holdings-table tr.total-row td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; font-variant-numeric:tabular-nums; padding-right:10px; }\n"
+            + "        .report-standard .overview-fundamentals-table { table-layout:auto; width:max-content; min-width:100%; }\n"
+            + "        .report-standard .overview-fundamentals-table tr > *:nth-child(1)  { width:1%; min-width:40px; max-width:70px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-fundamentals-table tr > *:nth-child(2)  { width:1.5%; min-width:50px; max-width:130px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { width:auto; min-width:max-content; max-width:none; }\n"
+            + "        .report-standard .overview-fundamentals-table th, .report-standard .overview-fundamentals-table td { white-space:nowrap; overflow:visible !important; text-overflow:clip !important; }\n"
+            + "        .report-standard .overview-fundamentals-table tr > *:nth-child(1), .report-standard .overview-fundamentals-table tr > *:nth-child(2) { overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n"
+            + "        .wk-range-cell { min-width:92px; }\n"
+            + "        .wk-range-track { position:relative; height:4px; border-radius:999px; background:#c7d3df; margin:0 2px 6px; }\n"
+            + "        .wk-range-marker { position:absolute; top:50%; width:10px; height:10px; border-radius:50%; background:#2b67bc; transform:translate(-50%, -50%); box-shadow:0 0 0 1px rgba(255,255,255,.85); }\n"
+            + "        .wk-range-labels { display:flex; justify-content:space-between; gap:4px; font-size:.6rem; color:#2f3f4f; }\n"
+            + "        body.theme-dark .wk-range-track { background:#4a5d72; }\n"
+            + "        body.theme-dark .wk-range-labels { color:#d5e3f1; }\n"
+            + "        .mini-day-chart { display:block; width:96px; height:30px; overflow:visible; }\n"
+            + "        .mini-day-chart-area { stroke:none; opacity:.28; }\n"
+            + "        .mini-day-chart-area.positive { fill:#2f9e62; }\n"
+            + "        .mini-day-chart-area.negative { fill:#c4514a; }\n"
+            + "        .mini-day-chart-line { fill:none; stroke:#2e5f88; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\n"
+            + "        .mini-day-chart-line.positive { stroke:#1f8b4d; }\n"
+            + "        .mini-day-chart-line.negative { stroke:#b23a31; }\n"
+            + "        .mini-day-chart-open { stroke:#8aa0b5; stroke-width:1; stroke-dasharray:2.5 2.5; opacity:.8; }\n"
+            + "        .mini-day-chart-end { stroke:#ffffff; stroke-width:1.1; }\n"
+            + "        .mini-day-chart-end.positive { fill:#1f8b4d; }\n"
+            + "        .mini-day-chart-end.negative { fill:#b23a31; }\n"
+            + "        body.theme-dark .mini-day-chart-open { stroke:#6f879f; opacity:.9; }\n"
+            + "        body.theme-dark .mini-day-chart-area.positive { fill:#2a8f57; }\n"
+            + "        body.theme-dark .mini-day-chart-area.negative { fill:#a54640; }\n"
+            + "        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n"
+            + "        .report-standard .ticker-scroll { max-width:126px; padding-left:1px; }\n"
+            + "        .report-standard .security-scroll { max-width:236px; }\n"
+            + "        .report-standard .ticker-scroll::-webkit-scrollbar, .report-standard .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n"
+            + "        .report-standard .ticker-scroll::after, .report-standard .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n"
+            + "        .report-standard .ticker-scroll:hover::after, .report-standard .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n"
+            + "        @media (max-width:1060px) { .report-standard .overview-table tr > *:nth-child(n+3), .report-standard .realized-table tr > *:nth-child(n+3) { overflow:hidden !important; text-overflow:ellipsis !important; white-space:nowrap !important; } }\n"
+            + "        @media (max-width:1060px) { .report-standard .overview-summary-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n"
+            + "        @media (max-width:1060px) { .report-standard .overview-holdings-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n"
+            + "        @media (max-width:1060px) { .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n"
+            + "        .report-annual .realized-table { table-layout:auto; }\n"
+            + "        .report-annual .realized-table tr > *:nth-child(1) { width:106px; max-width:106px; min-width:106px; overflow:visible; text-overflow:clip; }\n"
+            + "        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n"
+            + "        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n"
+            + "        .report-annual .realized-table tr > *:nth-child(7) { width:160px; max-width:160px; }\n"
+            + "        .realized-highlights { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin:10px 0 14px; }\n"
+            + "        @media (max-width:1060px) { .realized-highlights { grid-template-columns:repeat(3,minmax(0,1fr)); } }\n"
+            + "        .report-standard .realized-table { table-layout:auto; width:100%; }\n"
+            + "        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n"
+            + "        .report-standard .realized-table tr > *:nth-child(1)  { width:auto; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .report-standard .realized-table tr > *:nth-child(2)  { width:auto; max-width:250px; overflow:hidden !important; text-overflow:ellipsis !important; }\n"
+            + "        .ticker-scroll { display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-bottom:0; }\n"
+            + "        .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n"
+            + "        .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n"
+            + "        .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n"
+            + "        .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n"
+            + "        .security-scroll.is-dragging::after { opacity:.85; background:rgba(120,145,168,.45); }\n"
+            + "        .security-scroll.is-dragging { cursor:grabbing; }\n"
+            + "        body.inline-cell-dragging { user-select:none; cursor:grabbing; }\n"
+            + "        .total-row { font-weight:700; background:#f3f7fb; color:#1a2b3a; }\n"
+            + "        .asset-split td { border-top:3px solid #8a9eb3 !important; }\n"
+            + "        .asset-divider-row td { border-top:3px solid #8a9eb3 !important; padding:0 !important; }\n"
+            + "        .asset-divider-toggle { display:flex; align-items:center; gap:8px; width:100%; background:transparent; border:0; cursor:pointer; font:inherit; padding:7px 10px; color:#4a5f74; font-weight:600; font-size:.78rem; letter-spacing:.3px; }\n"
+            + "        .asset-divider-toggle:hover { background:rgba(138,158,179,.16); }\n"
+            + "        .asset-divider-chevron, .subtotal-toggle-chevron { display:inline-block; transition:transform .15s ease; }\n"
+            + "        .asset-divider-chevron { font-size:.9rem; color:#6b7f94; }\n"
+            + "        .asset-divider-row.is-open .asset-divider-chevron, .total-row.is-open .subtotal-toggle-chevron { transform:rotate(90deg); }\n"
+            + "        .asset-subtotal-row { background:#eef4fa; color:#2a3f54; font-weight:600; }\n"
+            + "        .asset-subtotal-row td { border-top:1px dashed rgba(138,158,179,.55); }\n"
+            + "        .subtotal-toggle-btn { background:transparent; border:0; cursor:pointer; font:inherit; color:inherit; font-weight:700; display:inline-flex; align-items:center; gap:6px; padding:0; }\n"
+            + "        .subtotal-toggle-chevron { font-size:.82rem; color:#6b7f94; }\n"
+            + "        .positive { color:var(--good); } .negative { color:var(--bad); }\n"
+            + "        .report-hero { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; background:linear-gradient(120deg,#0f2238 0%,#18344f 60%,#164663 100%); border-radius:18px; padding:22px; color:#f4f8fc; box-shadow:0 14px 26px rgba(10,24,38,.2); margin-bottom:18px; }\n"
+            + "        .annual-hero { grid-template-columns:1fr; gap:14px; margin-bottom:12px; }\n"
+            + "        .annual-hero-header { display:flex; flex-direction:column; gap:2px; }\n"
+            + "        .hero-title h1 { margin:0; font-size:1.75rem; letter-spacing:.4px; }\n"
+            + "        .hero-meta { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }\n"
+            + "        .meta-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; border:1px solid rgba(235,245,255,.28); background:rgba(255,255,255,.1); color:#d7e6f4; font-size:.84rem; font-weight:600; }\n"
+            + "        .meta-chip strong { color:#ffffff; font-weight:700; }\n"
+            + "        .currency-select { border:1px solid rgba(235,245,255,.45); border-radius:6px; background-color:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; font-size:.84rem; padding:2px 20px 2px 6px; outline:none; cursor:pointer; -webkit-appearance:none; appearance:none; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1 5 5 9 1' fill='none' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 6px center; background-size:9px 6px; }\n"
+            + "        .currency-select:focus { border-color:#fff; background-color:rgba(255,255,255,.28); }\n"
+            + "        .currency-select option { color:#16202a; background:#ffffff; text-transform:none; font-weight:600; }\n"
+            + "        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n"
+            + "        .annual-headline-grid { margin-top:0; }\n"
+            + "        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n"
+            + "        .report-standard .annual-summary-grid { grid-template-columns:repeat(8,minmax(0,1fr)); }\n"
+            + "        .report-standard .annual-summary-grid > .kpi-card { grid-column:span 1; }\n"
+            + "        .report-standard .annual-summary-grid > .kpi-card.kpi-card-wide { grid-column:span 2; }\n"
+            + "        .report-standard .annual-summary-grid > .kpi-card.kpi-card-bestworst { grid-column:span 2; }\n"
+            + "        .report-standard .kpi-card { background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); border-color:#d4dfeb; color:#1f3549; }\n"
+            + "        .report-standard .kpi-label { color:#5b7288; }\n"
+            + "        .report-standard .kpi-value { color:#1f3549; }\n"
+            + "        .report-standard .performer { color:#314c64; }\n"
+            + "        .report-standard .performer strong { color:#1f3549; }\n"
+            + "        .report-standard .kpi-label.positive, .report-standard .kpi-value.positive { color:var(--good); }\n"
+            + "        .report-standard .kpi-label.negative, .report-standard .kpi-value.negative { color:var(--bad); }\n"
+            + "        .report-standard .performer.positive { color:var(--good); }\n"
+            + "        .report-standard .performer.negative { color:var(--bad); }\n"
+            + "        .report-standard .kpi-help { color:#7a96ae; }\n"
+            + "        .report-standard .cash-holdings-add-btn { border-color:#8da9c4; background:#eef5fb; color:#1f3a52; }\n"
+            + "        .report-standard .cash-holdings-add-btn:hover { background:#e4eff9; }\n"
+            + "        .report-standard .manual-cash-holding-line { color:#4f6780; }\n"
+            + "        .report-standard .manual-cash-holding-line.is-portfolio { color:#1f3a52; }\n"
+            + "        body.theme-dark.report-standard .kpi-card { background:#1a2d42; border-color:#2e4258; color:#dbe8f4; }\n"
+            + "        body.theme-dark.report-standard .kpi-label { color:#b8cde1; }\n"
+            + "        body.theme-dark.report-standard .kpi-value { color:#edf5ff; }\n"
+            + "        body.theme-dark.report-standard .performer { color:#d4e3f2; }\n"
+            + "        body.theme-dark.report-standard .performer strong { color:#edf5ff; }\n"
+            + "        body.theme-dark.report-standard .kpi-label.positive, body.theme-dark.report-standard .kpi-value.positive { color:var(--good); }\n"
+            + "        body.theme-dark.report-standard .kpi-label.negative, body.theme-dark.report-standard .kpi-value.negative { color:var(--bad); }\n"
+            + "        body.theme-dark.report-standard .performer.positive { color:var(--good); }\n"
+            + "        body.theme-dark.report-standard .performer.negative { color:var(--bad); }\n"
+            + "        body.theme-dark.report-standard .cash-holdings-add-btn { border-color:#56799a; background:#243c55; color:#e2edf8; }\n"
+            + "        body.theme-dark.report-standard .cash-holdings-add-btn:hover { background:#2d4a67; }\n"
+            + "        body.theme-dark.report-standard .manual-cash-holding-line { color:#c2d6ea; }\n"
+            + "        body.theme-dark.report-standard .manual-cash-holding-line.is-portfolio { color:#edf5ff; }\n"
+            + "        .cash-holdings-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }\n"
+            + "        .cash-holdings-add-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:2px 8px; font-size:.72rem; font-weight:700; cursor:pointer; display:none; }\n"
+            + "        .cash-holdings-add-btn:hover { background:rgba(255,255,255,.2); }\n"
+            + "        .manual-cash-holdings-list { margin-top:7px; display:grid; gap:3px; }\n"
+            + "        .manual-cash-holding-line { font-size:.75rem; color:#d3e3f3; line-height:1.3; }\n"
+            + "        .manual-cash-holding-line.is-portfolio { font-weight:700; color:#f4f9ff; }\n"
+            + "        .cash-manager-overlay[hidden] { display:none !important; }\n"
+            + "        .cash-manager-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12500; display:flex; align-items:center; justify-content:center; padding:16px; }\n"
+            + "        .cash-manager-dialog { width:min(700px,94vw); max-height:88vh; overflow:auto; background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); padding:12px; }\n"
+            + "        .cash-manager-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }\n"
+            + "        .cash-manager-header h4 { margin:0; font-size:.95rem; }\n"
+            + "        .cash-manager-close { border:1px solid #9cb5ca; background:#eef5fb; color:#20405a; border-radius:8px; width:28px; height:28px; cursor:pointer; font-size:1rem; line-height:1; }\n"
+            + "        .cash-manager-form-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }\n"
+            + "        .cash-manager-form-row input { border:1px solid #a8bfd4; border-radius:8px; height:32px; padding:0 8px; font-size:.82rem; }\n"
+            + "        .cash-manager-form-row select { border:1px solid #a8bfd4; border-radius:8px; height:32px; padding:0 8px; font-size:.82rem; background:#fff; min-width:120px; }\n"
+            + "        .cash-manager-currency-input { width:76px; text-transform:uppercase; }\n"
+            + "        .cash-manager-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:8px; height:32px; padding:0 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n"
+            + "        .cash-manager-btn:hover { background:#e6f1fb; }\n"
+            + "        .cash-manager-btn.danger { border-color:#cf8080; background:#fff1f1; color:#8f2d2d; }\n"
+            + "        .cash-manager-btn.danger:hover { background:#ffe4e4; }\n"
+            + "        .cash-manager-message { margin:-2px 0 8px; font-size:.76rem; color:#355572; min-height:1.1em; }\n"
+            + "        .cash-manager-message.is-error { color:#9a2f2f; }\n"
+            + "        .cash-account-block { border:1px solid #d4dfeb; border-radius:10px; padding:9px; background:#ffffff; margin-bottom:8px; }\n"
+            + "        .cash-account-block.is-hidden { background:#f4f7fa; border-color:#c8d8e8; }\n"
+            + "        .cash-account-block.is-hidden .cash-account-summary,.cash-account-block.is-hidden .cash-transaction-list { opacity:.45; pointer-events:none; }\n"
+            + "        .cash-account-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }\n"
+            + "        .cash-account-head-buttons { display:flex; gap:5px; flex-shrink:0; }\n"
+            + "        .cash-account-title { margin:0; font-size:.84rem; font-weight:700; color:#1e3951; }\n"
+            + "        .cash-account-title.is-hidden-label::after { content:' (hidden)'; font-weight:400; color:#7a96ae; font-size:.78rem; }\n"
+            + "        .cash-account-summary { margin:0 0 8px; font-size:.78rem; color:#355572; }\n"
+            + "        .cash-tx-edit-row { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }\n"
+            + "        .cash-tx-edit-row input { border:1px solid #a8bfd4; border-radius:6px; height:26px; padding:0 6px; font-size:.78rem; }\n"
+            + "        .cash-tx-edit-amount { width:88px; }\n"
+            + "        .cash-tx-edit-currency { width:58px; text-transform:uppercase; }\n"
+            + "        .cash-account-name-edit { width:150px; }\n"
+            + "        .cash-manager-empty { margin:0 0 8px; font-size:.78rem; color:#56708a; }\n"
+            + "        .cash-transaction-list { margin:0 0 8px; padding-left:16px; display:grid; gap:3px; }\n"
+            + "        .cash-transaction-item { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.76rem; }\n"
+            + "        .cash-transaction-item .cash-manager-btn { height:24px; padding:0 8px; font-size:.72rem; border-radius:6px; }\n"
+            + "        .cash-account-caret { color:#5c7795; font-weight:400; }\n"
+            + "        body.theme-dark .cash-manager-dialog { background:#162231; color:#e5edf7; border-color:#2b3a4d; box-shadow:0 18px 36px rgba(0,0,0,.5); }\n"
+            + "        body.theme-dark .cash-manager-close { border-color:#3a4d63; background:#22384e; color:#dbe7f4; }\n"
+            + "        body.theme-dark .cash-manager-form-row input, body.theme-dark .cash-manager-form-row select, body.theme-dark .cash-tx-edit-row input { background:#1b2c3f; border-color:#33485f; color:#e5edf7; }\n"
+            + "        body.theme-dark .cash-manager-btn { border-color:#3a4d63; background:#22384e; color:#dbe7f4; }\n"
+            + "        body.theme-dark .cash-manager-btn:hover { background:#2d4a67; }\n"
+            + "        body.theme-dark .cash-manager-btn.danger { border-color:#7a3b3b; background:#3a1f1f; color:#f0a3a3; }\n"
+            + "        body.theme-dark .cash-manager-btn.danger:hover { background:#4a2727; }\n"
+            + "        body.theme-dark .cash-manager-message { color:#aebdce; }\n"
+            + "        body.theme-dark .cash-manager-message.is-error { color:#f0a3a3; }\n"
+            + "        body.theme-dark .cash-manager-empty { color:#8ba0b5; }\n"
+            + "        body.theme-dark .cash-account-block { background:#12202f; border-color:#2b3a4d; }\n"
+            + "        body.theme-dark .cash-account-block.is-hidden { background:#0f1a26; border-color:#243141; }\n"
+            + "        body.theme-dark .cash-account-title { color:#e5edf7; }\n"
+            + "        body.theme-dark .cash-account-title.is-hidden-label::after { color:#8ba0b5; }\n"
+            + "        body.theme-dark .cash-account-summary { color:#aebdce; }\n"
+            + "        body.theme-dark .cash-account-caret { color:#8ba0b5; }\n"
+            + "        .annual-headline-grid .kpi-card { min-height:116px; }\n"
+            + "        .kpi-label { color:#c8d9eb; font-size:.8rem; text-transform:uppercase; }\n"
+            + "        .kpi-value { margin-top:2px; font-size:1.02rem; font-weight:700; color:#fff; }\n"
+            + "        .kpi-help { margin-top:4px; font-size:.72rem; line-height:1.35; color:#b6c9dc; text-transform:none; letter-spacing:0; }\n"
+            + "        .performer { margin-top:6px; font-size:.84rem; color:#dce8f3; }\n"
+            + "        .performer strong { display:block; font-size:.9rem; margin-bottom:2px; }\n"
+            + "        .report-standard .kpi-card-bestworst .performer strong { white-space:nowrap; overflow-x:auto; overflow-y:hidden; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; }\n"
+            + "        .report-standard .kpi-card-bestworst .performer strong::-webkit-scrollbar { display:none; width:0; height:0; }\n"
+            + "        .performer-metrics { display:block; }\n"
+            + "        .hero-side { position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n"
+            + "        .timeline-title-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }\n"
+            + "        .timeline-title-row .annual-kpi-deck-title { margin:0; }\n"
+            + "        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin:0; }\n"
+            + "        .timeline-info-btn { width:18px; height:18px; border-radius:999px; border:1px solid rgba(235,245,255,.55); background:rgba(255,255,255,.14); color:#e8f2fb; font-size:.72rem; font-weight:800; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }\n"
+            + "        .timeline-info-btn:hover { background:rgba(255,255,255,.24); }\n"
+            + "        .annual-graphs-section .timeline-info-btn,.annual-kpi-deck .timeline-info-btn { border-color:#8fa9c2; background:#eaf2fb; color:#24415a; }\n"
+            + "        .annual-graphs-section .timeline-info-btn:hover,.annual-kpi-deck .timeline-info-btn:hover { background:#ddeaf7; }\n"
+            + "        .timeline-info-overlay[hidden] { display:none !important; }\n"
+            + "        .timeline-info-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12000; display:flex; align-items:center; justify-content:center; padding:18px; }\n"
+            + "        .timeline-info-dialog { width:min(560px,92vw); background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); }\n"
+            + "        .timeline-info-header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid #d5e3ef; }\n"
+            + "        .timeline-info-header h4 { margin:0; font-size:.95rem; letter-spacing:.2px; }\n"
+            + "        .timeline-info-close { border:1px solid #9cb5ca; background:#eef5fb; color:#20405a; border-radius:8px; width:26px; height:26px; cursor:pointer; font-size:1rem; line-height:1; padding:0; }\n"
+            + "        .timeline-info-body { padding:12px 14px 14px; font-size:.86rem; line-height:1.45; }\n"
+            + "        .timeline-info-body p { margin:0 0 8px; }\n"
+            + "        .timeline-info-body ul { margin:0; padding-left:18px; }\n"
+            + "        .timeline-info-body li { margin:0 0 6px; }\n"
+            + "        .hero-side-note { color:#d4e3f0; font-size:.92rem; }\n"
+            + "        .app-shell-note { color:#3b5570; font-size:.86rem; font-weight:600; line-height:1.35; }\n"
+            + "        .sparkline-widget { display:block; }\n"
+            + "        .sparkline-metric-controls { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 8px; }\n"
+            + "        .sparkline-metric-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n"
+            + "        .sparkline-metric-btn:hover { background:#e8f0f8; }\n"
+            + "        .sparkline-metric-btn.is-active { background:#24425b; color:#f4f9ff; border-color:#24425b; }\n"
+            + "        .sparkline-controls { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }\n"
+            + "        .sparkline-controls.sparkline-controls-bottom { margin:8px 0 0; }\n"
+            + "        .sparkline-range-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n"
+            + "        .sparkline-range-btn:hover { background:#e8f0f8; }\n"
+            + "        .sparkline-range-btn.is-active { background:#dbe9f8; color:#1f3f5b; border-color:#9eb9d5; }\n"
+            + "        .sparkline-return-summary { margin:0 0 8px; font-size:.8rem; font-weight:700; color:#2f4a62; }\n"
+            + "        .sparkline-return-summary.positive { color:var(--good); }\n"
+            + "        .sparkline-return-summary.negative { color:var(--bad); }\n"
+            + "        .hero-side { --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n"
+            + "        .hero-side .sparkline-metric-btn, .hero-side .sparkline-range-btn { border-color:rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; }\n"
+            + "        .hero-side .sparkline-metric-btn:hover, .hero-side .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n"
+            + "        .hero-side .sparkline-metric-btn.is-active, .hero-side .sparkline-range-btn.is-active { background:#eaf4ff; color:#16344d; border-color:#ffffff; }\n"
+            + "        .sparkline-panel { display:none; }\n"
+            + "        .sparkline-panel.is-active { display:block; }\n"
+            + "        .overview-charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0 14px; }\n"
+            + "        .overview-chart { padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); overflow:hidden; }\n"
+            + "        .overview-chart h3 { margin:0 0 10px; font-size:1rem; }\n"
+            + "        .overview-chart .chart-svg { display:block; width:100%; margin:0 auto 12px; }\n"
+            + "        .allocation-card { margin:16px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n"
+            + "        .allocation-card h3 { margin:0 0 10px; font-size:1rem; }\n"
+            + "        .annual-summary { margin:14px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n"
+            + "        .annual-summary h3 { margin:0 0 10px; font-size:1rem; }\n"
+            + "        .annual-kpi-deck { margin:0 0 14px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n"
+            + "        .annual-kpi-deck-title { margin:0 0 10px; font-size:1.02rem; font-weight:700; letter-spacing:0; color:var(--ink); text-transform:none; }\n"
+            + "        .annual-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }\n"
+            + "        .annual-summary-card { border:1px solid #d4dfeb; border-radius:11px; padding:11px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); }\n"
+            + "        .annual-summary-card h4 { margin:0 0 4px; font-size:.82rem; color:#40576c; text-transform:uppercase; }\n"
+            + "        .annual-summary-value { font-size:1.05rem; font-weight:700; }\n"
+            + "        .annual-summary-sub { margin-top:4px; font-size:.78rem; color:#5f7488; }\n"
+            + "        .annual-summary-value.positive, .annual-summary-sub.positive { color:var(--good); }\n"
+            + "        .annual-summary-value.negative, .annual-summary-sub.negative { color:var(--bad); }\n"
+            + "        .annual-value-warning { margin-top:6px; padding:6px 7px; font-size:.74rem; line-height:1.35; border:1px solid #f0d8a8; border-radius:8px; background:#fff5df; color:#7b4a00; }\n"
+            + "        .annual-summary-card .performer { margin-top:5px; color:#253d53; font-size:.82rem; }\n"
+            + "        .annual-summary-card .performer strong { margin-bottom:1px; font-size:.88rem; color:#1f3345; }\n"
+            + "        .annual-summary-card .performer.positive { color:var(--good); }\n"
+            + "        .annual-summary-card .performer.negative { color:var(--bad); }\n"
+            + "        .annual-graphs-section { margin:0 0 18px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n"
+            + "        .annual-graphs-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; margin:0 0 10px; }\n"
+            + "        .annual-graphs-heading h2 { margin:0; font-size:1.02rem; color:var(--ink); }\n"
+            + "        .annual-graphs-heading p { margin:0; font-size:.8rem; color:var(--muted); }\n"
+            + "        .annual-graphs-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0; }\n"
+            + "        .annual-graph-card { display:flex; flex-direction:column; min-height:388px; padding:14px; border:1px solid #d4dfeb; border-radius:13px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n"
+            + "        .report-standard .annual-graph-card { min-height:410px; }\n"
+            + "        .annual-graph-card.full-span { grid-column:1 / -1; }\n"
+            + "        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n"
+            + "        .total-return-graphs-section { background:var(--card); border-color:var(--line); }\n"
+            + "        .total-return-chart { min-height:426px; }\n"
+            + "        .total-return-bar-chart .tr-plot-bg { fill:none; stroke:none; }\n"
+            + "        .total-return-bar-chart .tr-grid-line { stroke:#d8e3ee; }\n"
+            + "        .total-return-bar-chart .tr-axis-label { fill:#496077; }\n"
+            + "        .total-return-bar-chart .tr-plot-border { stroke:none; }\n"
+            + "        .total-return-bar-chart .tr-axis-line { stroke:#4d6073; }\n"
+            + "        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n"
+            + "        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-start; min-height:0; }\n"
+            + "        .annual-graph-content > svg { display:block; width:100%; margin-top:auto; }\n"
+            + "        .annual-graph-content .sparkline-widget { display:flex; flex-direction:column; gap:6px; min-height:100%; }\n"
+            + "        .annual-graph-content .sparkline-panel { flex:1; min-height:0; }\n"
+            + "        .annual-graph-content .sparkline-panel.is-active { display:flex; align-items:stretch; }\n"
+            + "        .annual-graph-content .sparkline-panel > svg { display:block; width:100%; height:100%; min-height:220px; }\n"
+            + "        .allocation-visuals { display:grid; gap:10px; }\n"
+            + "        .allocation-row { display:grid; gap:10px; }\n"
+            + "        .allocation-row-top { grid-template-columns:repeat(3,minmax(0,1fr)); }\n"
+            + "        .allocation-row-bottom { grid-template-columns:repeat(2,minmax(0,1fr)); }\n"
+            + "        .allocation-panel { border:1px solid #d4dfeb; border-radius:13px; padding:14px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n"
+            + "        .allocation-panel-title { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; color:#41576d; letter-spacing:.3px; white-space:nowrap; }\n"
+            + "        .allocation-drilldown-list { box-sizing:border-box; width:100%; margin:10px 0 0; border:1px solid #d5e1ec; border-radius:8px; background:#fff; overflow:hidden; padding:8px 10px; }\n"
+            + "        .allocation-drilldown-list[hidden] { display:none !important; }\n"
+            + "        .allocation-drilldown-grid { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:start; }\n"
+            + "        .allocation-drilldown-selected { margin:0 0 8px; font-size:.78rem; font-weight:700; color:#2e4963; }\n"
+            + "        .allocation-drilldown-name { min-width:0; display:flex; align-items:flex-start; gap:6px; color:#2f2f2f; font-size:.8rem; line-height:1.25; word-break:break-word; overflow-wrap:anywhere; }\n"
+            + "        .allocation-drilldown-dot { flex:0 0 auto; width:7px; height:7px; border-radius:999px; background:#3b5978; margin-top:4px; }\n"
+            + "        .allocation-drilldown-pct { color:#4a4a4a; font-size:.8rem; line-height:1.25; text-align:right; white-space:nowrap; }\n"
+            + "        .chart-svg { width:100%; height:auto; }\n"
+            + "        .allocation-panel .chart-svg { width:96%; margin:6px auto 10px; display:block; }\n"
+            + "        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:100%; }\n"
+            + "        .chart-hover-target { cursor:pointer; transform-box:fill-box; transform-origin:center; transition:transform .14s ease, filter .14s ease, opacity .14s ease; }\n"
+            + "        .chart-hover-target.is-hovered { filter:brightness(1.08); opacity:.96; }\n"
+            + "        .chart-hover-bar.is-hovered { transform:translateY(-2px); }\n"
+            + "        .chart-hover-slice.is-hovered { transform:scale(1.03); }\n"
+            + "        .chart-hover-slice.is-selected { transform:scale(1.03); filter:brightness(1.12); opacity:1; stroke:rgba(10,24,40,.35); stroke-width:1.4; }\n"
+            + "        .chart-hover-point.is-hovered { transform:scale(1.75); stroke:#ffffff; stroke-width:1; }\n"
+            + "        .chart-hover-avg-hit { pointer-events:stroke; }\n"
+            + "        .chart-total-return-label, .chart-security-bar-label { paint-order:stroke; stroke:#ffffff; stroke-width:1.5; stroke-linejoin:round; letter-spacing:.04px; }\n"
+            + "        .chart-security-label { font-weight:700; letter-spacing:.05px; paint-order:stroke; stroke:#ffffff; stroke-width:1.6; stroke-linejoin:round; }\n"
+            + "        .chart-tooltip { position:fixed; pointer-events:none; z-index:10000; max-width:340px; padding:7px 10px; border-radius:8px; background:rgba(16,28,40,.94); color:#f6fbff; font-size:.8rem; font-weight:600; line-height:1.3; box-shadow:0 8px 18px rgba(7,16,26,.28); border:1px solid rgba(255,255,255,.14); opacity:0; transform:translateY(4px); transition:opacity .1s ease, transform .1s ease; }\n"
+            + "        .chart-tooltip.visible { opacity:1; transform:translateY(0); }\n"
+            + "        .chart-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; }\n"
+            + "        .chart-title-row > .chart-download-btn { margin-left:auto; }\n"
+            + "        .chart-title-row > h3, .chart-title-row > h4, .chart-title-row > .hero-side-title { margin:0; }\n"
+            + "        .chart-title-row > h3, .chart-title-row > h4 { white-space:nowrap; }\n"
+            + "        .chart-download-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }\n"
+            + "        .chart-download-btn:hover { background:#e6f1fb; }\n"
+            + "        .chart-download-btn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }\n"
+            + "        .chart-toolbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0; position:relative; z-index:3; }\n"
+            + "        .chart-tool-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:28px; height:28px; padding:0 7px; font-size:.74rem; font-weight:700; cursor:pointer; }\n"
+            + "        .chart-tool-btn:hover { background:#e6f1fb; }\n"
+            + "        .chart-filter-input { border:1px solid #a5bbcf; border-radius:7px; height:28px; min-width:130px; padding:0 8px; font-size:.74rem; background:#ffffff; color:#20384f; }\n"
+            + "        .chart-filter-input::placeholder { color:#6f8498; }\n"
+            + "        .chart-viewport { position:relative; overflow:hidden; border:none; border-radius:8px; background:transparent; z-index:1; }\n"
+            + "        .chart-hover-legend { cursor:pointer; }\n"
+            + "        .chart-svg { transform-origin:0 0; transition:transform .12s ease-out; }\n"
+            + "        .chart-viewport .chart-svg { border:none; border-radius:0; margin:0 !important; }\n"
+            + "        .chart-svg.is-panning { cursor:grabbing; }\n"
+            + "        .hero-theme-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n"
+            + "        .hero-theme-btn:hover { background:rgba(255,255,255,.2); }\n"
+            + "        .hero-refresh-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n"
+            + "        .hero-refresh-btn:hover:not(:disabled) { background:rgba(255,255,255,.2); }\n"
+            + "        .hero-refresh-btn:disabled { opacity:.6; cursor:not-allowed; }\n"
+            + "        .price-refresh-status { font-size:.76rem; color:#d7e6f4; margin-top:8px; min-height:1.1em; }\n"
+            + "        body.theme-dark .table-wrap, body.theme-dark .overview-chart, body.theme-dark .allocation-card, body.theme-dark .allocation-panel, body.theme-dark .details-table, body.theme-dark .annual-kpi-deck, body.theme-dark .annual-graphs-section { border-color:#2a3a4f; box-shadow:none; }\n"
+            + "        body.theme-dark .total-row { background:#1a2a3b; color:#ecf3fb; }\n"
+            + "        body.theme-dark .asset-subtotal-row { background:#152436; color:#dbe7f4; }\n"
+            + "        body.theme-dark .asset-divider-toggle { color:#9fb4c9; }\n"
+            + "        body.theme-dark .asset-divider-toggle:hover { background:rgba(120,145,168,.22); }\n"
+            + "        body.theme-dark .asset-divider-chevron, body.theme-dark .subtotal-toggle-chevron { color:#9fb4c9; }\n"
+            + "        body.theme-dark td, body.theme-dark th { border-bottom-color:#2a3a4d; }\n"
+            + "        body.theme-dark th { background:#1d2a3a; color:#d8e4f2; }\n"
+            + "        body.theme-dark .details-cell { background:#111d2b; }\n"
+            + "        body.theme-dark .details-wrap { background:#111d2b; }\n"
+            + "        body.theme-dark .details-wrap h4 { color:#c6d8ea; }\n"
+            + "        body.theme-dark .details-table { background:#162231; border-color:#2a3a4d; }\n"
+            + "        body.theme-dark .details-table th { background:#1b2b3d; color:#d7e4f2; }\n"
+            + "        body.theme-dark .details-table td { color:#dbe7f4; border-bottom-color:#2a3a4d; }\n"
+            + "        body.theme-dark .allocation-panel { background:#1a2d42; border-color:#2e4258; box-shadow:none; }\n"
+            + "        body.theme-dark .allocation-panel-title { color:#c8d8e8; }\n"
+            + "        body.theme-dark .allocation-drilldown-list { border-color:#32485f; background:#102033; }\n"
+            + "        body.theme-dark .allocation-drilldown-selected { color:#c8d9ea; }\n"
+            + "        body.theme-dark .allocation-drilldown-name { color:#d4e1ee; }\n"
+            + "        body.theme-dark .allocation-drilldown-pct { color:#c2d3e4; }\n"
+            + "        body.theme-dark .chart-hover-legend { opacity:1; }\n"
+            + "        body.theme-dark .chart-download-btn { background:#1f3347; border-color:#3a5878; color:#d8e7f5; }\n"
+            + "        body.theme-dark .chart-download-btn:hover { background:#2a4663; }\n"
+            + "        body.theme-dark .chart-tool-btn { background:#1f3347; border-color:#3a5878; color:#d8e7f5; }\n"
+            + "        body.theme-dark .chart-tool-btn:hover { background:#2a4663; }\n"
+            + "        body.theme-dark .chart-filter-input { background:#152535; border-color:#3a5878; color:#d8e7f5; }\n"
+            + "        body.theme-dark .chart-filter-input::placeholder { color:#6a8daa; }\n"
+            + "        body.theme-dark .timeline-info-dialog { background:#122437; color:#d8e7f5; border-color:#2b4360; }\n"
+            + "        body.theme-dark .timeline-info-header { border-bottom-color:#2b4360; }\n"
+            + "        body.theme-dark .timeline-info-close { background:#1a3149; border-color:#3a5879; color:#d8e7f5; }\n"
+            + "        body.theme-dark .annual-summary { border-color:#2a3a4f; box-shadow:none; }\n"
+            + "        body.theme-dark .annual-kpi-deck-title { color:#e5edf7; }\n"
+            + "        body.theme-dark .annual-summary-card { border-color:#2e4258; background:#1a2d42; }\n"
+            + "        body.theme-dark .annual-summary-card h4 { color:#c8d9eb; }\n"
+            + "        body.theme-dark .annual-summary-sub { color:#d6e4f1; }\n"
+            + "        body.theme-dark .annual-value-warning { background:#3d2e19; border-color:#8e6a33; color:#ffdca8; }\n"
+            + "        body.theme-dark .annual-summary-card .performer { color:#d4e3f2; }\n"
+            + "        body.theme-dark .annual-summary-card .performer strong { color:#e9f2fc; }\n"
+            + "        body.theme-dark .annual-summary-value.positive, body.theme-dark .annual-summary-sub.positive { color:var(--good); }\n"
+            + "        body.theme-dark .annual-summary-value.negative, body.theme-dark .annual-summary-sub.negative { color:var(--bad); }\n"
+            + "        body.theme-dark .annual-summary-card .performer.positive { color:var(--good); }\n"
+            + "        body.theme-dark .annual-summary-card .performer.negative { color:var(--bad); }\n"
+            + "        body.theme-dark .annual-graphs-heading h2 { color:#e5edf7; }\n"
+            + "        body.theme-dark .annual-graphs-heading p { color:#bad0e5; }\n"
+            + "        body.theme-dark .annual-graphs-section .timeline-info-btn,body.theme-dark .annual-kpi-deck .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n"
+            + "        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n"
+            + "        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n"
+            + "        body.theme-dark .total-return-graphs-section { background:var(--card); border-color:#2a3a4f; }\n"
+            + "        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:none !important; stroke:none !important; }\n"
+            + "        body.theme-dark .total-return-bar-chart .tr-grid-line { stroke:#3e5872 !important; }\n"
+            + "        body.theme-dark .total-return-bar-chart .tr-axis-label { fill:#c8d9ea !important; }\n"
+            + "        body.theme-dark .total-return-bar-chart .tr-plot-border { stroke:none !important; }\n"
+            + "        body.theme-dark .total-return-bar-chart .tr-axis-line { stroke:#8da7c1 !important; }\n"
+            + "        body.theme-dark .annual-graph-card h3 { color:#bdd1e4; }\n"
+            + "        body.theme-dark .annual-graph-note { color:#bad0e5; }\n"
+            + "        body.theme-dark .sparkline-metric-btn, body.theme-dark .sparkline-range-btn { border-color:#45627f; background:#22374d; color:#cfe0f2; }\n"
+            + "        body.theme-dark .sparkline-metric-btn:hover, body.theme-dark .sparkline-range-btn:hover { background:#2b4560; }\n"
+            + "        body.theme-dark .sparkline-metric-btn.is-active { background:#dceafb; color:#173047; border-color:#dceafb; }\n"
+            + "        body.theme-dark .sparkline-range-btn.is-active { background:#c3d7ed; color:#173047; border-color:#9bb7d3; }\n"
+            + "        body.theme-dark .sparkline-return-summary { color:#cfe0f2; }\n"
+            + "        body.theme-dark .sparkline-return-summary.positive { color:var(--good); }\n"
+            + "        body.theme-dark .sparkline-return-summary.negative { color:var(--bad); }\n"
+            + "        body.theme-dark .kpi-help { color:#b6c9dc; }\n"
+            + "        body.theme-dark .chart-title-row > h3, body.theme-dark .chart-title-row > h4, body.theme-dark .chart-title-row > .hero-side-title { color:#dce8f5; }\n"
+            + "        body.theme-dark .chart-svg text { fill:#d4e1ee !important; }\n"
+            + "        body.theme-dark .chart-total-return-label, body.theme-dark .chart-security-bar-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.0; }\n"
+            + "        body.theme-dark .chart-security-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.05; }\n"
+            + "        body.theme-dark .market-value-bar-chart line[stroke='#495057'] { stroke:#dce8f4 !important; }\n"
+            + "        body.theme-dark .market-value-bar-chart text[fill='#495057'] { fill:#dce8f4 !important; }\n"
+            + "        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#d1e0ef; }\n"
+            + "        .details-link-btn { display:block; width:100%; min-width:0; text-align:left; border:none; background:transparent; color:inherit; font:inherit; padding:0; margin:0; cursor:pointer; }\n"
+            + "        .details-link-btn:hover { text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px; }\n"
+            + "        .details-head { display:inline-flex; align-items:center; gap:6px; }\n"
+            + "        .detail-group-toggle { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:50%; width:18px; height:18px; padding:0; line-height:16px; font-size:.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }\n"
+            + "        .detail-group-toggle:hover { background:#e6f1fb; }\n"
+            + "        .details-row { display:none; }\n"
+            + "        .details-cell { padding:0 !important; background:#f9fcff; }\n"
+            + "        .details-wrap { padding:10px 12px 12px; overflow-x:auto; overflow-y:hidden; }\n"
+            + "        .details-wrap h4 { margin:0 0 8px; font-size:.88rem; color:#2b4358; text-transform:uppercase; letter-spacing:.25px; }\n"
+            + "        .details-table { width:max-content; min-width:100%; border-collapse:collapse; background:#fff; border:1px solid #dfe7ef; }\n"
+            + "        .details-table th, .details-table td { padding:6px 7px; border-bottom:1px solid #edf2f7; font-size:.72rem; white-space:nowrap; overflow:visible; text-overflow:clip; }\n"
+            + "        .details-table th { background:#f4f8fc; color:#405a70; }\n"
+            + "        .details-buy { color:#1d5d92; font-weight:600; }\n"
+            + "        .details-dividend { color:#1f8b4d; font-weight:600; }\n"
+            + "        @media (max-width:1200px) { .allocation-row-top{grid-template-columns:1fr 1fr;} .annual-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }\n"
+            + "        @media (max-width:1060px) { .report-hero{grid-template-columns:1fr;} .hero-kpis,.annual-headline-grid{grid-template-columns:1fr;} .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .annual-graphs-row{grid-template-columns:1fr;} .overview-charts{grid-template-columns:1fr;} .allocation-row-top,.allocation-row-bottom{grid-template-columns:1fr;} .page{width:100%; padding:16px 8px 22px;} .table-wrap{overflow-x:auto;} .report-standard .overview-table{min-width:0;} .report-standard .realized-table{min-width:0;} .report-annual .table-wrap table{min-width:980px;} }\n"
+            + "        @media (max-width:760px) { .annual-summary-grid{grid-template-columns:1fr;} .annual-graphs-heading{flex-direction:column; align-items:flex-start;} }\n"
+            + "        @media (max-width:760px) { .annual-graph-card, .total-return-chart, .report-standard .total-return-chart, .report-standard .annual-graph-card { min-height:0; } }\n"
+            + "        @media (max-width:760px) { .chart-title-row > .chart-toolbar { order:3; flex-basis:100%; } }\n"
+            + "        @media (max-width:760px) { .total-return-chart .chart-viewport, .security-bar-panel .chart-viewport, .security-pie-panel .chart-viewport { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; } }\n"
+            + "        @media (max-width:760px) { .total-return-chart .chart-svg { min-width:640px; height:auto; } }\n"
+            + "        @media (max-width:760px) { .security-bar-panel .chart-svg, .security-pie-panel .chart-svg { width:100%; min-width:520px; height:auto; margin:6px 0 10px; } }\n"
+            + "        @media (max-width:760px) { .annual-graph-content .sparkline-panel > svg { min-height:0; height:auto; } }\n"
+            + "        @media (max-width:1200px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));} }\n"
+            + "        @media (max-width:760px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }\n"
+            + "        @media (max-width:560px) { .report-standard .annual-summary-grid,.annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .realized-highlights{grid-template-columns:repeat(2,minmax(0,1fr));} .page{padding:12px 6px 20px;} .hero-title h1{font-size:1.45rem;} .annual-kpi-deck-title{font-size:.96rem;} }\n"
+            + "        @media (max-width:760px) { .report-standard .overview-summary-table{table-layout:auto; width:max-content; min-width:100%;} .report-standard .overview-summary-table th, .report-standard .overview-summary-table td{overflow:visible !important; text-overflow:clip !important;} .report-standard .overview-summary-table tr > *:nth-child(n+3){overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important;} }\n"
+            + "    </style>\n";
+
+
     private static final class ReportConfig {
         private final String reportType;
         private final int reportYear;
@@ -42,6 +503,7 @@ public class ReportWriter {
     }
 
     public static void writeHtmlReport(TransactionStore store, String outputFile) throws IOException {
+        PortfolioCalculator.resetPerRunCaches();
         List<OverviewRow> overviewRows = PortfolioCalculator.buildOverviewRows(store);
         Map<String, Double> ratesToNok = CurrencyConversionService.loadRatesToNok(collectCurrencies(store, overviewRows));
         HeaderSummary headerSummary = PortfolioCalculator.buildHeaderSummary(store, overviewRows, ratesToNok);
@@ -50,9 +512,12 @@ public class ReportWriter {
             ? PortfolioCalculator.buildAnnualPerformanceSummary(store, ratesToNok, reportConfig.reportYear, reportConfig.benchmarkTicker)
             : null;
         List<AnnualSnapshotRow> annualSnapshotRows = new ArrayList<>();
+        AnnualHeroMetrics annualHeroMetrics = null;
         if (REPORT_TYPE_ANNUAL.equals(reportConfig.reportType)) {
             int snapshotYear = Math.max(2000, Math.min(2100, reportConfig.reportYear));
-            annualSnapshotRows = buildAnnualSnapshotRows(store, resolveYearSnapshotDate(snapshotYear));
+            LocalDate snapshotDate = resolveYearSnapshotDate(snapshotYear);
+            annualSnapshotRows = buildAnnualSnapshotRows(store, snapshotDate);
+            annualHeroMetrics = buildAnnualHeroMetrics(store, ratesToNok, snapshotYear, annualSnapshotRows, snapshotDate);
         }
 
         try (FileWriter writer = new FileWriter(outputFile)) {
@@ -64,471 +529,14 @@ public class ReportWriter {
             writer.write("    <title>Portfolio Report</title>\n");
             writer.write("    <style>\n");
             ReportStyleHelper.writeBaseThemeStyles(writer);
-            writer.write("        .page { width:100%; max-width:100%; margin:0; padding:24px 8px 32px; }\n");
-            writer.write("        h2 { margin:26px 2px 12px; font-size:1.14rem; color:var(--ink); }\n");
-            writer.write("        table { width:100%; border-collapse:collapse; min-width:0; table-layout:fixed; background:var(--card); }\n");
-            writer.write("        th, td { padding:5px 5px; border-bottom:1px solid #edf2f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }\n");
-            writer.write("        th { background:#f5f8fb; text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.2px; color:#374556; border-bottom:1px solid var(--line); }\n");
-            writer.write("        th.sortable-header { cursor:pointer; user-select:none; position:relative; padding-right:16px; }\n");
-            writer.write("        th.sortable-header::after { content:'↕'; position:absolute; right:5px; top:50%; transform:translateY(-50%); font-size:.62rem; opacity:.45; }\n");
-            writer.write("        th.sortable-header.sort-asc::after { content:'▲'; opacity:.85; }\n");
-            writer.write("        th.sortable-header.sort-desc::after { content:'▼'; opacity:.85; }\n");
-            writer.write("        td { font-size:.72rem; }\n");
-            writer.write("        td.num, th.num { text-align:right; }\n");
-            writer.write("        .table-wrap { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-gutter:auto; box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
-            writer.write("        .table-wrap::-webkit-scrollbar { height:12px; }\n");
-            writer.write("        .table-wrap::-webkit-scrollbar-track { background:transparent; border-radius:999px; }\n");
-            writer.write("        .table-wrap::-webkit-scrollbar-thumb { background:#9db0c3; border-radius:999px; border:2px solid transparent; background-clip:padding-box; }\n");
-            writer.write("        .overview-mode-shell { display:flex; align-items:flex-end; gap:0; margin:10px 0 -1px; }\n");
-            writer.write("        .overview-mode-btn { border:1px solid var(--line); border-bottom:none; background:#e9f2fb; color:#24435a; font-size:.74rem; font-weight:700; padding:6px 10px; cursor:pointer; }\n");
-            writer.write("        .overview-mode-btn + .overview-mode-btn { border-left:none; }\n");
-            writer.write("        .overview-mode-btn:first-child { border-top-left-radius:10px; }\n");
-            writer.write("        .overview-mode-btn:last-child { border-top-right-radius:10px; }\n");
-            writer.write("        .overview-mode-btn.is-active { background:var(--card); color:var(--ink); }\n");
-            writer.write("        .overview-details-toggle-btn { margin-left:8px; border-left:1px solid var(--line) !important; background:#eef4fb; }\n");
-            writer.write("        .overview-details-toggle-btn:disabled { opacity:.55; cursor:not-allowed; }\n");
-            writer.write("        body.theme-dark .overview-mode-btn { background:#1f3347; color:#d8e7f5; border-color:#2f445a; }\n");
-            writer.write("        body.theme-dark .overview-mode-btn.is-active { background:#162231; color:#edf5ff; }\n");
-            writer.write("        body.theme-dark .overview-details-toggle-btn { border-left-color:#2f445a !important; background:#22384e; }\n");
-            writer.write("        .report-standard .overview-table-wrap { width:100%; max-width:100%; overflow-x:auto; }\n");
-            writer.write("        .report-standard .overview-table { table-layout:fixed; width:100%; }\n");
-            writer.write("        .report-standard .overview-table th, .report-standard .overview-table td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.67rem; padding:4px 4px; }\n");
-            writer.write("        .report-standard .overview-table tr > * { min-width:0; }\n");
-            writer.write("        .report-standard .overview-summary-table { table-layout:auto; width:max-content; min-width:100%; }\n");
-            writer.write("        .report-standard .overview-summary-table th, .report-standard .overview-summary-table td { padding:4px 3px; }\n");
-            writer.write("        .report-standard .overview-summary-table tr > *:nth-child(1)  { width:1%; min-width:64px; max-width:100px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-summary-table tr > *:nth-child(2)  { width:1.5%; min-width:120px; max-width:200px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-summary-table tr > *:nth-child(n+3) { width:auto; min-width:max-content; max-width:none; }\n");
-            writer.write("        .report-standard .overview-summary-table .ticker-scroll { max-width:92px; }\n");
-            writer.write("        .report-standard .overview-summary-table .security-scroll { max-width:188px; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(1)  { width:1%; min-width:40px; max-width:70px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(2)  { width:1.5%; min-width:50px; max-width:130px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(3), .report-standard .overview-holdings-table tr > *:nth-child(4), .report-standard .overview-holdings-table tr > *:nth-child(5), .report-standard .overview-holdings-table tr > *:nth-child(6), .report-standard .overview-holdings-table tr > *:nth-child(7), .report-standard .overview-holdings-table tr > *:nth-child(8), .report-standard .overview-holdings-table tr > *:nth-child(9), .report-standard .overview-holdings-table tr > *:nth-child(10), .report-standard .overview-holdings-table tr > *:nth-child(11), .report-standard .overview-holdings-table tr > *:nth-child(12), .report-standard .overview-holdings-table tr > *:nth-child(13) { width:auto; min-width:max-content; max-width:none; }\n");
-            writer.write("        .report-standard .overview-table tr > *:nth-child(n+3) { overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-summary-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n");
-            writer.write("        .report-standard .overview-summary-table tr.total-row td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; font-variant-numeric:tabular-nums; }\n");
-            writer.write("        .report-standard .overview-holdings-table th, .report-standard .overview-holdings-table td { white-space:nowrap; overflow:visible !important; text-overflow:clip !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(1), .report-standard .overview-holdings-table tr > *:nth-child(2) { overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n");
-            writer.write("        .report-standard .overview-holdings-table { table-layout:auto; width:max-content; min-width:100%; }\n");
-            writer.write("        .report-standard .overview-holdings-table tr.total-row td { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; font-variant-numeric:tabular-nums; padding-right:10px; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table { table-layout:auto; width:max-content; min-width:100%; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(1)  { width:1%; min-width:40px; max-width:70px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(2)  { width:1.5%; min-width:50px; max-width:130px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { width:auto; min-width:max-content; max-width:none; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table th, .report-standard .overview-fundamentals-table td { white-space:nowrap; overflow:visible !important; text-overflow:clip !important; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(1), .report-standard .overview-fundamentals-table tr > *:nth-child(2) { overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; }\n");
-            writer.write("        .wk-range-cell { min-width:92px; }\n");
-            writer.write("        .wk-range-track { position:relative; height:4px; border-radius:999px; background:#c7d3df; margin:0 2px 6px; }\n");
-            writer.write("        .wk-range-marker { position:absolute; top:50%; width:10px; height:10px; border-radius:50%; background:#2b67bc; transform:translate(-50%, -50%); box-shadow:0 0 0 1px rgba(255,255,255,.85); }\n");
-            writer.write("        .wk-range-labels { display:flex; justify-content:space-between; gap:4px; font-size:.6rem; color:#2f3f4f; }\n");
-            writer.write("        body.theme-dark .wk-range-track { background:#4a5d72; }\n");
-            writer.write("        body.theme-dark .wk-range-labels { color:#d5e3f1; }\n");
-            writer.write("        .mini-day-chart { display:block; width:96px; height:30px; overflow:visible; }\n");
-            writer.write("        .mini-day-chart-area { stroke:none; opacity:.28; }\n");
-            writer.write("        .mini-day-chart-area.positive { fill:#2f9e62; }\n");
-            writer.write("        .mini-day-chart-area.negative { fill:#c4514a; }\n");
-            writer.write("        .mini-day-chart-line { fill:none; stroke:#2e5f88; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\n");
-            writer.write("        .mini-day-chart-line.positive { stroke:#1f8b4d; }\n");
-            writer.write("        .mini-day-chart-line.negative { stroke:#b23a31; }\n");
-            writer.write("        .mini-day-chart-open { stroke:#8aa0b5; stroke-width:1; stroke-dasharray:2.5 2.5; opacity:.8; }\n");
-            writer.write("        .mini-day-chart-end { stroke:#ffffff; stroke-width:1.1; }\n");
-            writer.write("        .mini-day-chart-end.positive { fill:#1f8b4d; }\n");
-            writer.write("        .mini-day-chart-end.negative { fill:#b23a31; }\n");
-            writer.write("        body.theme-dark .mini-day-chart-open { stroke:#6f879f; opacity:.9; }\n");
-            writer.write("        body.theme-dark .mini-day-chart-area.positive { fill:#2a8f57; }\n");
-            writer.write("        body.theme-dark .mini-day-chart-area.negative { fill:#a54640; }\n");
-            writer.write("        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
-            writer.write("        .report-standard .ticker-scroll { max-width:126px; padding-left:1px; }\n");
-            writer.write("        .report-standard .security-scroll { max-width:236px; }\n");
-            writer.write("        .report-standard .ticker-scroll::-webkit-scrollbar, .report-standard .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
-            writer.write("        .report-standard .ticker-scroll::after, .report-standard .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
-            writer.write("        .report-standard .ticker-scroll:hover::after, .report-standard .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
-            writer.write("        @media (max-width:1060px) { .report-standard .overview-table tr > *:nth-child(n+3), .report-standard .realized-table tr > *:nth-child(n+3) { overflow:hidden !important; text-overflow:ellipsis !important; white-space:nowrap !important; } }\n");
-            writer.write("        @media (max-width:1060px) { .report-standard .overview-summary-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
-            writer.write("        @media (max-width:1060px) { .report-standard .overview-holdings-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
-            writer.write("        @media (max-width:1060px) { .report-standard .overview-fundamentals-table tr > *:nth-child(n+3) { overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important; } }\n");
-            writer.write("        .report-annual .realized-table { table-layout:auto; }\n");
-            writer.write("        .report-annual .realized-table tr > *:nth-child(1) { width:106px; max-width:106px; min-width:106px; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-annual .realized-table tr > *:nth-child(2) { width:auto; min-width:9ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-annual .realized-table tr > *:nth-child(3) { width:auto; min-width:14ch; max-width:none; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-annual .realized-table tr > *:nth-child(7) { width:160px; max-width:160px; }\n");
-            writer.write("        .realized-highlights { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin:10px 0 14px; }\n");
-            writer.write("        @media (max-width:1060px) { .realized-highlights { grid-template-columns:repeat(3,minmax(0,1fr)); } }\n");
-            writer.write("        .report-standard .realized-table { table-layout:auto; width:100%; }\n");
-            writer.write("        .report-standard .realized-table th, .report-standard .realized-table td { white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .report-standard .realized-table tr > *:nth-child(1)  { width:auto; min-width:108px; max-width:108px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .report-standard .realized-table tr > *:nth-child(2)  { width:auto; max-width:250px; overflow:hidden !important; text-overflow:ellipsis !important; }\n");
-            writer.write("        .ticker-scroll { display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-bottom:0; }\n");
-            writer.write("        .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
-            writer.write("        .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
-            writer.write("        .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
-            writer.write("        .security-scroll:hover::after { opacity:.5; background:rgba(140,160,178,.28); }\n");
-            writer.write("        .security-scroll.is-dragging::after { opacity:.85; background:rgba(120,145,168,.45); }\n");
-            writer.write("        .security-scroll.is-dragging { cursor:grabbing; }\n");
-            writer.write("        body.inline-cell-dragging { user-select:none; cursor:grabbing; }\n");
-            writer.write("        .total-row { font-weight:700; background:#f3f7fb; color:#1a2b3a; }\n");
-            writer.write("        .asset-split td { border-top:3px solid #8a9eb3 !important; }\n");
-            writer.write("        .asset-divider-row td { border-top:3px solid #8a9eb3 !important; padding:0 !important; }\n");
-            writer.write("        .asset-divider-toggle { display:flex; align-items:center; gap:8px; width:100%; background:transparent; border:0; cursor:pointer; font:inherit; padding:7px 10px; color:#4a5f74; font-weight:600; font-size:.78rem; letter-spacing:.3px; }\n");
-            writer.write("        .asset-divider-toggle:hover { background:rgba(138,158,179,.16); }\n");
-            writer.write("        .asset-divider-chevron, .subtotal-toggle-chevron { display:inline-block; transition:transform .15s ease; }\n");
-            writer.write("        .asset-divider-chevron { font-size:.9rem; color:#6b7f94; }\n");
-            writer.write("        .asset-divider-row.is-open .asset-divider-chevron, .total-row.is-open .subtotal-toggle-chevron { transform:rotate(90deg); }\n");
-            writer.write("        .asset-subtotal-row { background:#eef4fa; color:#2a3f54; font-weight:600; }\n");
-            writer.write("        .asset-subtotal-row td { border-top:1px dashed rgba(138,158,179,.55); }\n");
-            writer.write("        .subtotal-toggle-btn { background:transparent; border:0; cursor:pointer; font:inherit; color:inherit; font-weight:700; display:inline-flex; align-items:center; gap:6px; padding:0; }\n");
-            writer.write("        .subtotal-toggle-chevron { font-size:.82rem; color:#6b7f94; }\n");
-            writer.write("        .positive { color:var(--good); } .negative { color:var(--bad); }\n");
-            writer.write("        .report-hero { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; background:linear-gradient(120deg,#0f2238 0%,#18344f 60%,#164663 100%); border-radius:18px; padding:22px; color:#f4f8fc; box-shadow:0 14px 26px rgba(10,24,38,.2); margin-bottom:18px; }\n");
-            writer.write("        .annual-hero { grid-template-columns:1fr; gap:14px; margin-bottom:12px; }\n");
-            writer.write("        .annual-hero-header { display:flex; flex-direction:column; gap:2px; }\n");
-            writer.write("        .hero-title h1 { margin:0; font-size:1.75rem; letter-spacing:.4px; }\n");
-            writer.write("        .hero-meta { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }\n");
-            writer.write("        .meta-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; border:1px solid rgba(235,245,255,.28); background:rgba(255,255,255,.1); color:#d7e6f4; font-size:.84rem; font-weight:600; }\n");
-            writer.write("        .meta-chip strong { color:#ffffff; font-weight:700; }\n");
-            writer.write("        .currency-select { border:1px solid rgba(235,245,255,.45); border-radius:6px; background-color:rgba(255,255,255,.18); color:#fff; font-weight:700; text-transform:uppercase; font-size:.84rem; padding:2px 20px 2px 6px; outline:none; cursor:pointer; -webkit-appearance:none; appearance:none; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1 5 5 9 1' fill='none' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 6px center; background-size:9px 6px; }\n");
-            writer.write("        .currency-select:focus { border-color:#fff; background-color:rgba(255,255,255,.28); }\n");
-            writer.write("        .currency-select option { color:#16202a; background:#ffffff; text-transform:none; font-weight:600; }\n");
-            writer.write("        .hero-kpis { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n");
-            writer.write("        .annual-headline-grid { margin-top:0; }\n");
-            writer.write("        .kpi-card { background:rgba(255,255,255,.08); border:1px solid rgba(235,245,255,.2); border-radius:10px; padding:10px 11px; }\n");
-            writer.write("        .report-standard .annual-summary-grid { grid-template-columns:repeat(8,minmax(0,1fr)); }\n");
-            writer.write("        .report-standard .annual-summary-grid > .kpi-card { grid-column:span 1; }\n");
-            writer.write("        .report-standard .annual-summary-grid > .kpi-card.kpi-card-wide { grid-column:span 2; }\n");
-            writer.write("        .report-standard .annual-summary-grid > .kpi-card.kpi-card-bestworst { grid-column:span 2; }\n");
-            writer.write("        .report-standard .kpi-card { background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); border-color:#d4dfeb; color:#1f3549; }\n");
-            writer.write("        .report-standard .kpi-label { color:#5b7288; }\n");
-            writer.write("        .report-standard .kpi-value { color:#1f3549; }\n");
-            writer.write("        .report-standard .performer { color:#314c64; }\n");
-            writer.write("        .report-standard .performer strong { color:#1f3549; }\n");
-            writer.write("        .report-standard .kpi-label.positive, .report-standard .kpi-value.positive { color:var(--good); }\n");
-            writer.write("        .report-standard .kpi-label.negative, .report-standard .kpi-value.negative { color:var(--bad); }\n");
-            writer.write("        .report-standard .performer.positive { color:var(--good); }\n");
-            writer.write("        .report-standard .performer.negative { color:var(--bad); }\n");
-            writer.write("        .report-standard .kpi-help { color:#7a96ae; }\n");
-            writer.write("        .report-standard .cash-holdings-add-btn { border-color:#8da9c4; background:#eef5fb; color:#1f3a52; }\n");
-            writer.write("        .report-standard .cash-holdings-add-btn:hover { background:#e4eff9; }\n");
-            writer.write("        .report-standard .manual-cash-holding-line { color:#4f6780; }\n");
-            writer.write("        .report-standard .manual-cash-holding-line.is-portfolio { color:#1f3a52; }\n");
-            writer.write("        body.theme-dark.report-standard .kpi-card { background:#1a2d42; border-color:#2e4258; color:#dbe8f4; }\n");
-            writer.write("        body.theme-dark.report-standard .kpi-label { color:#b8cde1; }\n");
-            writer.write("        body.theme-dark.report-standard .kpi-value { color:#edf5ff; }\n");
-            writer.write("        body.theme-dark.report-standard .performer { color:#d4e3f2; }\n");
-            writer.write("        body.theme-dark.report-standard .performer strong { color:#edf5ff; }\n");
-            writer.write("        body.theme-dark.report-standard .kpi-label.positive, body.theme-dark.report-standard .kpi-value.positive { color:var(--good); }\n");
-            writer.write("        body.theme-dark.report-standard .kpi-label.negative, body.theme-dark.report-standard .kpi-value.negative { color:var(--bad); }\n");
-            writer.write("        body.theme-dark.report-standard .performer.positive { color:var(--good); }\n");
-            writer.write("        body.theme-dark.report-standard .performer.negative { color:var(--bad); }\n");
-            writer.write("        body.theme-dark.report-standard .cash-holdings-add-btn { border-color:#56799a; background:#243c55; color:#e2edf8; }\n");
-            writer.write("        body.theme-dark.report-standard .cash-holdings-add-btn:hover { background:#2d4a67; }\n");
-            writer.write("        body.theme-dark.report-standard .manual-cash-holding-line { color:#c2d6ea; }\n");
-            writer.write("        body.theme-dark.report-standard .manual-cash-holding-line.is-portfolio { color:#edf5ff; }\n");
-            writer.write("        .cash-holdings-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }\n");
-            writer.write("        .cash-holdings-add-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:2px 8px; font-size:.72rem; font-weight:700; cursor:pointer; display:none; }\n");
-            writer.write("        .cash-holdings-add-btn:hover { background:rgba(255,255,255,.2); }\n");
-            writer.write("        .manual-cash-holdings-list { margin-top:7px; display:grid; gap:3px; }\n");
-            writer.write("        .manual-cash-holding-line { font-size:.75rem; color:#d3e3f3; line-height:1.3; }\n");
-            writer.write("        .manual-cash-holding-line.is-portfolio { font-weight:700; color:#f4f9ff; }\n");
-            writer.write("        .cash-manager-overlay[hidden] { display:none !important; }\n");
-            writer.write("        .cash-manager-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12500; display:flex; align-items:center; justify-content:center; padding:16px; }\n");
-            writer.write("        .cash-manager-dialog { width:min(700px,94vw); max-height:88vh; overflow:auto; background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); padding:12px; }\n");
-            writer.write("        .cash-manager-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }\n");
-            writer.write("        .cash-manager-header h4 { margin:0; font-size:.95rem; }\n");
-            writer.write("        .cash-manager-close { border:1px solid #9cb5ca; background:#eef5fb; color:#20405a; border-radius:8px; width:28px; height:28px; cursor:pointer; font-size:1rem; line-height:1; }\n");
-            writer.write("        .cash-manager-form-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }\n");
-            writer.write("        .cash-manager-form-row input { border:1px solid #a8bfd4; border-radius:8px; height:32px; padding:0 8px; font-size:.82rem; }\n");
-            writer.write("        .cash-manager-form-row select { border:1px solid #a8bfd4; border-radius:8px; height:32px; padding:0 8px; font-size:.82rem; background:#fff; min-width:120px; }\n");
-            writer.write("        .cash-manager-currency-input { width:76px; text-transform:uppercase; }\n");
-            writer.write("        .cash-manager-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:8px; height:32px; padding:0 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n");
-            writer.write("        .cash-manager-btn:hover { background:#e6f1fb; }\n");
-            writer.write("        .cash-manager-btn.danger { border-color:#cf8080; background:#fff1f1; color:#8f2d2d; }\n");
-            writer.write("        .cash-manager-btn.danger:hover { background:#ffe4e4; }\n");
-            writer.write("        .cash-manager-message { margin:-2px 0 8px; font-size:.76rem; color:#355572; min-height:1.1em; }\n");
-            writer.write("        .cash-manager-message.is-error { color:#9a2f2f; }\n");
-            writer.write("        .cash-account-block { border:1px solid #d4dfeb; border-radius:10px; padding:9px; background:#ffffff; margin-bottom:8px; }\n");
-            writer.write("        .cash-account-block.is-hidden { background:#f4f7fa; border-color:#c8d8e8; }\n");
-            writer.write("        .cash-account-block.is-hidden .cash-account-summary,.cash-account-block.is-hidden .cash-transaction-list { opacity:.45; pointer-events:none; }\n");
-            writer.write("        .cash-account-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }\n");
-            writer.write("        .cash-account-head-buttons { display:flex; gap:5px; flex-shrink:0; }\n");
-            writer.write("        .cash-account-title { margin:0; font-size:.84rem; font-weight:700; color:#1e3951; }\n");
-            writer.write("        .cash-account-title.is-hidden-label::after { content:' (hidden)'; font-weight:400; color:#7a96ae; font-size:.78rem; }\n");
-            writer.write("        .cash-account-summary { margin:0 0 8px; font-size:.78rem; color:#355572; }\n");
-            writer.write("        .cash-tx-edit-row { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }\n");
-            writer.write("        .cash-tx-edit-row input { border:1px solid #a8bfd4; border-radius:6px; height:26px; padding:0 6px; font-size:.78rem; }\n");
-            writer.write("        .cash-tx-edit-amount { width:88px; }\n");
-            writer.write("        .cash-tx-edit-currency { width:58px; text-transform:uppercase; }\n");
-            writer.write("        .cash-account-name-edit { width:150px; }\n");
-            writer.write("        .cash-manager-empty { margin:0 0 8px; font-size:.78rem; color:#56708a; }\n");
-            writer.write("        .cash-transaction-list { margin:0 0 8px; padding-left:16px; display:grid; gap:3px; }\n");
-            writer.write("        .cash-transaction-item { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.76rem; }\n");
-            writer.write("        .cash-transaction-item .cash-manager-btn { height:24px; padding:0 8px; font-size:.72rem; border-radius:6px; }\n");
-            writer.write("        .cash-account-caret { color:#5c7795; font-weight:400; }\n");
-            writer.write("        body.theme-dark .cash-manager-dialog { background:#162231; color:#e5edf7; border-color:#2b3a4d; box-shadow:0 18px 36px rgba(0,0,0,.5); }\n");
-            writer.write("        body.theme-dark .cash-manager-close { border-color:#3a4d63; background:#22384e; color:#dbe7f4; }\n");
-            writer.write("        body.theme-dark .cash-manager-form-row input, body.theme-dark .cash-manager-form-row select, body.theme-dark .cash-tx-edit-row input { background:#1b2c3f; border-color:#33485f; color:#e5edf7; }\n");
-            writer.write("        body.theme-dark .cash-manager-btn { border-color:#3a4d63; background:#22384e; color:#dbe7f4; }\n");
-            writer.write("        body.theme-dark .cash-manager-btn:hover { background:#2d4a67; }\n");
-            writer.write("        body.theme-dark .cash-manager-btn.danger { border-color:#7a3b3b; background:#3a1f1f; color:#f0a3a3; }\n");
-            writer.write("        body.theme-dark .cash-manager-btn.danger:hover { background:#4a2727; }\n");
-            writer.write("        body.theme-dark .cash-manager-message { color:#aebdce; }\n");
-            writer.write("        body.theme-dark .cash-manager-message.is-error { color:#f0a3a3; }\n");
-            writer.write("        body.theme-dark .cash-manager-empty { color:#8ba0b5; }\n");
-            writer.write("        body.theme-dark .cash-account-block { background:#12202f; border-color:#2b3a4d; }\n");
-            writer.write("        body.theme-dark .cash-account-block.is-hidden { background:#0f1a26; border-color:#243141; }\n");
-            writer.write("        body.theme-dark .cash-account-title { color:#e5edf7; }\n");
-            writer.write("        body.theme-dark .cash-account-title.is-hidden-label::after { color:#8ba0b5; }\n");
-            writer.write("        body.theme-dark .cash-account-summary { color:#aebdce; }\n");
-            writer.write("        body.theme-dark .cash-account-caret { color:#8ba0b5; }\n");
-            writer.write("        .annual-headline-grid .kpi-card { min-height:116px; }\n");
-            writer.write("        .kpi-label { color:#c8d9eb; font-size:.8rem; text-transform:uppercase; }\n");
-            writer.write("        .kpi-value { margin-top:2px; font-size:1.02rem; font-weight:700; color:#fff; }\n");
-            writer.write("        .kpi-help { margin-top:4px; font-size:.72rem; line-height:1.35; color:#b6c9dc; text-transform:none; letter-spacing:0; }\n");
-            writer.write("        .performer { margin-top:6px; font-size:.84rem; color:#dce8f3; }\n");
-            writer.write("        .performer strong { display:block; font-size:.9rem; margin-bottom:2px; }\n");
-            writer.write("        .report-standard .kpi-card-bestworst .performer strong { white-space:nowrap; overflow-x:auto; overflow-y:hidden; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; }\n");
-            writer.write("        .report-standard .kpi-card-bestworst .performer strong::-webkit-scrollbar { display:none; width:0; height:0; }\n");
-            writer.write("        .performer-metrics { display:block; }\n");
-            writer.write("        .hero-side { position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(235,245,255,.22); border-radius:12px; padding:10px; min-height:172px; }\n");
-            writer.write("        .timeline-title-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }\n");
-            writer.write("        .timeline-title-row .annual-kpi-deck-title { margin:0; }\n");
-            writer.write("        .hero-side-title { color:#d4e3f0; font-size:.86rem; text-transform:uppercase; margin:0; }\n");
-            writer.write("        .timeline-info-btn { width:18px; height:18px; border-radius:999px; border:1px solid rgba(235,245,255,.55); background:rgba(255,255,255,.14); color:#e8f2fb; font-size:.72rem; font-weight:800; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; }\n");
-            writer.write("        .timeline-info-btn:hover { background:rgba(255,255,255,.24); }\n");
-            writer.write("        .annual-graphs-section .timeline-info-btn,.annual-kpi-deck .timeline-info-btn { border-color:#8fa9c2; background:#eaf2fb; color:#24415a; }\n");
-            writer.write("        .annual-graphs-section .timeline-info-btn:hover,.annual-kpi-deck .timeline-info-btn:hover { background:#ddeaf7; }\n");
-            writer.write("        .timeline-info-overlay[hidden] { display:none !important; }\n");
-            writer.write("        .timeline-info-overlay { position:fixed; inset:0; background:rgba(6,14,24,.58); z-index:12000; display:flex; align-items:center; justify-content:center; padding:18px; }\n");
-            writer.write("        .timeline-info-dialog { width:min(560px,92vw); background:#f7fbff; color:#1a3348; border:1px solid #a8bfd4; border-radius:12px; box-shadow:0 18px 36px rgba(8,20,33,.34); }\n");
-            writer.write("        .timeline-info-header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid #d5e3ef; }\n");
-            writer.write("        .timeline-info-header h4 { margin:0; font-size:.95rem; letter-spacing:.2px; }\n");
-            writer.write("        .timeline-info-close { border:1px solid #9cb5ca; background:#eef5fb; color:#20405a; border-radius:8px; width:26px; height:26px; cursor:pointer; font-size:1rem; line-height:1; padding:0; }\n");
-            writer.write("        .timeline-info-body { padding:12px 14px 14px; font-size:.86rem; line-height:1.45; }\n");
-            writer.write("        .timeline-info-body p { margin:0 0 8px; }\n");
-            writer.write("        .timeline-info-body ul { margin:0; padding-left:18px; }\n");
-            writer.write("        .timeline-info-body li { margin:0 0 6px; }\n");
-            writer.write("        .hero-side-note { color:#d4e3f0; font-size:.92rem; }\n");
-            writer.write("        .app-shell-note { color:#3b5570; font-size:.86rem; font-weight:600; line-height:1.35; }\n");
-            writer.write("        .sparkline-widget { display:block; }\n");
-            writer.write("        .sparkline-metric-controls { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 8px; }\n");
-            writer.write("        .sparkline-metric-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
-            writer.write("        .sparkline-metric-btn:hover { background:#e8f0f8; }\n");
-            writer.write("        .sparkline-metric-btn.is-active { background:#24425b; color:#f4f9ff; border-color:#24425b; }\n");
-            writer.write("        .sparkline-controls { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }\n");
-            writer.write("        .sparkline-controls.sparkline-controls-bottom { margin:8px 0 0; }\n");
-            writer.write("        .sparkline-range-btn { border:1px solid #b7c7d7; background:#f2f7fc; color:#27415a; border-radius:999px; padding:3px 9px; font-size:.72rem; font-weight:700; letter-spacing:.2px; cursor:pointer; }\n");
-            writer.write("        .sparkline-range-btn:hover { background:#e8f0f8; }\n");
-            writer.write("        .sparkline-range-btn.is-active { background:#dbe9f8; color:#1f3f5b; border-color:#9eb9d5; }\n");
-            writer.write("        .sparkline-return-summary { margin:0 0 8px; font-size:.8rem; font-weight:700; color:#2f4a62; }\n");
-            writer.write("        .sparkline-return-summary.positive { color:var(--good); }\n");
-            writer.write("        .sparkline-return-summary.negative { color:var(--bad); }\n");
-            writer.write("        .hero-side { --spark-text:#d5e1ef; --spark-axis:#7f95ab; --spark-axis-soft:#9ab0c6; --spark-grid:#8ea4ba; --spark-line:#edf4fc; --spark-point:#edf4fc; }\n");
-            writer.write("        .hero-side .sparkline-metric-btn, .hero-side .sparkline-range-btn { border-color:rgba(235,245,255,.35); background:rgba(255,255,255,.12); color:#e4eef8; }\n");
-            writer.write("        .hero-side .sparkline-metric-btn:hover, .hero-side .sparkline-range-btn:hover { background:rgba(255,255,255,.2); }\n");
-            writer.write("        .hero-side .sparkline-metric-btn.is-active, .hero-side .sparkline-range-btn.is-active { background:#eaf4ff; color:#16344d; border-color:#ffffff; }\n");
-            writer.write("        .sparkline-panel { display:none; }\n");
-            writer.write("        .sparkline-panel.is-active { display:block; }\n");
-            writer.write("        .overview-charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0 14px; }\n");
-            writer.write("        .overview-chart { padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); overflow:hidden; }\n");
-            writer.write("        .overview-chart h3 { margin:0 0 10px; font-size:1rem; }\n");
-            writer.write("        .overview-chart .chart-svg { display:block; width:100%; margin:0 auto 12px; }\n");
-            writer.write("        .allocation-card { margin:16px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
-            writer.write("        .allocation-card h3 { margin:0 0 10px; font-size:1rem; }\n");
-            writer.write("        .annual-summary { margin:14px 0 18px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
-            writer.write("        .annual-summary h3 { margin:0 0 10px; font-size:1rem; }\n");
-            writer.write("        .annual-kpi-deck { margin:0 0 14px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
-            writer.write("        .annual-kpi-deck-title { margin:0 0 10px; font-size:1.02rem; font-weight:700; letter-spacing:0; color:var(--ink); text-transform:none; }\n");
-            writer.write("        .annual-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }\n");
-            writer.write("        .annual-summary-card { border:1px solid #d4dfeb; border-radius:11px; padding:11px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); }\n");
-            writer.write("        .annual-summary-card h4 { margin:0 0 4px; font-size:.82rem; color:#40576c; text-transform:uppercase; }\n");
-            writer.write("        .annual-summary-value { font-size:1.05rem; font-weight:700; }\n");
-            writer.write("        .annual-summary-sub { margin-top:4px; font-size:.78rem; color:#5f7488; }\n");
-            writer.write("        .annual-summary-value.positive, .annual-summary-sub.positive { color:var(--good); }\n");
-            writer.write("        .annual-summary-value.negative, .annual-summary-sub.negative { color:var(--bad); }\n");
-            writer.write("        .annual-value-warning { margin-top:6px; padding:6px 7px; font-size:.74rem; line-height:1.35; border:1px solid #f0d8a8; border-radius:8px; background:#fff5df; color:#7b4a00; }\n");
-            writer.write("        .annual-summary-card .performer { margin-top:5px; color:#253d53; font-size:.82rem; }\n");
-            writer.write("        .annual-summary-card .performer strong { margin-bottom:1px; font-size:.88rem; color:#1f3345; }\n");
-            writer.write("        .annual-summary-card .performer.positive { color:var(--good); }\n");
-            writer.write("        .annual-summary-card .performer.negative { color:var(--bad); }\n");
-            writer.write("        .annual-graphs-section { margin:0 0 18px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:0 5px 14px rgba(15,23,33,.06); }\n");
-            writer.write("        .annual-graphs-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; margin:0 0 10px; }\n");
-            writer.write("        .annual-graphs-heading h2 { margin:0; font-size:1.02rem; color:var(--ink); }\n");
-            writer.write("        .annual-graphs-heading p { margin:0; font-size:.8rem; color:var(--muted); }\n");
-            writer.write("        .annual-graphs-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0; }\n");
-            writer.write("        .annual-graph-card { display:flex; flex-direction:column; min-height:388px; padding:14px; border:1px solid #d4dfeb; border-radius:13px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
-            writer.write("        .report-standard .annual-graph-card { min-height:410px; }\n");
-            writer.write("        .annual-graph-card.full-span { grid-column:1 / -1; }\n");
-            writer.write("        .annual-graph-card h3 { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:#41576d; }\n");
-            writer.write("        .total-return-graphs-section { background:var(--card); border-color:var(--line); }\n");
-            writer.write("        .total-return-chart { min-height:426px; }\n");
-            writer.write("        .total-return-bar-chart .tr-plot-bg { fill:none; stroke:none; }\n");
-            writer.write("        .total-return-bar-chart .tr-grid-line { stroke:#d8e3ee; }\n");
-            writer.write("        .total-return-bar-chart .tr-axis-label { fill:#496077; }\n");
-            writer.write("        .total-return-bar-chart .tr-plot-border { stroke:none; }\n");
-            writer.write("        .total-return-bar-chart .tr-axis-line { stroke:#4d6073; }\n");
-            writer.write("        .annual-graph-note { margin:0 0 10px; font-size:.78rem; color:#5f7488; }\n");
-            writer.write("        .annual-graph-content { flex:1; display:flex; flex-direction:column; justify-content:flex-start; min-height:0; }\n");
-            writer.write("        .annual-graph-content > svg { display:block; width:100%; margin-top:auto; }\n");
-            writer.write("        .annual-graph-content .sparkline-widget { display:flex; flex-direction:column; gap:6px; min-height:100%; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel { flex:1; min-height:0; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel.is-active { display:flex; align-items:stretch; }\n");
-            writer.write("        .annual-graph-content .sparkline-panel > svg { display:block; width:100%; height:100%; min-height:220px; }\n");
-            writer.write("        .allocation-visuals { display:grid; gap:10px; }\n");
-            writer.write("        .allocation-row { display:grid; gap:10px; }\n");
-            writer.write("        .allocation-row-top { grid-template-columns:repeat(3,minmax(0,1fr)); }\n");
-            writer.write("        .allocation-row-bottom { grid-template-columns:repeat(2,minmax(0,1fr)); }\n");
-            writer.write("        .allocation-panel { border:1px solid #d4dfeb; border-radius:13px; padding:14px; background:linear-gradient(180deg,#f9fcff 0%,#f2f8fd 100%); box-shadow:0 2px 8px rgba(19,35,51,.06); overflow:hidden; }\n");
-            writer.write("        .allocation-panel-title { margin:0 0 6px; font-size:.84rem; font-weight:600; text-transform:uppercase; color:#41576d; letter-spacing:.3px; white-space:nowrap; }\n");
-            writer.write("        .allocation-drilldown-list { box-sizing:border-box; width:100%; margin:10px 0 0; border:1px solid #d5e1ec; border-radius:8px; background:#fff; overflow:hidden; padding:8px 10px; }\n");
-            writer.write("        .allocation-drilldown-list[hidden] { display:none !important; }\n");
-            writer.write("        .allocation-drilldown-grid { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:start; }\n");
-            writer.write("        .allocation-drilldown-selected { margin:0 0 8px; font-size:.78rem; font-weight:700; color:#2e4963; }\n");
-            writer.write("        .allocation-drilldown-name { min-width:0; display:flex; align-items:flex-start; gap:6px; color:#2f2f2f; font-size:.8rem; line-height:1.25; word-break:break-word; overflow-wrap:anywhere; }\n");
-            writer.write("        .allocation-drilldown-dot { flex:0 0 auto; width:7px; height:7px; border-radius:999px; background:#3b5978; margin-top:4px; }\n");
-            writer.write("        .allocation-drilldown-pct { color:#4a4a4a; font-size:.8rem; line-height:1.25; text-align:right; white-space:nowrap; }\n");
-            writer.write("        .chart-svg { width:100%; height:auto; }\n");
-            writer.write("        .allocation-panel .chart-svg { width:96%; margin:6px auto 10px; display:block; }\n");
-            writer.write("        .security-pie-panel .chart-svg, .security-bar-panel .chart-svg { height:340px; width:100%; }\n");
-            writer.write("        .chart-hover-target { cursor:pointer; transform-box:fill-box; transform-origin:center; transition:transform .14s ease, filter .14s ease, opacity .14s ease; }\n");
-            writer.write("        .chart-hover-target.is-hovered { filter:brightness(1.08); opacity:.96; }\n");
-            writer.write("        .chart-hover-bar.is-hovered { transform:translateY(-2px); }\n");
-            writer.write("        .chart-hover-slice.is-hovered { transform:scale(1.03); }\n");
-            writer.write("        .chart-hover-slice.is-selected { transform:scale(1.03); filter:brightness(1.12); opacity:1; stroke:rgba(10,24,40,.35); stroke-width:1.4; }\n");
-            writer.write("        .chart-hover-point.is-hovered { transform:scale(1.75); stroke:#ffffff; stroke-width:1; }\n");
-            writer.write("        .chart-hover-avg-hit { pointer-events:stroke; }\n");
-            writer.write("        .chart-total-return-label, .chart-security-bar-label { paint-order:stroke; stroke:#ffffff; stroke-width:1.5; stroke-linejoin:round; letter-spacing:.04px; }\n");
-            writer.write("        .chart-security-label { font-weight:700; letter-spacing:.05px; paint-order:stroke; stroke:#ffffff; stroke-width:1.6; stroke-linejoin:round; }\n");
-            writer.write("        .chart-tooltip { position:fixed; pointer-events:none; z-index:10000; max-width:340px; padding:7px 10px; border-radius:8px; background:rgba(16,28,40,.94); color:#f6fbff; font-size:.8rem; font-weight:600; line-height:1.3; box-shadow:0 8px 18px rgba(7,16,26,.28); border:1px solid rgba(255,255,255,.14); opacity:0; transform:translateY(4px); transition:opacity .1s ease, transform .1s ease; }\n");
-            writer.write("        .chart-tooltip.visible { opacity:1; transform:translateY(0); }\n");
-            writer.write("        .chart-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; }\n");
-            writer.write("        .chart-title-row > .chart-download-btn { margin-left:auto; }\n");
-            writer.write("        .chart-title-row > h3, .chart-title-row > h4, .chart-title-row > .hero-side-title { margin:0; }\n");
-            writer.write("        .chart-title-row > h3, .chart-title-row > h4 { white-space:nowrap; }\n");
-            writer.write("        .chart-download-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }\n");
-            writer.write("        .chart-download-btn:hover { background:#e6f1fb; }\n");
-            writer.write("        .chart-download-btn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }\n");
-            writer.write("        .chart-toolbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0; position:relative; z-index:3; }\n");
-            writer.write("        .chart-tool-btn { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:7px; min-width:28px; height:28px; padding:0 7px; font-size:.74rem; font-weight:700; cursor:pointer; }\n");
-            writer.write("        .chart-tool-btn:hover { background:#e6f1fb; }\n");
-            writer.write("        .chart-filter-input { border:1px solid #a5bbcf; border-radius:7px; height:28px; min-width:130px; padding:0 8px; font-size:.74rem; background:#ffffff; color:#20384f; }\n");
-            writer.write("        .chart-filter-input::placeholder { color:#6f8498; }\n");
-            writer.write("        .chart-viewport { position:relative; overflow:hidden; border:none; border-radius:8px; background:transparent; z-index:1; }\n");
-            writer.write("        .chart-hover-legend { cursor:pointer; }\n");
-            writer.write("        .chart-svg { transform-origin:0 0; transition:transform .12s ease-out; }\n");
-            writer.write("        .chart-viewport .chart-svg { border:none; border-radius:0; margin:0 !important; }\n");
-            writer.write("        .chart-svg.is-panning { cursor:grabbing; }\n");
-            writer.write("        .hero-theme-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n");
-            writer.write("        .hero-theme-btn:hover { background:rgba(255,255,255,.2); }\n");
-            writer.write("        .hero-refresh-btn { border:1px solid rgba(235,245,255,.45); background:rgba(255,255,255,.12); color:#f3f7fc; border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700; cursor:pointer; }\n");
-            writer.write("        .hero-refresh-btn:hover:not(:disabled) { background:rgba(255,255,255,.2); }\n");
-            writer.write("        .hero-refresh-btn:disabled { opacity:.6; cursor:not-allowed; }\n");
-            writer.write("        .price-refresh-status { font-size:.76rem; color:#d7e6f4; margin-top:8px; min-height:1.1em; }\n");
-            writer.write("        body.theme-dark .table-wrap, body.theme-dark .overview-chart, body.theme-dark .allocation-card, body.theme-dark .allocation-panel, body.theme-dark .details-table, body.theme-dark .annual-kpi-deck, body.theme-dark .annual-graphs-section { border-color:#2a3a4f; box-shadow:none; }\n");
-            writer.write("        body.theme-dark .total-row { background:#1a2a3b; color:#ecf3fb; }\n");
-            writer.write("        body.theme-dark .asset-subtotal-row { background:#152436; color:#dbe7f4; }\n");
-            writer.write("        body.theme-dark .asset-divider-toggle { color:#9fb4c9; }\n");
-            writer.write("        body.theme-dark .asset-divider-toggle:hover { background:rgba(120,145,168,.22); }\n");
-            writer.write("        body.theme-dark .asset-divider-chevron, body.theme-dark .subtotal-toggle-chevron { color:#9fb4c9; }\n");
-            writer.write("        body.theme-dark td, body.theme-dark th { border-bottom-color:#2a3a4d; }\n");
-            writer.write("        body.theme-dark th { background:#1d2a3a; color:#d8e4f2; }\n");
-            writer.write("        body.theme-dark .details-cell { background:#111d2b; }\n");
-            writer.write("        body.theme-dark .details-wrap { background:#111d2b; }\n");
-            writer.write("        body.theme-dark .details-wrap h4 { color:#c6d8ea; }\n");
-            writer.write("        body.theme-dark .details-table { background:#162231; border-color:#2a3a4d; }\n");
-            writer.write("        body.theme-dark .details-table th { background:#1b2b3d; color:#d7e4f2; }\n");
-            writer.write("        body.theme-dark .details-table td { color:#dbe7f4; border-bottom-color:#2a3a4d; }\n");
-            writer.write("        body.theme-dark .allocation-panel { background:#1a2d42; border-color:#2e4258; box-shadow:none; }\n");
-            writer.write("        body.theme-dark .allocation-panel-title { color:#c8d8e8; }\n");
-            writer.write("        body.theme-dark .allocation-drilldown-list { border-color:#32485f; background:#102033; }\n");
-            writer.write("        body.theme-dark .allocation-drilldown-selected { color:#c8d9ea; }\n");
-            writer.write("        body.theme-dark .allocation-drilldown-name { color:#d4e1ee; }\n");
-            writer.write("        body.theme-dark .allocation-drilldown-pct { color:#c2d3e4; }\n");
-            writer.write("        body.theme-dark .chart-hover-legend { opacity:1; }\n");
-            writer.write("        body.theme-dark .chart-download-btn { background:#1f3347; border-color:#3a5878; color:#d8e7f5; }\n");
-            writer.write("        body.theme-dark .chart-download-btn:hover { background:#2a4663; }\n");
-            writer.write("        body.theme-dark .chart-tool-btn { background:#1f3347; border-color:#3a5878; color:#d8e7f5; }\n");
-            writer.write("        body.theme-dark .chart-tool-btn:hover { background:#2a4663; }\n");
-            writer.write("        body.theme-dark .chart-filter-input { background:#152535; border-color:#3a5878; color:#d8e7f5; }\n");
-            writer.write("        body.theme-dark .chart-filter-input::placeholder { color:#6a8daa; }\n");
-            writer.write("        body.theme-dark .timeline-info-dialog { background:#122437; color:#d8e7f5; border-color:#2b4360; }\n");
-            writer.write("        body.theme-dark .timeline-info-header { border-bottom-color:#2b4360; }\n");
-            writer.write("        body.theme-dark .timeline-info-close { background:#1a3149; border-color:#3a5879; color:#d8e7f5; }\n");
-            writer.write("        body.theme-dark .annual-summary { border-color:#2a3a4f; box-shadow:none; }\n");
-            writer.write("        body.theme-dark .annual-kpi-deck-title { color:#e5edf7; }\n");
-            writer.write("        body.theme-dark .annual-summary-card { border-color:#2e4258; background:#1a2d42; }\n");
-            writer.write("        body.theme-dark .annual-summary-card h4 { color:#c8d9eb; }\n");
-            writer.write("        body.theme-dark .annual-summary-sub { color:#d6e4f1; }\n");
-            writer.write("        body.theme-dark .annual-value-warning { background:#3d2e19; border-color:#8e6a33; color:#ffdca8; }\n");
-            writer.write("        body.theme-dark .annual-summary-card .performer { color:#d4e3f2; }\n");
-            writer.write("        body.theme-dark .annual-summary-card .performer strong { color:#e9f2fc; }\n");
-            writer.write("        body.theme-dark .annual-summary-value.positive, body.theme-dark .annual-summary-sub.positive { color:var(--good); }\n");
-            writer.write("        body.theme-dark .annual-summary-value.negative, body.theme-dark .annual-summary-sub.negative { color:var(--bad); }\n");
-            writer.write("        body.theme-dark .annual-summary-card .performer.positive { color:var(--good); }\n");
-            writer.write("        body.theme-dark .annual-summary-card .performer.negative { color:var(--bad); }\n");
-            writer.write("        body.theme-dark .annual-graphs-heading h2 { color:#e5edf7; }\n");
-            writer.write("        body.theme-dark .annual-graphs-heading p { color:#bad0e5; }\n");
-            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn,body.theme-dark .annual-kpi-deck .timeline-info-btn { border-color:#4d6a87; background:#21374e; color:#d7e8f8; }\n");
-            writer.write("        body.theme-dark .annual-graphs-section .timeline-info-btn:hover,body.theme-dark .annual-kpi-deck .timeline-info-btn:hover { background:#2a4663; }\n");
-            writer.write("        body.theme-dark .annual-graph-card { border-color:#2e4258; background:#1a2d42; box-shadow:none; }\n");
-            writer.write("        body.theme-dark .total-return-graphs-section { background:var(--card); border-color:#2a3a4f; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-bg { fill:none !important; stroke:none !important; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-grid-line { stroke:#3e5872 !important; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-label { fill:#c8d9ea !important; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-plot-border { stroke:none !important; }\n");
-            writer.write("        body.theme-dark .total-return-bar-chart .tr-axis-line { stroke:#8da7c1 !important; }\n");
-            writer.write("        body.theme-dark .annual-graph-card h3 { color:#bdd1e4; }\n");
-            writer.write("        body.theme-dark .annual-graph-note { color:#bad0e5; }\n");
-            writer.write("        body.theme-dark .sparkline-metric-btn, body.theme-dark .sparkline-range-btn { border-color:#45627f; background:#22374d; color:#cfe0f2; }\n");
-            writer.write("        body.theme-dark .sparkline-metric-btn:hover, body.theme-dark .sparkline-range-btn:hover { background:#2b4560; }\n");
-            writer.write("        body.theme-dark .sparkline-metric-btn.is-active { background:#dceafb; color:#173047; border-color:#dceafb; }\n");
-            writer.write("        body.theme-dark .sparkline-range-btn.is-active { background:#c3d7ed; color:#173047; border-color:#9bb7d3; }\n");
-            writer.write("        body.theme-dark .sparkline-return-summary { color:#cfe0f2; }\n");
-            writer.write("        body.theme-dark .sparkline-return-summary.positive { color:var(--good); }\n");
-            writer.write("        body.theme-dark .sparkline-return-summary.negative { color:var(--bad); }\n");
-            writer.write("        body.theme-dark .kpi-help { color:#b6c9dc; }\n");
-            writer.write("        body.theme-dark .chart-title-row > h3, body.theme-dark .chart-title-row > h4, body.theme-dark .chart-title-row > .hero-side-title { color:#dce8f5; }\n");
-            writer.write("        body.theme-dark .chart-svg text { fill:#d4e1ee !important; }\n");
-            writer.write("        body.theme-dark .chart-total-return-label, body.theme-dark .chart-security-bar-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.0; }\n");
-            writer.write("        body.theme-dark .chart-security-label { fill:#e7f0fa !important; stroke:#0b1624 !important; stroke-width:1.05; }\n");
-            writer.write("        body.theme-dark .market-value-bar-chart line[stroke='#495057'] { stroke:#dce8f4 !important; }\n");
-            writer.write("        body.theme-dark .market-value-bar-chart text[fill='#495057'] { fill:#dce8f4 !important; }\n");
-            writer.write("        body.theme-dark .app-shell-note, body.theme-dark .hero-side-note { color:#d1e0ef; }\n");
-            writer.write("        .details-link-btn { display:block; width:100%; min-width:0; text-align:left; border:none; background:transparent; color:inherit; font:inherit; padding:0; margin:0; cursor:pointer; }\n");
-            writer.write("        .details-link-btn:hover { text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px; }\n");
-            writer.write("        .details-head { display:inline-flex; align-items:center; gap:6px; }\n");
-            writer.write("        .detail-group-toggle { border:1px solid #86a4bf; background:#f3f8fd; color:#1e3951; border-radius:50%; width:18px; height:18px; padding:0; line-height:16px; font-size:.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }\n");
-            writer.write("        .detail-group-toggle:hover { background:#e6f1fb; }\n");
-            writer.write("        .details-row { display:none; }\n");
-            writer.write("        .details-cell { padding:0 !important; background:#f9fcff; }\n");
-            writer.write("        .details-wrap { padding:10px 12px 12px; overflow-x:auto; overflow-y:hidden; }\n");
-            writer.write("        .details-wrap h4 { margin:0 0 8px; font-size:.88rem; color:#2b4358; text-transform:uppercase; letter-spacing:.25px; }\n");
-            writer.write("        .details-table { width:max-content; min-width:100%; border-collapse:collapse; background:#fff; border:1px solid #dfe7ef; }\n");
-            writer.write("        .details-table th, .details-table td { padding:6px 7px; border-bottom:1px solid #edf2f7; font-size:.72rem; white-space:nowrap; overflow:visible; text-overflow:clip; }\n");
-            writer.write("        .details-table th { background:#f4f8fc; color:#405a70; }\n");
-            writer.write("        .details-buy { color:#1d5d92; font-weight:600; }\n");
-            writer.write("        .details-dividend { color:#1f8b4d; font-weight:600; }\n");
-            writer.write("        @media (max-width:1200px) { .allocation-row-top{grid-template-columns:1fr 1fr;} .annual-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }\n");
-            writer.write("        @media (max-width:1060px) { .report-hero{grid-template-columns:1fr;} .hero-kpis,.annual-headline-grid{grid-template-columns:1fr;} .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .annual-graphs-row{grid-template-columns:1fr;} .overview-charts{grid-template-columns:1fr;} .allocation-row-top,.allocation-row-bottom{grid-template-columns:1fr;} .page{width:100%; padding:16px 8px 22px;} .table-wrap{overflow-x:auto;} .report-standard .overview-table{min-width:0;} .report-standard .realized-table{min-width:0;} .report-annual .table-wrap table{min-width:980px;} }\n");
-            writer.write("        @media (max-width:760px) { .annual-summary-grid{grid-template-columns:1fr;} .annual-graphs-heading{flex-direction:column; align-items:flex-start;} }\n");
-            writer.write("        @media (max-width:760px) { .annual-graph-card, .total-return-chart, .report-standard .total-return-chart, .report-standard .annual-graph-card { min-height:0; } }\n");
-            writer.write("        @media (max-width:760px) { .chart-title-row > .chart-toolbar { order:3; flex-basis:100%; } }\n");
-            writer.write("        @media (max-width:760px) { .total-return-chart .chart-viewport, .security-bar-panel .chart-viewport, .security-pie-panel .chart-viewport { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; } }\n");
-            writer.write("        @media (max-width:760px) { .total-return-chart .chart-svg { min-width:640px; height:auto; } }\n");
-            writer.write("        @media (max-width:760px) { .security-bar-panel .chart-svg, .security-pie-panel .chart-svg { width:100%; min-width:520px; height:auto; margin:6px 0 10px; } }\n");
-            writer.write("        @media (max-width:760px) { .annual-graph-content .sparkline-panel > svg { min-height:0; height:auto; } }\n");
-            writer.write("        @media (max-width:1200px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));} }\n");
-            writer.write("        @media (max-width:760px) { .report-standard .annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }\n");
-            writer.write("        @media (max-width:560px) { .report-standard .annual-summary-grid,.annual-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .realized-highlights{grid-template-columns:repeat(2,minmax(0,1fr));} .page{padding:12px 6px 20px;} .hero-title h1{font-size:1.45rem;} .annual-kpi-deck-title{font-size:.96rem;} }\n");
-            writer.write("        @media (max-width:760px) { .report-standard .overview-summary-table{table-layout:auto; width:max-content; min-width:100%;} .report-standard .overview-summary-table th, .report-standard .overview-summary-table td{overflow:visible !important; text-overflow:clip !important;} .report-standard .overview-summary-table tr > *:nth-child(n+3){overflow:visible !important; text-overflow:clip !important; white-space:nowrap !important;} }\n");
-            writer.write("    </style>\n");
+            writer.write(REPORT_CSS_1);
             writer.write("</head>\n");
             writer.write("<body class=\"report-" + reportConfig.reportType + "\">\n");
             writer.write("<main class=\"page\">\n");
 
             if (REPORT_TYPE_ANNUAL.equals(reportConfig.reportType)) {
-                writeAnnualHeaderSummaryHtml(writer, store, ratesToNok, reportConfig.reportYear);
-                writeAnnualSummarySectionHtml(writer, store, ratesToNok, reportConfig.reportYear, annualSummary, annualSnapshotRows);
+                writeAnnualHeaderSummaryHtml(writer, store, ratesToNok, reportConfig.reportYear, annualHeroMetrics);
+                writeAnnualSummarySectionHtml(writer, ratesToNok, reportConfig.reportYear, annualSummary, annualSnapshotRows, annualHeroMetrics);
                 writeAnnualTimelineChartsHtml(writer, store, ratesToNok, reportConfig.reportYear);
                 writeAnnualPortfolioSnapshotTableHtml(writer, annualSnapshotRows, ratesToNok, reportConfig.reportYear);
                 writeAnnualRealizedSummaryTableHtml(writer, store, ratesToNok, reportConfig.reportYear);
@@ -606,7 +614,7 @@ public class ReportWriter {
 
         if (summary.hasBenchmarkData) {
             String benchmarkClass = signedClass(summary.benchmarkReturnPct);
-            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value " + benchmarkClass + "\">"
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + ReportTemplateHelper.escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value " + benchmarkClass + "\">"
                 + HtmlFormatter.formatPercent(summary.benchmarkReturnPct)
                 + "</div><div class=\"annual-summary-sub\">Selected year performance</div></article>\n");
 
@@ -614,7 +622,7 @@ public class ReportWriter {
                 + HtmlFormatter.formatPercent(benchmarkDelta)
                 + "</div><div class=\"annual-summary-sub\">Portfolio minus benchmark</div></article>\n");
         } else {
-            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value\">0.00%</div><div class=\"annual-summary-sub\">No benchmark data available for this year.</div></article>\n");
+            writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Benchmark (" + ReportTemplateHelper.escapeHtml(summary.benchmarkTicker) + ")</h4><div class=\"annual-summary-value\">0.00%</div><div class=\"annual-summary-sub\">No benchmark data available for this year.</div></article>\n");
             writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Relative vs Benchmark</h4><div class=\"annual-summary-value " + portfolioClass + "\">"
                 + HtmlFormatter.formatPercent(summary.portfolioReturnPct)
                 + "</div><div class=\"annual-summary-sub\">Portfolio minus 0.00% fallback benchmark</div></article>\n");
@@ -637,11 +645,11 @@ public class ReportWriter {
                 + "</div><div class=\"annual-summary-sub\">Risk-adjusted return (monthly, annualized)</div></article>\n");
 
             if (summary.hasBeta) {
-                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + ReportTemplateHelper.escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
                     + String.format(Locale.US, "%.2f", summary.beta)
                     + "</div><div class=\"annual-summary-sub\">Sensitivity vs benchmark monthly returns</div></article>\n");
             } else {
-                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + ReportTemplateHelper.escapeHtml(summary.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
             }
         }
 
@@ -664,13 +672,13 @@ public class ReportWriter {
             Map<String, Double> ratesToNok) {
         LinkedHashMap<String, Double> bestBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, best.returnNok);
         LinkedHashMap<String, Double> worstBuckets = singleCurrencyBuckets(DEFAULT_TOTAL_CURRENCY, worst.returnNok);
-        return "<article class=\"kpi-card annual-summary-card\"><h4>" + escapeHtml(label) + "</h4><div class=\"performer " + signedClass(best.returnNok) + "\"><strong>"
-            + escapeHtml(best.label)
+        return "<article class=\"kpi-card annual-summary-card\"><h4>" + ReportTemplateHelper.escapeHtml(label) + "</h4><div class=\"performer " + signedClass(best.returnNok) + "\"><strong>"
+            + ReportTemplateHelper.escapeHtml(best.label)
             + "</strong><span class=\"performer-metrics\">"
             + renderConvertibleMoneyCell(bestBuckets, 0, ratesToNok)
             + " | " + HtmlFormatter.formatPercent(best.returnPct)
             + "</span></div><div class=\"performer " + signedClass(worst.returnNok) + "\"><strong>"
-            + escapeHtml(worst.label)
+            + ReportTemplateHelper.escapeHtml(worst.label)
             + "</strong><span class=\"performer-metrics\">"
             + renderConvertibleMoneyCell(worstBuckets, 0, ratesToNok)
             + " | " + HtmlFormatter.formatPercent(worst.returnPct)
@@ -743,12 +751,12 @@ public class ReportWriter {
         }
         codes.add(DEFAULT_TOTAL_CURRENCY);
         StringBuilder sb = new StringBuilder();
-        sb.append("<option value=\"").append(escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("\" selected>")
-          .append(escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("</option>");
+        sb.append("<option value=\"").append(ReportTemplateHelper.escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("\" selected>")
+          .append(ReportTemplateHelper.escapeHtml(DEFAULT_TOTAL_CURRENCY)).append("</option>");
         for (String code : codes) {
             if (code.equals(DEFAULT_TOTAL_CURRENCY)) continue;
-            sb.append("<option value=\"").append(escapeHtml(code)).append("\">")
-              .append(escapeHtml(code)).append("</option>");
+            sb.append("<option value=\"").append(ReportTemplateHelper.escapeHtml(code)).append("\">")
+              .append(ReportTemplateHelper.escapeHtml(code)).append("</option>");
         }
         return sb.toString();
     }
@@ -757,10 +765,10 @@ public class ReportWriter {
             FileWriter writer,
             TransactionStore store,
             Map<String, Double> ratesToNok,
-            int reportYear) throws IOException {
+            int reportYear,
+            AnnualHeroMetrics metrics) throws IOException {
 
         int safeYear = Math.max(2000, Math.min(2100, reportYear));
-        AnnualHeroMetrics metrics = buildAnnualHeroMetrics(store, ratesToNok, safeYear);
 
         writer.write("<section class=\"report-hero annual-hero\">\n");
         writer.write("<div class=\"hero-title annual-hero-header\">\n");
@@ -779,18 +787,15 @@ public class ReportWriter {
 
     private static void writeAnnualSummarySectionHtml(
             FileWriter writer,
-            TransactionStore store,
             Map<String, Double> ratesToNok,
             int reportYear,
             AnnualPerformanceSummary annualSummary,
-            List<AnnualSnapshotRow> snapshotRows) throws IOException {
+            List<AnnualSnapshotRow> snapshotRows,
+            AnnualHeroMetrics metrics) throws IOException {
 
         if (annualSummary == null) {
             return;
         }
-
-        int safeYear = Math.max(2000, Math.min(2100, reportYear));
-        AnnualHeroMetrics metrics = buildAnnualHeroMetrics(store, ratesToNok, safeYear);
 
         writer.write("<section class=\"annual-kpi-deck\">\n");
         writer.write("<h2 class=\"annual-kpi-deck-title\">Annual Performance</h2>\n");
@@ -843,10 +848,10 @@ public class ReportWriter {
     private static AnnualHeroMetrics buildAnnualHeroMetrics(
             TransactionStore store,
             Map<String, Double> ratesToNok,
-            int reportYear) {
+            int reportYear,
+            List<AnnualSnapshotRow> snapshotRows,
+            LocalDate snapshotDate) {
 
-        LocalDate snapshotDate = resolveYearSnapshotDate(reportYear);
-        List<AnnualSnapshotRow> snapshotRows = buildAnnualSnapshotRows(store, snapshotDate);
         int holdingsCount = snapshotRows.size();
         int transactionCount = countAnnualTransactions(store, reportYear);
         double cashHoldingsNok = computeCashHoldingsAtDate(store, snapshotDate);
@@ -1067,7 +1072,7 @@ public class ReportWriter {
         }
 
         writer.write("<div class=\"table-wrap\">\n<table class=\"overview-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true,
+        ReportTemplateHelper.writeHtmlRow(writer,
             "Ticker", "Security", "Shares", "Avg Cost", "Price/Share", "Cost Basis", "Market Value", "Unrealized");
 
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -1085,10 +1090,10 @@ public class ReportWriter {
                     ? signedSpan(HtmlFormatter.formatMoney(row.unrealized, row.currencyCode, 2) + " (" + HtmlFormatter.formatPercent(row.unrealizedPct, 2) + ")", row.unrealized)
                     : "-";
 
-                String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\"";
+                String rowAttributes = "data-asset-group=\"" + ReportTemplateHelper.escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\"";
                 ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
-                    "<span class=\"ticker-scroll\">" + escapeHtml(row.ticker) + "</span>",
-                    "<span class=\"security-scroll\">" + escapeHtml(row.securityName) + "</span>",
+                    "<span class=\"ticker-scroll\">" + ReportTemplateHelper.escapeHtml(row.ticker) + "</span>",
+                    "<span class=\"security-scroll\">" + ReportTemplateHelper.escapeHtml(row.securityName) + "</span>",
                     HtmlFormatter.formatUnits(row.units),
                     HtmlFormatter.formatMoney(row.averageCost, row.currencyCode, 2),
                     row.hasPrice ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-",
@@ -1262,7 +1267,7 @@ public class ReportWriter {
         writer.write("<button type=\"button\" class=\"overview-mode-btn overview-details-toggle-btn\" data-detail-label=\"Open all details\" onclick=\"toggleDetailGroup('realized-details-year', this)\">Open all details ▸</button>\n");
         writer.write("</div>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         LinkedHashMap<String, Double> totalSalesValueBuckets = new LinkedHashMap<>();
         LinkedHashMap<String, Double> totalCostBasisBuckets = new LinkedHashMap<>();
@@ -1405,7 +1410,7 @@ public class ReportWriter {
         writer.write("<div class=\"hero-title annual-hero-header\">\n");
         writer.write("<h1>Portfolio Report</h1>\n");
         writer.write("<div class=\"hero-meta\">\n");
-        writer.write("<span class=\"meta-chip\">Date: <strong id=\"report-date-value\">" + escapeHtml(s.generatedDate) + "</strong></span>\n");
+        writer.write("<span class=\"meta-chip\">Date: <strong id=\"report-date-value\">" + ReportTemplateHelper.escapeHtml(s.generatedDate) + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Files: <strong>" + s.fileCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Transactions: <strong>" + s.transactionCount + "</strong></span>\n");
         writer.write("<span class=\"meta-chip\">Holdings: <strong>" + s.holdingsCount + "</strong></span>\n");
@@ -1505,49 +1510,49 @@ public class ReportWriter {
         String dividendsClass = signedClass(convertBucketsToTarget(totalDividendsBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok));
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Market Value</div><div id=\"hero-total-market-value\" class=\"kpi-value js-convert-money\" data-buckets=\""
-            + escapeHtml(toBucketsJson(totalMarketBuckets)) + "\" data-decimals=\"0\">"
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(totalMarketBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalMarketBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Portfolio Value</div><div id=\"hero-portfolio-value\" class=\"kpi-value js-convert-money\" data-buckets=\""
-            + escapeHtml(toBucketsJson(portfolioValueBuckets)) + "\" data-decimals=\"0\">"
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(portfolioValueBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(portfolioValueBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div><div class=\"kpi-help\">Market value + cash holdings</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Return</div><div id=\"hero-total-return-value\" class=\"kpi-value js-convert-money " + totalClass
-            + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalReturnBuckets))
-            + "\" data-sold-only-return-buckets=\"" + escapeHtml(toBucketsJson(soldOnlyReturnBuckets))
-            + "\" data-sold-only-historical-buckets=\"" + escapeHtml(toBucketsJson(soldOnlyHistoricalCostBuckets))
+            + "\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalReturnBuckets))
+            + "\" data-sold-only-return-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(soldOnlyReturnBuckets))
+            + "\" data-sold-only-historical-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(soldOnlyHistoricalCostBuckets))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalReturnBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div id=\"hero-total-return-pct\" class=\"kpi-label " + totalClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct) + "</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div><div id=\"hero-dividends-value\" class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\""
-            + escapeHtml(toBucketsJson(totalDividendsBuckets))
-            + "\" data-sold-only-dividends-buckets=\"" + escapeHtml(toBucketsJson(soldOnlyDividendsBuckets))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(totalDividendsBuckets))
+            + "\" data-sold-only-dividends-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(soldOnlyDividendsBuckets))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalDividendsBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Unrealized Return</div><div id=\"hero-unrealized-value\" class=\"kpi-value js-convert-money " + unrealizedClass + "\" data-buckets=\""
-            + escapeHtml(toBucketsJson(totalUnrealizedBuckets))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(totalUnrealizedBuckets))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalUnrealizedBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div id=\"hero-unrealized-pct\" class=\"kpi-label " + unrealizedClass + "\">" + HtmlFormatter.formatPercent(totalUnrealizedPct) + "</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Realized Return</div><div id=\"hero-realized-value\" class=\"kpi-value js-convert-money " + realizedClass + "\" data-buckets=\""
-            + escapeHtml(toBucketsJson(totalRealizedBuckets))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(totalRealizedBuckets))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div id=\"hero-realized-pct\" class=\"kpi-label " + realizedClass + "\">" + HtmlFormatter.formatPercent(totalRealizedPct) + "</div></article>\n");
 
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Day Change</div><div id=\"hero-day-change-value\" class=\"kpi-value js-convert-money " + dayChangeClass + "\" data-buckets=\""
-            + escapeHtml(toBucketsJson(dayChangeBuckets))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(dayChangeBuckets))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(dayChangeBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div id=\"hero-day-change-pct\" class=\"kpi-label " + dayChangeClass + "\">" + HtmlFormatter.formatPercent(dayChangePct) + "</div></article>\n");
 
         if (oneYearChangeSummary.hasData) {
             writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">One year change</div><div id=\"hero-one-year-change-value\" class=\"kpi-value js-convert-money " + oneYearChangeClass + "\" data-buckets=\""
-                + escapeHtml(toBucketsJson(oneYearChangeBuckets))
+                + ReportTemplateHelper.escapeHtml(toBucketsJson(oneYearChangeBuckets))
                 + "\" data-decimals=\"0\">"
                 + formatBucketsInTarget(oneYearChangeBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
                 + "</div><div id=\"hero-one-year-change-pct\" class=\"kpi-label " + oneYearChangeClass + "\">" + HtmlFormatter.formatPercent(oneYearChangeSummary.returnPct, 2) + "</div></article>\n");
@@ -1556,19 +1561,19 @@ public class ReportWriter {
         }
 
         writer.write("<article id=\"cash-holdings-card\" class=\"kpi-card\"><div class=\"cash-holdings-header\"><div class=\"kpi-label\">Cash Holdings</div><button id=\"cash-holdings-add-btn\" class=\"cash-holdings-add-btn\" type=\"button\">Add</button></div><div id=\"cash-holdings-total\" class=\"kpi-value js-convert-money\" data-buckets=\""
-            + escapeHtml(toBucketsJson(cashBuckets)) + "\" data-base-buckets=\"" + escapeHtml(toBucketsJson(cashBuckets)) + "\" data-decimals=\"0\">"
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(cashBuckets)) + "\" data-base-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(cashBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(cashBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok) + "</div><div id=\"manual-cash-holdings-list\" class=\"manual-cash-holdings-list\"></div></article>\n");
 
         writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst</div><div class=\"performer " + bestClass + "\"><strong>"
-            + escapeHtml(s.bestLabel)
+            + ReportTemplateHelper.escapeHtml(s.bestLabel)
             + "</strong><span class=\"performer-metrics\"><span class=\"js-convert-money\" data-buckets=\""
-            + escapeHtml(toBucketsJson(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn)))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn)))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(singleCurrencyBuckets(s.bestCurrencyCode, s.bestReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.bestReturnPct)
-            + "</span></div><div class=\"performer " + worstClass + "\"><strong>" + escapeHtml(s.worstLabel)
+            + "</span></div><div class=\"performer " + worstClass + "\"><strong>" + ReportTemplateHelper.escapeHtml(s.worstLabel)
             + "</strong><span class=\"performer-metrics\"><span class=\"js-convert-money\" data-buckets=\""
-            + escapeHtml(toBucketsJson(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn)))
+            + ReportTemplateHelper.escapeHtml(toBucketsJson(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn)))
             + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(singleCurrencyBuckets(s.worstCurrencyCode, s.worstReturn), DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</span> | " + HtmlFormatter.formatPercent(s.worstReturnPct) + "</span></div></article>\n");
@@ -1577,13 +1582,13 @@ public class ReportWriter {
             LinkedHashMap<String, Double> bestPctBuckets = singleCurrencyBuckets(bestPctCurrency, bestPctReturnAmount);
             LinkedHashMap<String, Double> worstPctBuckets = singleCurrencyBuckets(worstPctCurrency, worstPctReturnAmount);
             writer.write("<article class=\"kpi-card kpi-card-bestworst\"><div class=\"kpi-label\">Best / Worst %</div><div class=\"performer " + bestPctClass + "\"><strong>"
-                + escapeHtml(bestPctLabel)
+                + ReportTemplateHelper.escapeHtml(bestPctLabel)
                 + "</strong><span class=\"performer-metrics\">"
                 + renderConvertibleMoneyCell(bestPctBuckets, 0, ratesToNok)
                 + " | "
                 + HtmlFormatter.formatPercent(bestPctValue)
                 + "</span></div><div class=\"performer " + worstPctClass + "\"><strong>"
-                + escapeHtml(worstPctLabel)
+                + ReportTemplateHelper.escapeHtml(worstPctLabel)
                 + "</strong><span class=\"performer-metrics\">"
                 + renderConvertibleMoneyCell(worstPctBuckets, 0, ratesToNok)
                 + " | "
@@ -1658,11 +1663,11 @@ public class ReportWriter {
                     + "</div><div class=\"annual-summary-sub\">Risk-adjusted return (monthly, annualized)</div></article>\n");
 
             if (analytics.hasBeta) {
-                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + ReportTemplateHelper.escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">"
                         + String.format(Locale.US, "%.2f", analytics.beta)
                         + "</div><div class=\"annual-summary-sub\">Sensitivity vs benchmark monthly returns</div></article>\n");
             } else {
-                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
+                writer.write("<article class=\"kpi-card annual-summary-card\"><h4>Beta vs " + ReportTemplateHelper.escapeHtml(analytics.benchmarkTicker) + "</h4><div class=\"annual-summary-value\">N/A</div><div class=\"annual-summary-sub\">Insufficient benchmark overlap</div></article>\n");
             }
         }
 
@@ -1690,6 +1695,9 @@ public class ReportWriter {
         writer.write("<h2>PORTFOLIO OVERVIEW - CURRENT HOLDINGS</h2>\n");
         Map<String, Security> securityByKey = buildSecurityLookupByKey(store);
         Map<String, Security.FundamentalsSnapshot> fundamentalsByKey = new HashMap<>();
+        // The same (security, row) details are rendered in both the summary and holdings
+        // tables; build each once and reuse.
+        Map<String, String> detailsHtmlByKey = new HashMap<>();
         for (OverviewRow row : rows) {
             Security security = securityByKey.get(row.securityKey);
             if (security == null) {
@@ -1717,7 +1725,7 @@ public class ReportWriter {
         writer.write("<button type=\"button\" id=\"overview-details-toggle\" class=\"overview-mode-btn overview-details-toggle-btn\" data-detail-label=\"Open all details\" data-detail-group=\"overview-details\">Open all details ▸</button>\n");
         writer.write("</div>\n");
         writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"summary\">\n<table class=\"overview-table overview-summary-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true,
+        ReportTemplateHelper.writeHtmlRow(writer,
             "Ticker", "Security", "Change %", "Change", "7D %", "1M %", "Day Chart", "52-Wk Range", "Shares", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value");
 
@@ -1773,10 +1781,10 @@ public class ReportWriter {
             double change1mRef = row.hasChange1mPct ? row.latestPrice / (1.0 + row.change1mPct / 100.0) : 0.0;
 
             String rowAttributes = "data-overview-row=\"1\""
-                + " data-overview-security-key=\"" + escapeHtml(row.securityKey) + "\""
-                + " data-ticker=\"" + escapeHtml(row.tickerText) + "\""
-                + " data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\""
-                + " data-currency=\"" + escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
+                + " data-overview-security-key=\"" + ReportTemplateHelper.escapeHtml(row.securityKey) + "\""
+                + " data-ticker=\"" + ReportTemplateHelper.escapeHtml(row.tickerText) + "\""
+                + " data-asset-group=\"" + ReportTemplateHelper.escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\""
+                + " data-currency=\"" + ReportTemplateHelper.escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
                 + " data-units=\"" + String.format(Locale.US, "%.8f", row.units) + "\""
                 + " data-position-cost-basis=\"" + String.format(Locale.US, "%.8f", row.positionCostBasis) + "\""
                 + " data-realized=\"" + String.format(Locale.US, "%.8f", row.realized) + "\""
@@ -1787,8 +1795,8 @@ public class ReportWriter {
                 + " data-change-7d-ref=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, change7dRef)) + "\""
                 + " data-change-1m-ref=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, change1mRef)) + "\"";
 
-            String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
-            String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
+            String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + ReportTemplateHelper.escapeHtml(row.tickerText) + "</span></button>";
+            String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + ReportTemplateHelper.escapeHtml(row.securityDisplayName) + "</span></button>";
             ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                     tickerToggle,
                     securityToggle,
@@ -1806,7 +1814,7 @@ public class ReportWriter {
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"overview-details\">\n");
                     writer.write("    <td class=\"details-cell\" colspan=\"13\">\n");
-                    writer.write(buildHoldingDetailsTableHtml(security, row));
+                    writer.write(detailsHtmlByKey.computeIfAbsent(row.securityKey, k -> buildHoldingDetailsTableHtml(security, row)));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
 
@@ -1836,7 +1844,7 @@ public class ReportWriter {
                 ? "positive"
                 : (totalDayChangePct < 0.0 ? "negative" : "");
             String pctText = HtmlFormatter.formatPercent(totalDayChangePct, 2);
-            totalDayChangePctCell = escapeHtml(pctText);
+            totalDayChangePctCell = ReportTemplateHelper.escapeHtml(pctText);
         }
         String totalDayChangeValueCell = totalDayChangeBuckets.isEmpty()
             ? "<span id=\"holdings-total-day-change-value\" class=\"js-convert-money\" data-buckets=\"{}\" data-decimals=\"2\">-</span>"
@@ -1855,7 +1863,7 @@ public class ReportWriter {
         writer.write("</table>\n</div>\n");
 
         writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"holdings\" hidden>\n<table class=\"overview-table overview-holdings-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true,
+        ReportTemplateHelper.writeHtmlRow(writer,
             "Ticker", "Security", "Change %", "Change", "Shares", "Avg Cost", "Last Price",
                 "Cost Basis", "Market Value", "Unrealized", "Realized", "Dividends", "Total Return");
 
@@ -1873,18 +1881,18 @@ public class ReportWriter {
                 String totalReturnText = HtmlFormatter.formatMoney(row.totalReturn, row.currencyCode, 2)
                     + " (" + HtmlFormatter.formatPercent(row.totalReturnPct, 2) + ")";
                 String unrealizedCell = row.hasPrice
-                    ? "<span class=\"js-row-unrealized" + signedClassAttr(row.unrealized) + "\">" + escapeHtml(unrealizedText) + "</span>"
+                    ? "<span class=\"js-row-unrealized" + signedClassAttr(row.unrealized) + "\">" + ReportTemplateHelper.escapeHtml(unrealizedText) + "</span>"
                     : "<span class=\"js-row-unrealized\">-</span>";
-                String realizedCell = "<span class=\"" + signedClass(row.realized) + "\">" + escapeHtml(realizedText) + "</span>";
+                String realizedCell = "<span class=\"" + signedClass(row.realized) + "\">" + ReportTemplateHelper.escapeHtml(realizedText) + "</span>";
                 if (signedClass(row.realized).isBlank()) {
-                realizedCell = "<span>" + escapeHtml(realizedText) + "</span>";
+                realizedCell = "<span>" + ReportTemplateHelper.escapeHtml(realizedText) + "</span>";
                 }
-                String totalReturnCell = "<span class=\"js-row-total-return" + signedClassAttr(row.totalReturn) + "\">" + escapeHtml(totalReturnText) + "</span>";
+                String totalReturnCell = "<span class=\"js-row-total-return" + signedClassAttr(row.totalReturn) + "\">" + ReportTemplateHelper.escapeHtml(totalReturnText) + "</span>";
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
             String holdingsDayChangeValueCell = formatHoldingDayChangeValueCell(row);
-                    String rowAttributes = "data-overview-security-key=\"" + escapeHtml(row.securityKey) + "\""
-                        + " data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\""
-                        + " data-currency=\"" + escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
+                    String rowAttributes = "data-overview-security-key=\"" + ReportTemplateHelper.escapeHtml(row.securityKey) + "\""
+                        + " data-asset-group=\"" + ReportTemplateHelper.escapeHtml(normalizeAssetBoundaryGroup(row.assetType)) + "\""
+                        + " data-currency=\"" + ReportTemplateHelper.escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
                         + " data-units=\"" + String.format(Locale.US, "%.8f", row.units) + "\""
                         + " data-position-cost-basis=\"" + String.format(Locale.US, "%.8f", row.positionCostBasis) + "\""
                         + " data-realized=\"" + String.format(Locale.US, "%.8f", row.realized) + "\""
@@ -1892,8 +1900,8 @@ public class ReportWriter {
                         + " data-historical-cost-basis=\"" + String.format(Locale.US, "%.8f", row.historicalCostBasis) + "\""
                         + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.latestPrice)) + "\""
                         + " data-previous-close=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, row.previousClose)) + "\"";
-                    String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span></button>";
-                    String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span></button>";
+                    String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + ReportTemplateHelper.escapeHtml(row.tickerText) + "</span></button>";
+                    String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + ReportTemplateHelper.escapeHtml(row.securityDisplayName) + "</span></button>";
 
                     ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
                         tickerToggle,
@@ -1912,7 +1920,7 @@ public class ReportWriter {
 
                     writer.write("<tr id=\"" + detailsRowId + "\" class=\"details-row\" data-group=\"holdings-details\">\n");
                     writer.write("    <td class=\"details-cell\" colspan=\"13\">\n");
-                    writer.write(buildHoldingDetailsTableHtml(security, row));
+                    writer.write(detailsHtmlByKey.computeIfAbsent(row.securityKey, k -> buildHoldingDetailsTableHtml(security, row)));
                     writer.write("    </td>\n");
                     writer.write("</tr>\n");
 
@@ -1925,22 +1933,25 @@ public class ReportWriter {
             writer.write(buildHoldingsSubtotalRow("FUND", "holdings-fund", "Funds total", fundGroup, ratesToNok));
         }
         writer.write("<tr class=\"total-row\">\n");
+        String totalUnrealizedClass = signedClass(totalUnrealizedForPct);
+        String totalRealizedClass = signedClass(totalRealizedForPct);
+        String totalReturnClass = signedClass(totalReturnForPct);
         String totalDayChangePctClassAttr = totalDayChangePctClass.isBlank() ? "" : " class=\"" + totalDayChangePctClass + "\"";
         writer.write("    <td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td></td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", signedClass(totalUnrealizedForPct), totalUnrealizedBuckets, 2, ratesToNok)
-            + " <span id=\"holdings-total-unrealized-pct-wrap\" class=\"" + signedClass(totalUnrealizedForPct) + "\">(<span id=\"holdings-total-unrealized-pct\" class=\"" + signedClass(totalUnrealizedForPct) + "\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</span></td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-realized-value", signedClass(totalRealizedForPct), totalRealizedBuckets, 2, ratesToNok)
-            + " <span id=\"holdings-total-realized-pct-wrap\" class=\"" + signedClass(totalRealizedForPct) + "\">(<span id=\"holdings-total-realized-pct\" class=\"" + signedClass(totalRealizedForPct) + "\">" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + "</span>)</span></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", totalUnrealizedClass, totalUnrealizedBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-unrealized-pct-wrap\" class=\"" + totalUnrealizedClass + "\">(<span id=\"holdings-total-unrealized-pct\" class=\"" + totalUnrealizedClass + "\">" + HtmlFormatter.formatPercent(totalUnrealizedPct, 2) + "</span>)</span></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-realized-value", totalRealizedClass, totalRealizedBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-realized-pct-wrap\" class=\"" + totalRealizedClass + "\">(<span id=\"holdings-total-realized-pct\" class=\"" + totalRealizedClass + "\">" + HtmlFormatter.formatPercent(totalRealizedPct, 2) + "</span>)</span></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-dividends-value", totalDividendsBuckets, 2, ratesToNok) + "</td>\n");
-        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-total-return-value", signedClass(totalReturnForPct), totalReturnBuckets, 2, ratesToNok)
-            + " <span id=\"holdings-total-total-return-pct-wrap\" class=\"" + signedClass(totalReturnForPct) + "\">(<span id=\"holdings-total-total-return-pct\" class=\"" + signedClass(totalReturnForPct) + "\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</span>)</span></td>\n");
+        writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-total-return-value", totalReturnClass, totalReturnBuckets, 2, ratesToNok)
+            + " <span id=\"holdings-total-total-return-pct-wrap\" class=\"" + totalReturnClass + "\">(<span id=\"holdings-total-total-return-pct\" class=\"" + totalReturnClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</span>)</span></td>\n");
         writer.write("</tr>\n");
         writer.write("</table>\n</div>\n");
 
         writer.write("<div class=\"table-wrap overview-table-wrap js-overview-mode-panel\" data-overview-mode-panel=\"fundamentals\" hidden>\n<table class=\"overview-table overview-fundamentals-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true,
+        ReportTemplateHelper.writeHtmlRow(writer,
             "Ticker", "Security", "Last<br>Price", "Market<br>Cap", "Avg Vol<br>(3M)", "EPS Est.<br>Next Yr", "Forward<br>P/E",
             "Div Payment<br>Date", "Ex-Div<br>Date", "Div/<br>Share", "Fwd Ann Div<br>Rate", "Fwd Ann Div<br>Yield",
             "Trl Ann Div<br>Rate", "Trl Ann Div<br>Yield", "Price /<br>Book");
@@ -1953,12 +1964,12 @@ public class ReportWriter {
             String lastPriceCell = fundamentalsLastPrice > EPSILON
                 ? HtmlFormatter.formatMoney(fundamentalsLastPrice, row.currencyCode, 2)
                 : (row.latestPrice > EPSILON ? HtmlFormatter.formatMoney(row.latestPrice, row.currencyCode, 2) : "-");
-            String fundamentalsRowAttributes = "data-overview-security-key=\"" + escapeHtml(row.securityKey) + "\""
-                + " data-currency=\"" + escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
+            String fundamentalsRowAttributes = "data-overview-security-key=\"" + ReportTemplateHelper.escapeHtml(row.securityKey) + "\""
+                + " data-currency=\"" + ReportTemplateHelper.escapeHtml(normalizeCurrencyCode(row.currencyCode)) + "\""
                 + " data-latest-price=\"" + String.format(Locale.US, "%.8f", Math.max(0.0, fundamentalsLastPrice > EPSILON ? fundamentalsLastPrice : row.latestPrice)) + "\"";
             ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, fundamentalsRowAttributes,
-                    "<span class=\"ticker-scroll\">" + escapeHtml(row.tickerText) + "</span>",
-                    "<span class=\"security-scroll\">" + escapeHtml(row.securityDisplayName) + "</span>",
+                    "<span class=\"ticker-scroll\">" + ReportTemplateHelper.escapeHtml(row.tickerText) + "</span>",
+                    "<span class=\"security-scroll\">" + ReportTemplateHelper.escapeHtml(row.securityDisplayName) + "</span>",
                 "<span class=\"js-row-fundamentals-last-price\">" + lastPriceCell + "</span>",
                 formatCompactMetric(fundamentals != null ? fundamentals.marketCap : 0.0),
                 formatCompactMetric(fundamentals != null ? fundamentals.averageVolume3Month : 0.0),
@@ -2015,9 +2026,9 @@ public class ReportWriter {
 
         String valueText = HtmlFormatter.formatPercent(dayChangePct, 2);
         if (!cssClass.isBlank()) {
-            return "<span class=\"js-row-day-change " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+            return "<span class=\"js-row-day-change " + cssClass + "\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
         }
-        return "<span class=\"js-row-day-change\">" + escapeHtml(valueText) + "</span>";
+        return "<span class=\"js-row-day-change\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
     }
 
     private static String formatChangePctCell(double changePct, boolean hasChangePct, String markerClass) {
@@ -2031,9 +2042,9 @@ public class ReportWriter {
 
         String valueText = HtmlFormatter.formatPercent(changePct, 2);
         if (!cssClass.isBlank()) {
-            return "<span class=\"" + markerClass + " " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+            return "<span class=\"" + markerClass + " " + cssClass + "\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
         }
-        return "<span class=\"" + markerClass + "\">" + escapeHtml(valueText) + "</span>";
+        return "<span class=\"" + markerClass + "\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
     }
 
     private static String formatDayChangeValueCell(OverviewRow row) {
@@ -2047,9 +2058,9 @@ public class ReportWriter {
                 : (changeValue < 0.0 ? "negative" : "");
         String valueText = HtmlFormatter.formatMoney(changeValue, row.currencyCode, 2);
         if (!cssClass.isBlank()) {
-            return "<span class=\"js-row-day-change-value " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+            return "<span class=\"js-row-day-change-value " + cssClass + "\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
         }
-        return "<span class=\"js-row-day-change-value\">" + escapeHtml(valueText) + "</span>";
+        return "<span class=\"js-row-day-change-value\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
     }
 
     private static String formatHoldingDayChangeValueCell(OverviewRow row) {
@@ -2063,9 +2074,9 @@ public class ReportWriter {
                 : (changeValue < 0.0 ? "negative" : "");
         String valueText = HtmlFormatter.formatMoney(changeValue, row.currencyCode, 2);
         if (!cssClass.isBlank()) {
-            return "<span class=\"js-row-day-change-value-position " + cssClass + "\">" + escapeHtml(valueText) + "</span>";
+            return "<span class=\"js-row-day-change-value-position " + cssClass + "\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
         }
-        return "<span class=\"js-row-day-change-value-position\">" + escapeHtml(valueText) + "</span>";
+        return "<span class=\"js-row-day-change-value-position\">" + ReportTemplateHelper.escapeHtml(valueText) + "</span>";
     }
 
     private static String formatDayChartCell(OverviewRow row) {
@@ -2073,7 +2084,7 @@ public class ReportWriter {
             return "<span class=\"js-row-day-chart\" data-ticker=\"\">-</span>";
         }
 
-        return "<span class=\"js-row-day-chart\" data-ticker=\"" + escapeHtml(row.tickerText)
+        return "<span class=\"js-row-day-chart\" data-ticker=\"" + ReportTemplateHelper.escapeHtml(row.tickerText)
             + "\">-</span>";
     }
 
@@ -2096,9 +2107,9 @@ public class ReportWriter {
         String highLabel = HtmlFormatter.formatMoney(high, row.currencyCode, 2);
         String currentLabel = HtmlFormatter.formatMoney(current, row.currencyCode, 2);
 
-        return "<div class=\"wk-range-cell\" title=\"" + escapeHtml(currentLabel) + "\">"
+        return "<div class=\"wk-range-cell\" title=\"" + ReportTemplateHelper.escapeHtml(currentLabel) + "\">"
                 + "<div class=\"wk-range-track\"><span class=\"wk-range-marker\" style=\"left:" + markerPct + "%;\"></span></div>"
-                + "<div class=\"wk-range-labels\"><span>" + escapeHtml(lowLabel) + "</span><span>" + escapeHtml(highLabel) + "</span></div>"
+                + "<div class=\"wk-range-labels\"><span>" + ReportTemplateHelper.escapeHtml(lowLabel) + "</span><span>" + ReportTemplateHelper.escapeHtml(highLabel) + "</span></div>"
                 + "</div>";
     }
 
@@ -2192,7 +2203,7 @@ public class ReportWriter {
     }
 
     private static String signedSpan(String text, double value) {
-        String safeText = escapeHtml(text);
+        String safeText = ReportTemplateHelper.escapeHtml(text);
         String cssClass = signedClass(value);
         if (cssClass.isBlank()) {
             return safeText;
@@ -2210,16 +2221,16 @@ public class ReportWriter {
 
     private static String buildRealizedLeaderCard(String label, Security security, double value, String valueClass, Map<String, Double> ratesToNok) {
         if (security == null) {
-            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
+            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + ReportTemplateHelper.escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
         }
         String currency = security.getCurrencyCode();
         LinkedHashMap<String, Double> buckets = singleCurrencyBuckets(currency, value);
         String formatted = formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok);
-        String name = escapeHtml(security.getDisplayName());
+        String name = ReportTemplateHelper.escapeHtml(security.getDisplayName());
         String cls = valueClass.isEmpty() ? "" : " " + valueClass;
         return "<article class=\"kpi-card\">"
-            + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
-            + "<div class=\"kpi-value js-convert-money" + cls + "\" data-buckets=\"" + escapeHtml(toBucketsJson(buckets)) + "\" data-decimals=\"0\">" + formatted + "</div>"
+            + "<div class=\"kpi-label\">" + ReportTemplateHelper.escapeHtml(label) + "</div>"
+            + "<div class=\"kpi-value js-convert-money" + cls + "\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(buckets)) + "\" data-decimals=\"0\">" + formatted + "</div>"
             + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">" + name + "</div>"
             + "</article>\n";
     }
@@ -2227,12 +2238,12 @@ public class ReportWriter {
     /** Leader card showing a percentage value (gain/loss %) rather than a money amount. */
     private static String buildRealizedLeaderPctCard(String label, Security security, double pctValue) {
         if (security == null || pctValue == Double.NEGATIVE_INFINITY) {
-            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
+            return "<article class=\"kpi-card\"><div class=\"kpi-label\">" + ReportTemplateHelper.escapeHtml(label) + "</div><div class=\"kpi-value\">-</div></article>\n";
         }
-        String name = escapeHtml(security.getDisplayName());
+        String name = ReportTemplateHelper.escapeHtml(security.getDisplayName());
         String cls = pctValue > 0 ? " positive" : pctValue < 0 ? " negative" : "";
         return "<article class=\"kpi-card\">"
-            + "<div class=\"kpi-label\">" + escapeHtml(label) + "</div>"
+            + "<div class=\"kpi-label\">" + ReportTemplateHelper.escapeHtml(label) + "</div>"
             + "<div class=\"kpi-value" + cls + "\">" + HtmlFormatter.formatPercent(pctValue, 2) + "</div>"
             + "<div class=\"kpi-help\" style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">" + name + "</div>"
             + "</article>\n";
@@ -2272,11 +2283,11 @@ public class ReportWriter {
             addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
             addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
             addToCurrencyBuckets(totalRealizedDividendsBuckets, currency, realizedDividends);
-            double costBasisNok = convertBucketsToTarget(singleCurrencyBuckets(currency, costBasis), DEFAULT_TOTAL_CURRENCY, ratesToNok);
-            double salesValueNok = convertBucketsToTarget(singleCurrencyBuckets(currency, salesValue), DEFAULT_TOTAL_CURRENCY, ratesToNok);
-            double gainNok = convertBucketsToTarget(singleCurrencyBuckets(currency, gain), DEFAULT_TOTAL_CURRENCY, ratesToNok);
-            double dividendsNok = convertBucketsToTarget(singleCurrencyBuckets(currency, realizedDividends), DEFAULT_TOTAL_CURRENCY, ratesToNok);
-            double totalReturnNok = convertBucketsToTarget(singleCurrencyBuckets(currency, totalReturn), DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double costBasisNok = convertAmountToTarget(costBasis, currency, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double salesValueNok = convertAmountToTarget(salesValue, currency, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double gainNok = convertAmountToTarget(gain, currency, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double dividendsNok = convertAmountToTarget(realizedDividends, currency, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+            double totalReturnNok = convertAmountToTarget(totalReturn, currency, DEFAULT_TOTAL_CURRENCY, ratesToNok);
             double secGainPct = costBasis > 0.0 ? (gain / costBasis) * 100.0 : Double.NEGATIVE_INFINITY;
             if (costBasisNok > leadCostBasisNok) { leadCostBasisNok = costBasisNok; leadCostBasis = security; leadCostBasisVal = costBasis; }
             if (salesValueNok > leadSalesValueNok) { leadSalesValueNok = salesValueNok; leadSalesValue = security; leadSalesValueVal = salesValue; }
@@ -2305,26 +2316,26 @@ public class ReportWriter {
         writer.write("<h2 class=\"annual-kpi-deck-title\">Realized Highlights</h2>\n");
         writer.write("<div class=\"realized-highlights\">\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Cost Basis</div>"
-            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + escapeHtml(toBucketsJson(totalCostBasisBuckets)) + "\" data-decimals=\"0\">"
+            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalCostBasisBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalCostBasisBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Sales Value</div>"
-            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + escapeHtml(toBucketsJson(totalSalesValueBuckets)) + "\" data-decimals=\"0\">"
+            + "<div class=\"kpi-value js-convert-money\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalSalesValueBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalSalesValueBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Gain / Loss</div>"
-            + "<div class=\"kpi-value js-convert-money " + gainClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedGainBuckets)) + "\" data-decimals=\"0\">"
+            + "<div class=\"kpi-value js-convert-money " + gainClass + "\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalRealizedGainBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedGainBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Gain / Loss %</div>"
             + "<div class=\"kpi-value " + gainClass + "\">" + HtmlFormatter.formatPercent(totalGainPct, 2)
             + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Dividends</div>"
-            + "<div class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedDividendsBuckets)) + "\" data-decimals=\"0\">"
+            + "<div class=\"kpi-value js-convert-money " + dividendsClass + "\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalRealizedDividendsBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedDividendsBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div></article>\n");
         writer.write("<article class=\"kpi-card\"><div class=\"kpi-label\">Total Return</div>"
-            + "<div class=\"kpi-value js-convert-money " + returnClass + "\" data-buckets=\"" + escapeHtml(toBucketsJson(totalRealizedReturnBuckets)) + "\" data-decimals=\"0\">"
+            + "<div class=\"kpi-value js-convert-money " + returnClass + "\" data-buckets=\"" + ReportTemplateHelper.escapeHtml(toBucketsJson(totalRealizedReturnBuckets)) + "\" data-decimals=\"0\">"
             + formatBucketsInTarget(totalRealizedReturnBuckets, DEFAULT_TOTAL_CURRENCY, 0, ratesToNok)
             + "</div><div class=\"kpi-label " + returnClass + "\">" + HtmlFormatter.formatPercent(totalReturnPct, 2) + "</div></article>\n");
         writer.write(buildRealizedLeaderCard("Highest Cost Basis", leadCostBasis, leadCostBasisVal, "", ratesToNok));
@@ -2341,7 +2352,7 @@ public class ReportWriter {
         writer.write("<button type=\"button\" class=\"overview-mode-btn overview-details-toggle-btn\" data-detail-label=\"Open all details\" onclick=\"toggleDetailGroup('realized-details', this)\">Open all details ▸</button>\n");
         writer.write("</div>\n");
         writer.write("<div class=\"table-wrap\">\n<table class=\"realized-table\">\n");
-        ReportTemplateHelper.writeHtmlRow(writer, true, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
+        ReportTemplateHelper.writeHtmlRow(writer, "Ticker", "Security", "Cost Basis", "Sales Value", "Gain/Loss", "Dividends", "Total Return");
 
         String previousAssetType = null;
         int detailsIndex = 0;
@@ -2406,9 +2417,9 @@ public class ReportWriter {
                 + " (" + HtmlFormatter.formatPercent(rowTotalReturnPct, 2) + ")",
             totalReturnValue);
 
-        String rowAttributes = "data-asset-group=\"" + escapeHtml(normalizeAssetBoundaryGroup(security.getAssetType().name())) + "\"";
-        String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + escapeHtml(security.getTicker()) + "</span></button>";
-        String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + escapeHtml(security.getDisplayName()) + "</span></button>";
+        String rowAttributes = "data-asset-group=\"" + ReportTemplateHelper.escapeHtml(normalizeAssetBoundaryGroup(security.getAssetType().name())) + "\"";
+        String tickerToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"ticker-scroll\">" + ReportTemplateHelper.escapeHtml(security.getTicker()) + "</span></button>";
+        String securityToggle = "<button class=\"details-link-btn\" data-target=\"" + detailsRowId + "\" onclick=\"toggleOverviewDetails('" + detailsRowId + "', null)\"><span class=\"security-scroll\">" + ReportTemplateHelper.escapeHtml(security.getDisplayName()) + "</span></button>";
         ReportTemplateHelper.writeHtmlRowWithClassAndAttributes(writer, rowClass, rowAttributes,
             tickerToggle,
             securityToggle,
@@ -2442,7 +2453,7 @@ public class ReportWriter {
         double gainPct = costForPct > 0.0 ? (gainForPct / costForPct) * 100.0 : 0.0;
         double returnPct = costForPct > 0.0 ? (returnForPct / costForPct) * 100.0 : 0.0;
         return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
-                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>\n"
+                + "    <td><strong>" + ReportTemplateHelper.escapeHtml(label) + "</strong></td><td></td>\n"
                 + "    <td>" + renderConvertibleMoneyCell(buckets.cost, 2, ratesToNok) + "</td>\n"
                 + "    <td>" + renderConvertibleMoneyCell(buckets.sales, 2, ratesToNok) + "</td>\n"
                 + "    <td>" + signedWrapHtml(renderConvertibleMoneyCell(buckets.gain, 2, ratesToNok), gainForPct)
@@ -2460,7 +2471,7 @@ public class ReportWriter {
     private static String buildRealizedSaleTradesDetailsHtml(Security security, Integer filterYear) {
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"details-wrap\">\n");
-        html.append("<h4>Sale Trades - ").append(escapeHtml(security.getDisplayName())).append("</h4>\n");
+        html.append("<h4>Sale Trades - ").append(ReportTemplateHelper.escapeHtml(security.getDisplayName())).append("</h4>\n");
 
         List<Security.SaleTrade> saleTrades = security.getSaleTradesSortedByDate();
         if (filterYear != null) {
@@ -2487,25 +2498,25 @@ public class ReportWriter {
                 totalGainLoss += trade.getGainLoss();
 
                 html.append("<tr>");
-                html.append("<td>").append(escapeHtml(trade.getTradeDateAsCsv())).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(trade.getUnits()))).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getUnitPrice(), currency, 2))).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getCostBasis(), currency, 0))).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(trade.getSaleValue(), currency, 0))).append("</td>");
-                html.append("<td class=\"").append(signedClass(trade.getGainLoss())).append("\">").append(escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
-                html.append("<td class=\"").append(signedClass(trade.getReturnPct())).append("\">").append(escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(trade.getTradeDateAsCsv())).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatUnits(trade.getUnits()))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(trade.getUnitPrice(), currency, 2))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(trade.getCostBasis(), currency, 0))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(trade.getSaleValue(), currency, 0))).append("</td>");
+                html.append("<td class=\"").append(signedClass(trade.getGainLoss())).append("\">").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(trade.getGainLoss(), currency, 0))).append("</td>");
+                html.append("<td class=\"").append(signedClass(trade.getReturnPct())).append("\">").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatPercent(trade.getReturnPct(), 2))).append("</td>");
                 html.append("</tr>\n");
             }
 
             double totalReturnPct = totalCostBasis > 0.0 ? (totalGainLoss / totalCostBasis) * 100.0 : 0.0;
             html.append("<tr class=\"total-row\">");
             html.append("<td><strong>TOTAL</strong></td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatUnits(totalUnits))).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatUnits(totalUnits))).append("</td>");
             html.append("<td></td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalCostBasis, currency, 0))).append("</td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalSaleValue, currency, 0))).append("</td>");
-            html.append("<td class=\"").append(signedClass(totalGainLoss)).append("\">").append(escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
-            html.append("<td class=\"").append(signedClass(totalReturnPct)).append("\">").append(escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(totalCostBasis, currency, 0))).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(totalSaleValue, currency, 0))).append("</td>");
+            html.append("<td class=\"").append(signedClass(totalGainLoss)).append("\">").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(totalGainLoss, currency, 0))).append("</td>");
+            html.append("<td class=\"").append(signedClass(totalReturnPct)).append("\">").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatPercent(totalReturnPct, 2))).append("</td>");
             html.append("</tr>\n");
 
             html.append("</table>\n");
@@ -2527,14 +2538,14 @@ public class ReportWriter {
                 totalDividendAmount += event.getAmount();
                 String unitsText = event.getUnits() > 0.0 ? HtmlFormatter.formatUnits(event.getUnits()) : "-";
                 html.append("<tr>");
-                html.append("<td>").append(escapeHtml(formatDetailDate(event.getTradeDate()))).append("</td>");
-                html.append("<td>").append(escapeHtml(unitsText)).append("</td>");
-                html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(event.getAmount(), currency, 2))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(formatDetailDate(event.getTradeDate()))).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(unitsText)).append("</td>");
+                html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(event.getAmount(), currency, 2))).append("</td>");
                 html.append("</tr>\n");
             }
             html.append("<tr class=\"total-row\">");
             html.append("<td><strong>TOTAL</strong></td><td></td>");
-            html.append("<td>").append(escapeHtml(HtmlFormatter.formatMoney(totalDividendAmount, currency, 2))).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(HtmlFormatter.formatMoney(totalDividendAmount, currency, 2))).append("</td>");
             html.append("</tr>\n");
             html.append("</table>\n");
         }
@@ -2584,7 +2595,7 @@ public class ReportWriter {
     private static String buildHoldingDetailsTableHtml(Security security, OverviewRow row) {
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"details-wrap\">\n");
-        html.append("<h4>Transaction Details - ").append(escapeHtml(row.securityDisplayName)).append("</h4>\n");
+        html.append("<h4>Transaction Details - ").append(ReportTemplateHelper.escapeHtml(row.securityDisplayName)).append("</h4>\n");
 
         if (security == null) {
             html.append("<div class=\"app-shell-note\">Details are not available for this security.</div>\n");
@@ -2697,22 +2708,22 @@ public class ReportWriter {
                 html.append(String.format(Locale.US,
                     "<tr data-lot-units=\"%.8f\" data-lot-cost-basis=\"%.8f\" data-overview-security-key=\"%s\" data-currency=\"%s\">",
                     entry.rawLotUnits, entry.rawLotCostBasis,
-                    escapeHtml(row.securityKey), escapeHtml(row.currencyCode)));
+                    ReportTemplateHelper.escapeHtml(row.securityKey), ReportTemplateHelper.escapeHtml(row.currencyCode)));
             } else {
                 html.append("<tr>");
             }
-            html.append("<td>").append(escapeHtml(formatDetailDate(entry.date))).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(formatDetailDate(entry.date))).append("</td>");
             html.append("<td>").append(entry.type).append("</td>");
-            html.append("<td>").append(escapeHtml(entry.units)).append("</td>");
-            html.append("<td>").append(escapeHtml(entry.price)).append("</td>");
-            html.append("<td>").append(escapeHtml(entry.amount)).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(entry.units)).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(entry.price)).append("</td>");
+            html.append("<td>").append(ReportTemplateHelper.escapeHtml(entry.amount)).append("</td>");
             // js-lot-unrealized / js-lot-unrealized-pct let refreshOpenDetailPanels() update these cells
             if (isBuyLot) {
-                html.append("<td class=\"js-lot-unrealized").append(entry.unrealizedClass.isEmpty() ? "" : " " + escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
-                html.append("<td class=\"js-lot-unrealized-pct").append(entry.unrealizedPctClass.isEmpty() ? "" : " " + escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+                html.append("<td class=\"js-lot-unrealized").append(entry.unrealizedClass.isEmpty() ? "" : " " + ReportTemplateHelper.escapeHtml(entry.unrealizedClass)).append("\">").append(ReportTemplateHelper.escapeHtml(entry.unrealized)).append("</td>");
+                html.append("<td class=\"js-lot-unrealized-pct").append(entry.unrealizedPctClass.isEmpty() ? "" : " " + ReportTemplateHelper.escapeHtml(entry.unrealizedPctClass)).append("\">").append(ReportTemplateHelper.escapeHtml(entry.unrealizedPct)).append("</td>");
             } else {
-                html.append("<td class=\"").append(escapeHtml(entry.unrealizedClass)).append("\">").append(escapeHtml(entry.unrealized)).append("</td>");
-                html.append("<td class=\"").append(escapeHtml(entry.unrealizedPctClass)).append("\">").append(escapeHtml(entry.unrealizedPct)).append("</td>");
+                html.append("<td class=\"").append(ReportTemplateHelper.escapeHtml(entry.unrealizedClass)).append("\">").append(ReportTemplateHelper.escapeHtml(entry.unrealized)).append("</td>");
+                html.append("<td class=\"").append(ReportTemplateHelper.escapeHtml(entry.unrealizedPctClass)).append("\">").append(ReportTemplateHelper.escapeHtml(entry.unrealizedPct)).append("</td>");
             }
             html.append("</tr>\n");
         }
@@ -2775,7 +2786,7 @@ public class ReportWriter {
     private static String buildSummarySubtotalRow(String group, String idPrefix, String label,
             GroupBuckets buckets, Map<String, Double> ratesToNok) {
         return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
-                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>"
+                + "    <td><strong>" + ReportTemplateHelper.escapeHtml(label) + "</strong></td><td></td>"
                 + "<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-market-value", buckets.market, 2, ratesToNok) + "</td>\n"
@@ -2798,11 +2809,15 @@ public class ReportWriter {
         double realizedPct = costNok > 0 ? (realizedNok / costNok) * 100.0 : 0.0;
         double dayChangePct = prevCloseNok > 0.0 ? (dayChangeNok / prevCloseNok) * 100.0 : 0.0;
 
+        String unrealizedClass = signedClass(unrealizedNok);
+        String realizedClass = signedClass(realizedNok);
+        String returnClass = signedClass(returnNok);
+
         String dayChangePctCell = "-";
         String dayChangePctClass = "";
         if (!buckets.dayChange.isEmpty() && prevCloseNok > 0.0) {
             dayChangePctClass = dayChangePct > 0.0 ? "positive" : (dayChangePct < 0.0 ? "negative" : "");
-            dayChangePctCell = escapeHtml(HtmlFormatter.formatPercent(dayChangePct, 2));
+            dayChangePctCell = ReportTemplateHelper.escapeHtml(HtmlFormatter.formatPercent(dayChangePct, 2));
         }
         String dayChangePctClassAttr = dayChangePctClass.isBlank() ? "" : " class=\"" + dayChangePctClass + "\"";
         String dayChangeValueCell = buckets.dayChange.isEmpty()
@@ -2810,18 +2825,18 @@ public class ReportWriter {
                 : renderConvertibleMoneyCellWithId(idPrefix + "-day-change-value", signedClass(dayChangeNok), buckets.dayChange, 2, ratesToNok);
 
         return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
-                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>"
+                + "    <td><strong>" + ReportTemplateHelper.escapeHtml(label) + "</strong></td><td></td>"
                 + "<td><span id=\"" + idPrefix + "-day-change-pct\"" + dayChangePctClassAttr + ">" + dayChangePctCell + "</span></td>"
                 + "<td>" + dayChangeValueCell + "</td><td></td><td></td><td></td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-market-value", buckets.market, 2, ratesToNok) + "</td>\n"
-                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-unrealized-value", signedClass(unrealizedNok), buckets.unrealized, 2, ratesToNok)
-                + " <span class=\"" + signedClass(unrealizedNok) + "\">(<span id=\"" + idPrefix + "-unrealized-pct\" class=\"" + signedClass(unrealizedNok) + "\">" + HtmlFormatter.formatPercent(unrealizedPct, 2) + "</span>)</span></td>\n"
-                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-realized-value", signedClass(realizedNok), buckets.realized, 2, ratesToNok)
-                + " <span class=\"" + signedClass(realizedNok) + "\">(<span id=\"" + idPrefix + "-realized-pct\" class=\"" + signedClass(realizedNok) + "\">" + HtmlFormatter.formatPercent(realizedPct, 2) + "</span>)</span></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-unrealized-value", unrealizedClass, buckets.unrealized, 2, ratesToNok)
+                + " <span class=\"" + unrealizedClass + "\">(<span id=\"" + idPrefix + "-unrealized-pct\" class=\"" + unrealizedClass + "\">" + HtmlFormatter.formatPercent(unrealizedPct, 2) + "</span>)</span></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-realized-value", realizedClass, buckets.realized, 2, ratesToNok)
+                + " <span class=\"" + realizedClass + "\">(<span id=\"" + idPrefix + "-realized-pct\" class=\"" + realizedClass + "\">" + HtmlFormatter.formatPercent(realizedPct, 2) + "</span>)</span></td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-dividends-value", buckets.dividends, 2, ratesToNok) + "</td>\n"
-                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-total-return-value", signedClass(returnNok), returnBuckets, 2, ratesToNok)
-                + " <span class=\"" + signedClass(returnNok) + "\">(<span id=\"" + idPrefix + "-total-return-pct\" class=\"" + signedClass(returnNok) + "\">" + HtmlFormatter.formatPercent(returnPct, 2) + "</span>)</span></td>\n"
+                + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-total-return-value", returnClass, returnBuckets, 2, ratesToNok)
+                + " <span class=\"" + returnClass + "\">(<span id=\"" + idPrefix + "-total-return-pct\" class=\"" + returnClass + "\">" + HtmlFormatter.formatPercent(returnPct, 2) + "</span>)</span></td>\n"
                 + "</tr>\n";
     }
 
@@ -2970,6 +2985,20 @@ public class ReportWriter {
         return totalInNok / targetRateToNok;
     }
 
+    // Direct single-amount equivalent of convertBucketsToTarget(singleCurrencyBuckets(...))
+    // with identical rate-source and missing-rate (->0.0) semantics; avoids per-call map allocation.
+    private static double convertAmountToTarget(double amount, String sourceCurrency, String targetCurrency, Map<String, Double> ratesToNok) {
+        double targetRateToNok = ratesToNok.getOrDefault(normalizeCurrencyCode(targetCurrency), 0.0);
+        if (targetRateToNok <= 0.0) {
+            return 0.0;
+        }
+        double sourceRateToNok = ratesToNok.getOrDefault(normalizeCurrencyCode(sourceCurrency), 0.0);
+        if (sourceRateToNok <= 0.0) {
+            return 0.0;
+        }
+        return (amount * sourceRateToNok) / targetRateToNok;
+    }
+
     private static String formatBucketsInTarget(Map<String, Double> buckets, String targetCurrency, int decimals, Map<String, Double> ratesToNok) {
         String target = normalizeCurrencyCode(targetCurrency);
         double amount = convertBucketsToTarget(buckets, target, ratesToNok);
@@ -2978,7 +3007,7 @@ public class ReportWriter {
 
     private static String renderConvertibleMoneyCell(Map<String, Double> buckets, int decimals, Map<String, Double> ratesToNok) {
         return "<span class=\"js-convert-money\" data-buckets=\""
-                + escapeHtml(toBucketsJson(buckets))
+                + ReportTemplateHelper.escapeHtml(toBucketsJson(buckets))
                 + "\" data-decimals=\""
                 + decimals
                 + "\">"
@@ -2987,8 +3016,8 @@ public class ReportWriter {
     }
 
     private static String renderConvertibleMoneyCellWithId(String id, Map<String, Double> buckets, int decimals, Map<String, Double> ratesToNok) {
-        return "<span id=\"" + escapeHtml(id) + "\" class=\"js-convert-money\" data-buckets=\""
-                + escapeHtml(toBucketsJson(buckets))
+        return "<span id=\"" + ReportTemplateHelper.escapeHtml(id) + "\" class=\"js-convert-money\" data-buckets=\""
+                + ReportTemplateHelper.escapeHtml(toBucketsJson(buckets))
                 + "\" data-decimals=\""
                 + decimals
                 + "\">"
@@ -3001,18 +3030,12 @@ public class ReportWriter {
         if (extraClass != null && !extraClass.isBlank()) {
             classes += " " + extraClass.trim();
         }
-        return "<span id=\"" + escapeHtml(id) + "\" class=\"" + classes + "\" data-buckets=\""
-                + escapeHtml(toBucketsJson(buckets))
+        return "<span id=\"" + ReportTemplateHelper.escapeHtml(id) + "\" class=\"" + classes + "\" data-buckets=\""
+                + ReportTemplateHelper.escapeHtml(toBucketsJson(buckets))
                 + "\" data-decimals=\""
                 + decimals
                 + "\">"
                 + formatBucketsInTarget(buckets, DEFAULT_TOTAL_CURRENCY, decimals, ratesToNok)
                 + "</span>";
-    }
-
-
-    private static String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 }

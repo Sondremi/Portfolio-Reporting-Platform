@@ -19,7 +19,6 @@ public class HeaderSummary {
     public final String worstCurrencyCode;
     public final double worstReturn;
     public final double worstReturnPct;
-    public final String sparklineSvg;
 
     public HeaderSummary(
             String generatedDate,
@@ -38,8 +37,7 @@ public class HeaderSummary {
             String worstLabel,
             String worstCurrencyCode,
             double worstReturn,
-            double worstReturnPct,
-            String sparklineSvg) {
+            double worstReturnPct) {
 
         this.generatedDate = generatedDate != null ? generatedDate : "";
         this.fileCount = fileCount;
@@ -58,6 +56,5 @@ public class HeaderSummary {
         this.worstCurrencyCode = worstCurrencyCode != null ? worstCurrencyCode : "NOK";
         this.worstReturn = worstReturn;
         this.worstReturnPct = worstReturnPct;
-        this.sparklineSvg = sparklineSvg != null ? sparklineSvg : "";
     }
 }
