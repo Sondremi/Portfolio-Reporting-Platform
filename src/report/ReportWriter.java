@@ -140,7 +140,7 @@ public class ReportWriter {
             writer.write("        body.theme-dark .mini-day-chart-area.positive { fill:#2a8f57; }\n");
             writer.write("        body.theme-dark .mini-day-chart-area.negative { fill:#a54640; }\n");
             writer.write("        .report-standard .ticker-scroll, .report-standard .security-scroll { display:block; position:relative; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; white-space:nowrap; text-overflow:clip; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:6px; cursor:grab; }\n");
-            writer.write("        .report-standard .ticker-scroll { max-width:126px; }\n");
+            writer.write("        .report-standard .ticker-scroll { max-width:126px; padding-left:1px; }\n");
             writer.write("        .report-standard .security-scroll { max-width:236px; }\n");
             writer.write("        .report-standard .ticker-scroll::-webkit-scrollbar, .report-standard .security-scroll::-webkit-scrollbar { display:none; width:0; height:0; }\n");
             writer.write("        .report-standard .ticker-scroll::after, .report-standard .security-scroll::after { content:''; position:absolute; left:5px; right:5px; bottom:1px; height:4px; border-radius:999px; background:rgba(140,160,178,.18); opacity:.28; transition:opacity .12s ease, background .12s ease; }\n");
@@ -2251,6 +2251,9 @@ public class ReportWriter {
         double leadGainNok = Double.NEGATIVE_INFINITY, leadGainPctVal = Double.NEGATIVE_INFINITY;
         double leadDividendsNok = Double.NEGATIVE_INFINITY, leadTotalReturnNok = Double.NEGATIVE_INFINITY;
         double leadCostBasisVal = 0, leadSalesValueVal = 0, leadGainVal = 0, leadDividendsVal = 0, leadTotalReturnVal = 0;
+        RealizedGroupBuckets realizedStockGroup = new RealizedGroupBuckets();
+        RealizedGroupBuckets realizedFundGroup = new RealizedGroupBuckets();
+        boolean realizedHasStock = false, realizedHasFund = false;
         for (Security security : soldSecurities) {
             String currency = security.getCurrencyCode();
             double costBasis = security.getRealizedCostBasis();
@@ -2258,6 +2261,13 @@ public class ReportWriter {
             double gain = security.getRealizedGain();
             double realizedDividends = security.isFullyRealized() ? security.getDividends() : 0.0;
             double totalReturn = gain + realizedDividends;
+            boolean isFundRow = "FUND".equals(normalizeAssetBoundaryGroup(security.getAssetType().name()));
+            RealizedGroupBuckets realizedGroup = isFundRow ? realizedFundGroup : realizedStockGroup;
+            if (isFundRow) { realizedHasFund = true; } else { realizedHasStock = true; }
+            addToCurrencyBuckets(realizedGroup.cost, currency, costBasis);
+            addToCurrencyBuckets(realizedGroup.sales, currency, salesValue);
+            addToCurrencyBuckets(realizedGroup.gain, currency, gain);
+            addToCurrencyBuckets(realizedGroup.dividends, currency, realizedDividends);
             addToCurrencyBuckets(totalSalesValueBuckets, currency, salesValue);
             addToCurrencyBuckets(totalCostBasisBuckets, currency, costBasis);
             addToCurrencyBuckets(totalRealizedGainBuckets, currency, gain);
@@ -2352,8 +2362,13 @@ public class ReportWriter {
             detailsIndex++;
         }
 
+        boolean showRealizedSubtotals = realizedHasStock && realizedHasFund;
+        if (showRealizedSubtotals) {
+            writer.write(buildRealizedSubtotalRow("STOCK", "Stocks total", realizedStockGroup, ratesToNok));
+            writer.write(buildRealizedSubtotalRow("FUND", "Funds total", realizedFundGroup, ratesToNok));
+        }
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td><strong>TOTAL</strong></td><td></td>\n");
+        writer.write("    <td>" + buildTotalLabelCell(showRealizedSubtotals) + "</td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>"
@@ -2408,6 +2423,34 @@ public class ReportWriter {
         writer.write(detailsHtml);
         writer.write("    </td>\n");
         writer.write("</tr>\n");
+    }
+
+    private static final class RealizedGroupBuckets {
+        final LinkedHashMap<String, Double> cost = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> sales = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> gain = new LinkedHashMap<>();
+        final LinkedHashMap<String, Double> dividends = new LinkedHashMap<>();
+    }
+
+    private static String buildRealizedSubtotalRow(String group, String label,
+            RealizedGroupBuckets buckets, Map<String, Double> ratesToNok) {
+        LinkedHashMap<String, Double> returnBuckets = sumCurrencyBuckets(buckets.gain, buckets.dividends);
+        double costForPct = convertBucketsToTarget(buckets.cost, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double gainForPct = convertBucketsToTarget(buckets.gain, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double dividendsForPct = convertBucketsToTarget(buckets.dividends, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double returnForPct = convertBucketsToTarget(returnBuckets, DEFAULT_TOTAL_CURRENCY, ratesToNok);
+        double gainPct = costForPct > 0.0 ? (gainForPct / costForPct) * 100.0 : 0.0;
+        double returnPct = costForPct > 0.0 ? (returnForPct / costForPct) * 100.0 : 0.0;
+        return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
+                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>\n"
+                + "    <td>" + renderConvertibleMoneyCell(buckets.cost, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + renderConvertibleMoneyCell(buckets.sales, 2, ratesToNok) + "</td>\n"
+                + "    <td>" + signedWrapHtml(renderConvertibleMoneyCell(buckets.gain, 2, ratesToNok), gainForPct)
+                + " " + signedSpan("(" + HtmlFormatter.formatPercent(gainPct, 2) + ")", gainForPct) + "</td>\n"
+                + "    <td>" + signedWrapHtml(renderConvertibleMoneyCell(buckets.dividends, 2, ratesToNok), dividendsForPct) + "</td>\n"
+                + "    <td>" + signedWrapHtml(renderConvertibleMoneyCell(returnBuckets, 2, ratesToNok), returnForPct)
+                + " " + signedSpan("(" + HtmlFormatter.formatPercent(returnPct, 2) + ")", returnForPct) + "</td>\n"
+                + "</tr>\n";
     }
 
     private static String buildRealizedSaleTradesDetailsHtml(Security security) {
