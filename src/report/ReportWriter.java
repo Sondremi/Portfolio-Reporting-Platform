@@ -1759,11 +1759,7 @@ public class ReportWriter {
                 addToCurrencyBuckets(totalPrevCloseValueBuckets, row.currencyCode, rowPrevCloseValue);
             }
             accumulateGroupBuckets("FUND".equals(normalizeAssetBoundaryGroup(row.assetType)) ? fundGroup : stockGroup, row);
-            if (showAssetSubtotals && isStockFundBoundary(previousAssetType, row.assetType)) {
-                writer.write(buildSummarySubtotalRow("STOCK", "overview-stock", "Stocks total", stockGroup, ratesToNok));
-                writer.write(buildAssetDividerRow(13));
-            }
-            String rowClass = null;
+            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
             String detailsRowId = "overview-details-" + detailsIndex;
             Security security = securityByKey.get(row.securityKey);
             String dayChangeCell = formatDayChangeCell(row.dayChangePct, row.hasDayChangePct);
@@ -1847,10 +1843,11 @@ public class ReportWriter {
             : renderConvertibleMoneyCellWithId("holdings-total-day-change-value", signedClass(totalDayChangeForPct), totalDayChangeBuckets, 2, ratesToNok);
 
         if (showAssetSubtotals) {
+            writer.write(buildSummarySubtotalRow("STOCK", "overview-stock", "Stocks total", stockGroup, ratesToNok));
             writer.write(buildSummarySubtotalRow("FUND", "overview-fund", "Funds total", fundGroup, ratesToNok));
         }
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
+        writer.write("    <td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("overview-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("</tr>\n");
@@ -1865,11 +1862,7 @@ public class ReportWriter {
         previousAssetType = null;
         int holdingsDetailsIndex = 0;
         for (OverviewRow row : rows) {
-            if (showAssetSubtotals && isStockFundBoundary(previousAssetType, row.assetType)) {
-                writer.write(buildHoldingsSubtotalRow("STOCK", "holdings-stock", "Stocks total", stockGroup, ratesToNok));
-                writer.write(buildAssetDividerRow(13));
-            }
-            String rowClass = null;
+            String rowClass = isStockFundBoundary(previousAssetType, row.assetType) ? "asset-split" : null;
             Security security = securityByKey.get(row.securityKey);
             String detailsRowId = "holdings-details-" + holdingsDetailsIndex;
                 String unrealizedText = row.hasPrice
@@ -1928,11 +1921,12 @@ public class ReportWriter {
         }
 
         if (showAssetSubtotals) {
+            writer.write(buildHoldingsSubtotalRow("STOCK", "holdings-stock", "Stocks total", stockGroup, ratesToNok));
             writer.write(buildHoldingsSubtotalRow("FUND", "holdings-fund", "Funds total", fundGroup, ratesToNok));
         }
         writer.write("<tr class=\"total-row\">\n");
         String totalDayChangePctClassAttr = totalDayChangePctClass.isBlank() ? "" : " class=\"" + totalDayChangePctClass + "\"";
-        writer.write("    <td></td><td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
+        writer.write("    <td>" + buildTotalLabelCell(showAssetSubtotals) + "</td><td></td><td><span id=\"holdings-total-day-change-pct\"" + totalDayChangePctClassAttr + ">" + totalDayChangePctCell + "</span></td><td>" + totalDayChangeValueCell + "</td><td></td><td></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-cost-basis", totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-market-value", totalMarketValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCellWithId("holdings-total-unrealized-value", signedClass(totalUnrealizedForPct), totalUnrealizedBuckets, 2, ratesToNok)
@@ -2359,7 +2353,7 @@ public class ReportWriter {
         }
 
         writer.write("<tr class=\"total-row\">\n");
-        writer.write("    <td></td><td><strong>TOTAL</strong></td>\n");
+        writer.write("    <td><strong>TOTAL</strong></td><td></td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalCostBasisBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>" + renderConvertibleMoneyCell(totalSalesValueBuckets, 2, ratesToNok) + "</td>\n");
         writer.write("    <td>"
@@ -2735,19 +2729,10 @@ public class ReportWriter {
                 + "<span class=\"subtotal-toggle-chevron\" aria-hidden=\"true\">▸</span><strong>TOTAL</strong></button>";
     }
 
-    private static String buildAssetDividerRow(int columnCount) {
-        return "<tr class=\"asset-divider-row\" data-asset-divider=\"1\">"
-                + "<td colspan=\"" + columnCount + "\">"
-                + "<button type=\"button\" class=\"asset-divider-toggle\" aria-expanded=\"false\">"
-                + "<span class=\"asset-divider-chevron\" aria-hidden=\"true\">▸</span>"
-                + "<span class=\"asset-divider-label\">Show stock &amp; fund subtotals</span>"
-                + "</button></td></tr>\n";
-    }
-
     private static String buildSummarySubtotalRow(String group, String idPrefix, String label,
             GroupBuckets buckets, Map<String, Double> ratesToNok) {
         return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
-                + "    <td></td><td><strong>" + escapeHtml(label) + "</strong></td>"
+                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>"
                 + "<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-market-value", buckets.market, 2, ratesToNok) + "</td>\n"
@@ -2782,7 +2767,7 @@ public class ReportWriter {
                 : renderConvertibleMoneyCellWithId(idPrefix + "-day-change-value", signedClass(dayChangeNok), buckets.dayChange, 2, ratesToNok);
 
         return "<tr class=\"asset-subtotal-row\" data-subtotal-group=\"" + group + "\" hidden>\n"
-                + "    <td></td><td><strong>" + escapeHtml(label) + "</strong></td>"
+                + "    <td><strong>" + escapeHtml(label) + "</strong></td><td></td>"
                 + "<td><span id=\"" + idPrefix + "-day-change-pct\"" + dayChangePctClassAttr + ">" + dayChangePctCell + "</span></td>"
                 + "<td>" + dayChangeValueCell + "</td><td></td><td></td><td></td>\n"
                 + "    <td>" + renderConvertibleMoneyCellWithId(idPrefix + "-cost-basis", buckets.cost, 2, ratesToNok) + "</td>\n"
