@@ -2,6 +2,7 @@ package csv;
 
 import model.Events;
 import model.Security;
+import report.PortfolioCalculator;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -120,8 +121,53 @@ public class TransactionStore {
                     // it keeps its safe defaults (handled inside setTicker).
                 }
             }
+
+            // Now that tickers are resolved, warm the network caches the serial report
+            // phase reads (fundamentals + historical close series) in parallel. Uses the
+            // same accessors, so failures degrade exactly as the serial path would.
+            warmMarketDataCaches(pending, executor);
         } finally {
             executor.shutdown();
+        }
+    }
+
+    private void warmMarketDataCaches(List<Security> securities, ExecutorService executor) {
+        // History is fetched for every security ever valued in the timeline (dedupe by
+        // ticker). Fundamentals are fetched only for current holdings, matching the
+        // overview table the serial path queries.
+        Set<String> historyTickers = new LinkedHashSet<>();
+        LinkedHashMap<String, Security> holdingsByTicker = new LinkedHashMap<>();
+        for (Security security : securities) {
+            if (security == null) {
+                continue;
+            }
+            String ticker = security.getTicker();
+            if (ticker == null || ticker.isBlank() || "-".equals(ticker)) {
+                continue;
+            }
+            historyTickers.add(ticker);
+            if (!security.isFullyRealized()) {
+                holdingsByTicker.putIfAbsent(ticker, security);
+            }
+        }
+
+        List<Future<?>> futures = new ArrayList<>();
+        for (String ticker : historyTickers) {
+            futures.add(executor.submit(() -> PortfolioCalculator.warmHistoricalCloseSeries(ticker)));
+        }
+        for (Security holding : holdingsByTicker.values()) {
+            futures.add(executor.submit(() -> holding.getFundamentalsSnapshot()));
+        }
+
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ExecutionException e) {
+                // A failed prefetch leaves caches untouched; the serial path retries.
+            }
         }
     }
 

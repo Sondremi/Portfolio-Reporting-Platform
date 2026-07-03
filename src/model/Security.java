@@ -23,6 +23,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import util.SimpleJson;
 
 public class Security {
@@ -35,11 +38,24 @@ public class Security {
     private static final Map<String, LinkedHashMap<String, Double>> FUND_REGION_WEIGHT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
     private static final Map<String, String> HOLDING_SYMBOL_REGION_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
     private static final Map<String, FundamentalsSnapshot> FUNDAMENTALS_SNAPSHOT_CACHE = Collections.synchronizedMap(new LinkedHashMap<>());
+    // Deduplicates repeated quote/search fetches for the same symbol/URL across pool workers.
+    private static final Map<String, LatestQuote> LATEST_QUOTE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, String> SEARCH_RESPONSE_CACHE = new ConcurrentHashMap<>();
+    private static final Pattern CURRENCY_CODE = Pattern.compile("[A-Z]{3}");
+    // Immutable/thread-safe formatters reused across parseDate calls.
+    private static final DateTimeFormatter[] PARSE_FORMATS = {
+        DateTimeFormatter.ISO_LOCAL_DATE,
+        DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    };
+    // DecimalFormat is not thread-safe; one instance per decimals-count per pool thread.
+    private static final ThreadLocal<Map<Integer, DecimalFormat>> NUMBER_FORMATS =
+            ThreadLocal.withInitial(HashMap::new);
     private static final Object YAHOO_AUTH_LOCK = new Object();
 
-    private static String yahooAuthCookieHeader = "";
-    private static String yahooAuthCrumb = "";
-    private static long yahooAuthExpiresAtMs = 0L;
+    // Written under YAHOO_AUTH_LOCK but read outside it by pool workers.
+    private static volatile String yahooAuthCookieHeader = "";
+    private static volatile String yahooAuthCrumb = "";
+    private static volatile long yahooAuthExpiresAtMs = 0L;
 
     private static class SearchCandidate {
         final String symbol;
@@ -307,7 +323,7 @@ public class Security {
         }
 
         String normalized = transactionCurrency.trim().toUpperCase(Locale.ROOT);
-        if (!normalized.matches("[A-Z]{3}")) {
+        if (!CURRENCY_CODE.matcher(normalized).matches()) {
             return;
         }
 
@@ -336,6 +352,11 @@ public class Security {
     }
 
     private static String formatNumber(double value, int decimals) {
+        DecimalFormat format = NUMBER_FORMATS.get().computeIfAbsent(decimals, Security::buildNumberFormat);
+        return format.format(value);
+    }
+
+    private static DecimalFormat buildNumberFormat(int decimals) {
         DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.US);
         symbols.setGroupingSeparator(' ');
         symbols.setDecimalSeparator('.');
@@ -345,7 +366,7 @@ public class Security {
         format.setGroupingUsed(true);
         format.setMinimumFractionDigits(decimals);
         format.setMaximumFractionDigits(decimals);
-        return format.format(value);
+        return format;
     }
 
     public double getRealizedSalesValue() { return realizedSalesValue; }
@@ -427,6 +448,11 @@ public class Security {
         ArrayList<SaleTrade> sorted = new ArrayList<>(saleTrades);
         sorted.sort(Comparator.comparing(SaleTrade::getTradeDate));
         return sorted;
+    }
+
+    // Unsorted view for order-independent filter-and-sum callers (avoids a copy+sort).
+    public List<SaleTrade> getSaleTrades() {
+        return Collections.unmodifiableList(saleTrades);
     }
 
     public double getLatestObservedTradePriceOnOrBefore(LocalDate date) {
@@ -511,10 +537,6 @@ public class Security {
         return bestPrice;
     }
 
-    public double getTotalSoldUnits() {
-        return saleTrades.stream().mapToDouble(SaleTrade::getUnits).sum();
-    }
-
     public double getAverageCost() {
         if (Math.abs(unitsOwned) < EPSILON) {
             return 0.0;
@@ -558,6 +580,11 @@ public class Security {
         ArrayList<DividendEvent> events = new ArrayList<>(allDividendEvents);
         events.sort(Comparator.comparing(DividendEvent::getTradeDate));
         return events;
+    }
+
+    // Unsorted view for order-independent filter-and-sum callers (avoids a copy+sort).
+    public List<DividendEvent> getAllDividendEvents() {
+        return Collections.unmodifiableList(allDividendEvents);
     }
 
     public void addTransaction(String tradeDateText, String transactionType, double amount,
@@ -620,10 +647,7 @@ public class Security {
             return;
         }
 
-        double currentTotalCost = 0.0;
-        for (BuyLot lot : buyLots) {
-            currentTotalCost += lot.remainingUnits * lot.unitCost;
-        }
+        double currentTotalCost = sumRemainingLotCost();
         if (currentTotalCost <= EPSILON) {
             return;
         }
@@ -633,6 +657,18 @@ public class Security {
             return;
         }
 
+        scaleLotUnitCosts(scale);
+    }
+
+    private double sumRemainingLotCost() {
+        double total = 0.0;
+        for (BuyLot lot : buyLots) {
+            total += lot.remainingUnits * lot.unitCost;
+        }
+        return total;
+    }
+
+    private void scaleLotUnitCosts(double scale) {
         for (BuyLot lot : buyLots) {
             lot.unitCost *= scale;
         }
@@ -643,10 +679,7 @@ public class Security {
             return;
         }
 
-        double totalCost = 0.0;
-        for (BuyLot lot : buyLots) {
-            totalCost += lot.remainingUnits * lot.unitCost;
-        }
+        double totalCost = sumRemainingLotCost();
 
         if (totalCost <= EPSILON) {
             return;
@@ -654,9 +687,7 @@ public class Security {
 
         double adjustedTotalCost = Math.max(0.0, totalCost - refundAmount);
         double costScale = adjustedTotalCost / totalCost;
-        for (BuyLot lot : buyLots) {
-            lot.unitCost *= costScale;
-        }
+        scaleLotUnitCosts(costScale);
     }
 
     public void reconcileUnitsFromCorporateAction(double targetUnitsRaw) {
@@ -791,10 +822,7 @@ public class Security {
     }
 
     private double getAdjustedCurrentCostBasis() {
-        double rawCostBasis = 0.0;
-        for (BuyLot lot : buyLots) {
-            rawCostBasis += lot.remainingUnits * lot.unitCost;
-        }
+        double rawCostBasis = sumRemainingLotCost();
 
         double adjustment = getReinvestedDividendAdjustment();
         return Math.max(0.0, rawCostBasis - adjustment);
@@ -859,12 +887,7 @@ public class Security {
         }
 
         String value = tradeDateText.trim();
-        DateTimeFormatter[] formats = new DateTimeFormatter[] {
-            DateTimeFormatter.ISO_LOCAL_DATE,
-            DateTimeFormatter.ofPattern("dd.MM.yyyy")
-        };
-
-        for (DateTimeFormatter formatter : formats) {
+        for (DateTimeFormatter formatter : PARSE_FORMATS) {
             try {
                 return LocalDate.parse(value, formatter);
             } catch (DateTimeParseException ignored) {
@@ -902,32 +925,27 @@ public class Security {
             if (candidate != null && candidate.symbol != null && !candidate.symbol.isBlank()) {
                 applyCandidateMetadata(candidate);
             } else {
-                ticker = "";
-                latestPrice = 0.0;
-                previousClose = 0.0;
-                close7dRef = 0.0;
-                close1mRef = 0.0;
-                currencyCode = "NOK";
-                resolvedSector = "Other";
-                resolvedRegion = "Global";
-                resolvedSectorWeights.clear();
-                resolvedRegionWeights.clear();
+                resetToUnresolvedDefaults();
             }
         } catch (Exception e) {
             System.err.println("Yahoo Finance ISIN lookup failed: " + e.getMessage());
-            ticker = "";
-            latestPrice = 0.0;
-            previousClose = 0.0;
-            close7dRef = 0.0;
-            close1mRef = 0.0;
-            currencyCode = "NOK";
-            resolvedSector = "Other";
-            resolvedRegion = "Global";
-            resolvedSectorWeights.clear();
-            resolvedRegionWeights.clear();
+            resetToUnresolvedDefaults();
         }
 
         applyGeneralTickerAndNameFallback();
+    }
+
+    private void resetToUnresolvedDefaults() {
+        ticker = "";
+        latestPrice = 0.0;
+        previousClose = 0.0;
+        close7dRef = 0.0;
+        close1mRef = 0.0;
+        currencyCode = "NOK";
+        resolvedSector = "Other";
+        resolvedRegion = "Global";
+        resolvedSectorWeights.clear();
+        resolvedRegionWeights.clear();
     }
 
     private void applyCandidateMetadata(SearchCandidate candidate) {
@@ -1307,7 +1325,7 @@ public class Security {
             String url = "https://query2.finance.yahoo.com/v1/finance/search?q="
                     + URLEncoder.encode(normalizedSymbol, "UTF-8")
                     + "&quotesCount=8&newsCount=0";
-            String response = httpGetRequest(url);
+            String response = httpGetSearchCached(url);
             ArrayList<SearchCandidate> candidates = extractSearchCandidates(response);
             SearchCandidate best = chooseBestHoldingCandidate(candidates, normalizedSymbol);
             if (best == null) {
@@ -1706,7 +1724,7 @@ public class Security {
                     + URLEncoder.encode(query, "UTF-8")
                     + "&quotesCount=5&newsCount=0";
 
-            String response = httpGetRequest(url);
+            String response = httpGetSearchCached(url);
             return extractSectorNavName(response);
         } catch (Exception ignored) {
             return "";
@@ -1837,7 +1855,7 @@ public class Security {
                     + URLEncoder.encode(baseSymbol, "UTF-8")
                     + "&quotesCount=20";
 
-            String response = httpGetRequest(url);
+            String response = httpGetSearchCached(url);
             ArrayList<SearchCandidate> listingCandidates = extractSearchCandidates(response);
             if (listingCandidates.isEmpty()) {
                 return baseCandidate;
@@ -2157,7 +2175,21 @@ public class Security {
         if (symbol == null || symbol.isBlank()) {
             return new LatestQuote(0.0, 0.0, 0.0, 0.0);
         }
+        // Memoized per symbol so preferOsloListingWhenAvailable and applyCandidateMetadata
+        // share one .OL fetch instead of fetching the same chart twice.
+        LatestQuote cached = LATEST_QUOTE_CACHE.get(symbol);
+        if (cached != null) {
+            return cached;
+        }
+        LatestQuote result = fetchLatestQuoteUncached(symbol);
+        // Only cache usable quotes; a transient failure must stay retryable within the run.
+        if (result.latestPrice > 0.0) {
+            LATEST_QUOTE_CACHE.put(symbol, result);
+        }
+        return result;
+    }
 
+    private LatestQuote fetchLatestQuoteUncached(String symbol) {
         try {
             // One request over a 1-month daily series feeds both day-change and the
             // 7d/1M reference closes without extra round-trips.
@@ -2165,25 +2197,39 @@ public class Security {
                     + URLEncoder.encode(symbol, "UTF-8")
                     + "?interval=1d&range=1mo";
             String quoteResponse = httpGetRequest(quoteUrl);
-            double regularMarketPrice = extractNumericValue(quoteResponse, "regularMarketPrice");
-            double chartPreviousClose = extractNumericValue(quoteResponse, "chartPreviousClose");
-
+            // Parse the chart JSON once; read both scalar fields and the series from the tree.
             Object parsed = SimpleJson.parse(quoteResponse);
+            double regularMarketPrice = findFirstNumericByKey(parsed, "regularMarketPrice");
+            double chartPreviousClose = findFirstNumericByKey(parsed, "chartPreviousClose");
+
             List<Object> timestamps = getListAtPath(parsed, "chart", "result", 0, "timestamp");
             List<Object> closes = getListAtPath(parsed, "chart", "result", 0, "indicators", "quote", 0, "close");
 
             // Prior session close from the series: with range=1mo meta.chartPreviousClose
             // is a month-old close, so it cannot drive day-change.
             double lastClose = lastNonNullClose(closes);
-            double priorClose = priorSessionClose(closes);
-            double resolvedLatestPrice = regularMarketPrice > EPSILON
-                    ? regularMarketPrice
-                    : (lastClose > EPSILON ? lastClose
-                        : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0));
+            double priorClose;
+            double resolvedLatestPrice;
+            if (regularMarketPrice > EPSILON) {
+                resolvedLatestPrice = regularMarketPrice;
+                // regularMarketPrice is the current session's price. Yahoo often leaves the
+                // current day's daily bar's close null after the rollover while still filling
+                // regularMarketPrice, so the last non-null close IS the prior session; only when
+                // that bar is finalized do we step back one more to the second-to-last close.
+                priorClose = lastDailyBarUnfinalized(closes) ? lastClose : priorSessionClose(closes);
+            } else {
+                // No live price: latest falls back to the last finalized close, prior is the one before it.
+                resolvedLatestPrice = lastClose > EPSILON ? lastClose
+                        : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0);
+                priorClose = priorSessionClose(closes);
+            }
             double resolvedPreviousClose = priorClose > EPSILON ? priorClose : 0.0;
 
-            double close7dRef = referenceCloseDaysAgo(timestamps, closes, 7, false);
-            double close1mRef = referenceCloseDaysAgo(timestamps, closes, 30, true);
+            // Anchor the 7d/1m references to the last bar in the series, not wall-clock now,
+            // so the window doesn't drift across weekends/holidays when the market is closed.
+            long refAnchor = lastTimestamp(timestamps);
+            double close7dRef = referenceCloseDaysAgo(timestamps, closes, refAnchor, 7, false);
+            double close1mRef = referenceCloseDaysAgo(timestamps, closes, refAnchor, 30, true);
 
             return new LatestQuote(resolvedLatestPrice, resolvedPreviousClose, close7dRef, close1mRef);
         } catch (Exception ignored) {
@@ -2202,6 +2248,28 @@ public class Security {
             }
         }
         return 0.0;
+    }
+
+    // True when the most recent daily bar has no finalized close yet (null/<=0). In that state
+    // regularMarketPrice carries the current session, so the last non-null close is the prior one.
+    private static boolean lastDailyBarUnfinalized(List<Object> closes) {
+        if (closes == null || closes.isEmpty()) {
+            return false;
+        }
+        return toClose(closes.get(closes.size() - 1)) <= EPSILON;
+    }
+
+    private static long lastTimestamp(List<Object> timestamps) {
+        if (timestamps == null || timestamps.isEmpty()) {
+            return Instant.now().getEpochSecond();
+        }
+        for (int i = timestamps.size() - 1; i >= 0; i--) {
+            Long ts = toEpoch(timestamps.get(i));
+            if (ts != null) {
+                return ts;
+            }
+        }
+        return Instant.now().getEpochSecond();
     }
 
     private static double priorSessionClose(List<Object> closes) {
@@ -2224,11 +2292,11 @@ public class Security {
     // Latest close at or before (now - daysBack). When the series doesn't reach that far
     // back, fall back to the earliest close only if it lands within ~5 days of the target.
     private static double referenceCloseDaysAgo(List<Object> timestamps, List<Object> closes,
-                                                int daysBack, boolean allowTolerance) {
+                                                long anchor, int daysBack, boolean allowTolerance) {
         if (timestamps == null || closes == null || timestamps.isEmpty()) {
             return 0.0;
         }
-        long now = Instant.now().getEpochSecond();
+        long now = anchor;
         long target = now - (long) daysBack * 86400L;
         int n = Math.min(timestamps.size(), closes.size());
         double bestClose = 0.0;
@@ -2290,13 +2358,22 @@ public class Security {
         };
     }
 
-    private double extractNumericValue(String json, String key) {
-        Object parsed = SimpleJson.parse(json);
-        return findFirstNumericByKey(parsed, key);
-    }
-
     private String httpGetRequest(String urlString) throws Exception {
         return httpGetRequest(urlString, null);
+    }
+
+    // Caches raw Yahoo search responses by full query URL; the same symbol query recurs
+    // across region/sector/listing resolution. Only successful responses are cached.
+    private String httpGetSearchCached(String urlString) throws Exception {
+        String cached = SEARCH_RESPONSE_CACHE.get(urlString);
+        if (cached != null) {
+            return cached;
+        }
+        String response = httpGetRequest(urlString);
+        if (response != null) {
+            SEARCH_RESPONSE_CACHE.put(urlString, response);
+        }
+        return response;
     }
 
     private String httpGetRequest(String urlString, Map<String, String> headers) throws Exception {

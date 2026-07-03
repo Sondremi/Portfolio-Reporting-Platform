@@ -137,13 +137,13 @@ public class ChartBuilder {
                 if (percentChart) {
                 svg.append("<text class=\"tr-axis-label\" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
                     .append("\" text-anchor=\"end\" font-size=\"12\" font-weight=\"600\" fill=\"#496077\">")
-                    .append(escapeHtml(formatChartValue(tickValue, true, true)))
+                    .append(ReportTemplateHelper.escapeHtml(formatChartValue(tickValue, true, true)))
                     .append("</text>\n");
                 } else {
                 svg.append("<text class=\"js-chart-money tr-axis-label\" data-value-nok=\"").append(svgNumber(tickValue)).append("\" data-decimals=\"0\"")
                     .append(" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
                     .append("\" text-anchor=\"end\" font-size=\"12\" font-weight=\"600\" fill=\"#496077\">")
-                    .append(escapeHtml(formatNumber(tickValue, 0) + " NOK"))
+                    .append(ReportTemplateHelper.escapeHtml(formatNumber(tickValue, 0) + " NOK"))
                     .append("</text>\n");
                 }
         }
@@ -178,13 +178,13 @@ public class ChartBuilder {
                     .append("\" stroke-width=\"1.05\" rx=\"3.5\" filter=\"url(#").append(shadowId).append(")\">\n");
                 if (percentChart) {
                 svg.append("<title>")
-                    .append(escapeHtml(label + ": " + formatChartValue(value, true, false)))
+                    .append(ReportTemplateHelper.escapeHtml(label + ": " + formatChartValue(value, true, false)))
                     .append("</title>");
                 } else {
                 svg.append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(value))
-                    .append("\" data-decimals=\"2\" data-prefix=\"").append(escapeHtml(label + ": "))
+                    .append("\" data-decimals=\"2\" data-prefix=\"").append(ReportTemplateHelper.escapeHtml(label + ": "))
                     .append("\">")
-                    .append(escapeHtml(label + ": " + formatNumber(value, 2) + " NOK"))
+                    .append(ReportTemplateHelper.escapeHtml(label + ": " + formatNumber(value, 2) + " NOK"))
                     .append("</title>");
                 }
                 svg.append("</rect>\n");
@@ -194,7 +194,7 @@ public class ChartBuilder {
                 svg.append("<text class=\"chart-total-return-label\" x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                     .append("\" transform=\"rotate(-30 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY))
                     .append(")\" text-anchor=\"end\" font-size=\"10\" font-weight=\"600\" fill=\"#1f2933\">")
-                    .append(escapeHtml(getCompactBarLabel(row)))
+                    .append(ReportTemplateHelper.escapeHtml(getCompactBarLabel(row)))
                     .append("</text>\n");
         }
 
@@ -258,7 +258,7 @@ public class ChartBuilder {
                 svg.append("<text class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(tickValue)).append("\" data-decimals=\"0\"")
                     .append(" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(y + 4.0))
                     .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#666\">")
-                    .append(escapeHtml(formatNumber(tickValue, 0) + " NOK"))
+                    .append(ReportTemplateHelper.escapeHtml(formatNumber(tickValue, 0) + " NOK"))
                     .append("</text>\n");
         }
 
@@ -272,13 +272,13 @@ public class ChartBuilder {
               .append("\" x2=\"").append(svgNumber(left + plotWidth)).append("\" y2=\"").append(svgNumber(averageY))
               .append("\" stroke=\"transparent\" stroke-width=\"12\">\n")
               .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(averageValue)).append("\" data-decimals=\"0\" data-prefix=\"Avg: \">");
-          svg.append(escapeHtml("Avg: " + formatNumber(averageValue, 0) + " NOK"));
+          svg.append(ReportTemplateHelper.escapeHtml("Avg: " + formatNumber(averageValue, 0) + " NOK"));
           svg.append("</title></line>\n");
 
              svg.append("<text class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(averageValue)).append("\" data-decimals=\"0\" data-prefix=\"Avg: \"")
                   .append(" x=\"").append(svgNumber(left - 8.0)).append("\" y=\"").append(svgNumber(averageY + 3.0))
                   .append("\" text-anchor=\"end\" font-size=\"10\" fill=\"#495057\">Avg: ")
-              .append(escapeHtml(formatNumber(averageValue, 0) + " NOK"))
+              .append(ReportTemplateHelper.escapeHtml(formatNumber(averageValue, 0) + " NOK"))
               .append("</text>\n");
 
         double slotWidth = plotWidth / rowsWithValue.size();
@@ -297,9 +297,9 @@ public class ChartBuilder {
                .append("\" width=\"").append(svgNumber(barWidth)).append("\" height=\"").append(svgNumber(barHeight))
                .append("\" fill=\"").append(color).append("\" rx=\"2\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(marketValueNok))
-                    .append("\" data-decimals=\"0\" data-prefix=\"").append(escapeHtml(row.securityDisplayName + ": "))
+                    .append("\" data-decimals=\"0\" data-prefix=\"").append(ReportTemplateHelper.escapeHtml(row.securityDisplayName + ": "))
                     .append("\">")
-                    .append(escapeHtml(row.securityDisplayName + ": " + formatNumber(marketValueNok, 0) + " NOK"))
+                    .append(ReportTemplateHelper.escapeHtml(row.securityDisplayName + ": " + formatNumber(marketValueNok, 0) + " NOK"))
                     .append("</title></rect>\n");
 
             double labelAnchorX = x + (barWidth / 2.0);
@@ -307,7 +307,7 @@ public class ChartBuilder {
                 svg.append("<text class=\"chart-security-bar-label\" x=\"").append(svgNumber(labelAnchorX)).append("\" y=\"").append(svgNumber(labelAnchorY))
                .append("\" transform=\"rotate(-30 ").append(svgNumber(labelAnchorX)).append(" ").append(svgNumber(labelAnchorY)).append(")\" ")
                     .append("text-anchor=\"end\" font-size=\"10\" font-weight=\"600\" fill=\"#1f2933\">")
-               .append(escapeHtml(label)).append("</text>\n");
+               .append(ReportTemplateHelper.escapeHtml(label)).append("</text>\n");
         }
 
         svg.append("<line x1=\"").append(svgNumber(left)).append("\" y1=\"").append(svgNumber(top + plotHeight))
@@ -376,9 +376,9 @@ public class ChartBuilder {
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                     .append(" Z\" fill=\"").append(color).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(marketValueNok)).append("\" data-decimals=\"2\" data-prefix=\"")
-                    .append(escapeHtml(getOverviewRowLabel(row) + ": "))
-                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 2))).append("%)\">")
-                    .append(escapeHtml(getOverviewRowLabel(row)
+                    .append(ReportTemplateHelper.escapeHtml(getOverviewRowLabel(row) + ": "))
+                    .append("\" data-suffix=\" (").append(ReportTemplateHelper.escapeHtml(formatNumber(fraction * 100.0, 2))).append("%)\">")
+                    .append(ReportTemplateHelper.escapeHtml(getOverviewRowLabel(row)
                         + ": " + formatNumber(marketValueNok, 2) + " NOK (" + formatNumber(fraction * 100.0, 2) + "%)"))
                     .append("</title></path>\n");
 
@@ -413,7 +413,7 @@ public class ChartBuilder {
             svg.append("<text class=\"chart-security-label\" x=\"").append(svgNumber(textX)).append("\" y=\"").append(svgNumber(label.labelY))
                     .append("\" text-anchor=\"").append(textAnchor)
                         .append("\" dominant-baseline=\"middle\" font-size=\"10\" fill=\"#2f2f2f\">")
-                    .append(escapeHtml(label.text))
+                    .append(ReportTemplateHelper.escapeHtml(label.text))
                     .append("</text>\n");
         }
 
@@ -422,7 +422,7 @@ public class ChartBuilder {
                 .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#666\">Market Value Total</text>\n");
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY + 16.0))
             .append("\" class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(totalMarketValue)).append("\" data-decimals=\"0\" text-anchor=\"middle\" font-size=\"14\" fill=\"#222\" font-weight=\"600\">")
-            .append(escapeHtml(formatNumber(totalMarketValue, 0) + " NOK"))
+            .append(ReportTemplateHelper.escapeHtml(formatNumber(totalMarketValue, 0) + " NOK"))
                 .append("</text>\n");
 
         svg.append("</svg>\n");
@@ -520,15 +520,15 @@ public class ChartBuilder {
 
         if (values.size() == 1) {
                 String singleItemsJson = toJsonLegendItems(securityByAssetType.get(labels.get(0)), totalValue);
-                svg.append("<circle class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(labels.get(0)))
-                    .append("\" data-drilldown-items=\"").append(escapeHtml(singleItemsJson)).append("\"")
+                svg.append("<circle class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(ReportTemplateHelper.escapeHtml(labels.get(0)))
+                    .append("\" data-drilldown-items=\"").append(ReportTemplateHelper.escapeHtml(singleItemsJson)).append("\"")
                     .append(drilldownDisabled.get(0) ? " data-drilldown-disabled=\"1\"" : "")
                     .append(" cx=\"").append(svgNumber(centerX)).append("\" cy=\"").append(svgNumber(centerY))
                     .append("\" r=\"").append(svgNumber(radius)).append("\" fill=\"").append(colors.get(0)).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(values.get(0))).append("\" data-decimals=\"2\" data-prefix=\"")
-                    .append(escapeHtml(labels.get(0) + ": "))
+                    .append(ReportTemplateHelper.escapeHtml(labels.get(0) + ": "))
                     .append("\" data-suffix=\" (100.0%)\">")
-                    .append(escapeHtml(labels.get(0) + ": " + formatNumber(values.get(0), 2) + " NOK (100.0%)"))
+                    .append(ReportTemplateHelper.escapeHtml(labels.get(0) + ": " + formatNumber(values.get(0), 2) + " NOK (100.0%)"))
                     .append("</title></circle>\n");
         } else {
             double currentAngle = -Math.PI / 2.0;
@@ -546,8 +546,8 @@ public class ChartBuilder {
                 int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
                 String itemsJson = toJsonLegendItems(securityByAssetType.get(labels.get(i)), totalValue);
-                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(labels.get(i)))
-                        .append("\" data-drilldown-items=\"").append(escapeHtml(itemsJson)).append("\"")
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(ReportTemplateHelper.escapeHtml(labels.get(i)))
+                        .append("\" data-drilldown-items=\"").append(ReportTemplateHelper.escapeHtml(itemsJson)).append("\"")
                         .append(drilldownDisabled.get(i) ? " data-drilldown-disabled=\"1\"" : "")
                         .append(" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                         .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
@@ -555,9 +555,9 @@ public class ChartBuilder {
                         .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                         .append(" Z\" fill=\"").append(color).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(value)).append("\" data-decimals=\"2\" data-prefix=\"")
-                    .append(escapeHtml(labels.get(i) + ": "))
-                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
-                    .append(escapeHtml(labels.get(i) + ": " + formatNumber(value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                    .append(ReportTemplateHelper.escapeHtml(labels.get(i) + ": "))
+                    .append("\" data-suffix=\" (").append(ReportTemplateHelper.escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
+                    .append(ReportTemplateHelper.escapeHtml(labels.get(i) + ": " + formatNumber(value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
                     .append("</title></path>\n");
 
                 currentAngle = endAngle;
@@ -697,7 +697,7 @@ public class ChartBuilder {
         if (buckets.isEmpty() || totalMarketValue <= 0.0) {
             svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(centerY))
                     .append("\" text-anchor=\"middle\" font-size=\"13\" fill=\"#666\">")
-                    .append(escapeHtml(emptyMessage))
+                    .append(ReportTemplateHelper.escapeHtml(emptyMessage))
                     .append("</text>\n");
             svg.append("</svg>\n");
             return svg.toString();
@@ -719,16 +719,16 @@ public class ChartBuilder {
             int largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
 
                 String itemsJson = toJsonLegendItems(securityByBucket.get(bucket.label), totalMarketValue);
-                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(escapeHtml(bucket.label))
-                    .append("\" data-drilldown-items=\"").append(escapeHtml(itemsJson)).append("\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
+                svg.append("<path class=\"chart-hover-target chart-hover-slice\" data-allocation-label=\"").append(ReportTemplateHelper.escapeHtml(bucket.label))
+                    .append("\" data-drilldown-items=\"").append(ReportTemplateHelper.escapeHtml(itemsJson)).append("\" d=\"M ").append(svgNumber(centerX)).append(" ").append(svgNumber(centerY))
                     .append(" L ").append(svgNumber(x1)).append(" ").append(svgNumber(y1))
                     .append(" A ").append(svgNumber(radius)).append(" ").append(svgNumber(radius)).append(" 0 ")
                     .append(largeArcFlag).append(" 1 ").append(svgNumber(x2)).append(" ").append(svgNumber(y2))
                     .append(" Z\" fill=\"").append(color).append("\">\n")
                     .append("<title class=\"js-chart-money\" data-value-nok=\"").append(svgNumber(bucket.value)).append("\" data-decimals=\"2\" data-prefix=\"")
-                    .append(escapeHtml(bucket.label + ": "))
-                    .append("\" data-suffix=\" (").append(escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
-                    .append(escapeHtml(bucket.label + ": " + formatNumber(bucket.value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
+                    .append(ReportTemplateHelper.escapeHtml(bucket.label + ": "))
+                    .append("\" data-suffix=\" (").append(ReportTemplateHelper.escapeHtml(formatNumber(fraction * 100.0, 1))).append("%)\">")
+                    .append(ReportTemplateHelper.escapeHtml(bucket.label + ": " + formatNumber(bucket.value, 2) + " NOK (" + formatNumber(fraction * 100.0, 1) + "%)"))
                     .append("</title></path>\n");
 
             currentAngle = endAngle;
@@ -737,7 +737,7 @@ public class ChartBuilder {
         double summaryY = centerY + radius + 14.0;
         svg.append("<text x=\"").append(svgNumber(centerX)).append("\" y=\"").append(svgNumber(summaryY))
                 .append("\" text-anchor=\"middle\" font-size=\"12\" fill=\"#666\">")
-                .append(escapeHtml(centerTitle))
+                .append(ReportTemplateHelper.escapeHtml(centerTitle))
                 .append("</text>\n");
 
         List<AllocationLegendEntry> legendEntries = new ArrayList<>();
@@ -887,18 +887,18 @@ public class ChartBuilder {
                     : (width - 16.0);
             String displayLabel = abbreviateLegendLabel(entry.label, useTwoColumns ? twoColumnMaxChars : oneColumnMaxChars);
             String interactiveAttrs = " class=\"allocation-legend-default chart-hover-target chart-hover-legend\" data-allocation-label=\""
-                    + escapeHtml(entry.drilldownLabel) + "\""
+                    + ReportTemplateHelper.escapeHtml(entry.drilldownLabel) + "\""
                     + (entry.drilldownDisabled ? " data-drilldown-disabled=\"1\"" : "");
 
             svg.append("<circle").append(interactiveAttrs).append(" cx=\"").append(svgNumber(dotX)).append("\" cy=\"").append(svgNumber(y - 3.0))
                     .append("\" r=\"3.7\" fill=\"").append(entry.color).append("\"/>\n");
             svg.append("<text").append(interactiveAttrs).append(" x=\"").append(svgNumber(labelX)).append("\" y=\"").append(svgNumber(y))
                     .append("\" text-anchor=\"start\" font-size=\"12\" fill=\"#2f2f2f\">")
-                    .append(escapeHtml(displayLabel))
+                    .append(ReportTemplateHelper.escapeHtml(displayLabel))
                     .append("</text>\n");
             svg.append("<text").append(interactiveAttrs).append(" x=\"").append(svgNumber(pctX)).append("\" y=\"").append(svgNumber(y))
                     .append("\" text-anchor=\"end\" font-size=\"12\" fill=\"#4a4a4a\">")
-                    .append(escapeHtml(formatNumber(entry.pct, 1) + "%"))
+                    .append(ReportTemplateHelper.escapeHtml(formatNumber(entry.pct, 1) + "%"))
                     .append("</text>\n");
         }
     }
@@ -908,6 +908,7 @@ public class ChartBuilder {
         return chartTop + ((maxValue - value) / (maxValue - minValue)) * chartHeight;
     }
 
+    // Private copy identical to HtmlFormatter.svgNumber; keep the two formatting-identical.
     private static String svgNumber(double value) {
         return String.format(Locale.US, "%.2f", value);
     }
@@ -946,13 +947,10 @@ public class ChartBuilder {
         return normalized;
     }
 
+    // Uses comma thousands-grouping ("%,.Nf"); HtmlFormatter.formatNumber uses space
+    // grouping. Both are baked into current output — intentionally divergent, do not merge.
     private static String formatNumber(double value, int decimals) {
         return String.format(Locale.US, "%,." + decimals + "f", value);
-    }
-
-    private static String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     private static String escapeJson(String text) {

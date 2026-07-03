@@ -13,2267 +13,2291 @@ final class ReportClientScript {
 
     private ReportClientScript() {}
 
+    private static final String SCRIPT_PART_1 =
+            "function normalizeCurrencyCodeInput(value) {\n"
+            + "  return String(value || '').trim().toUpperCase();\n"
+            + "}\n"
+            + "function formatGroupedNumber(value, decimals) {\n"
+            + "  var fixed = Number(value || 0).toFixed(decimals);\n"
+            + "  var parts = fixed.split('.');\n"
+            + "  var whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ' ');\n"
+            + "  return decimals > 0 ? whole + '.' + parts[1] : whole;\n"
+            + "}\n"
+            + "function formatMoneyValue(amount, currency, decimals) {\n"
+            + "  return formatGroupedNumber(amount, decimals) + ' ' + currency;\n"
+            + "}\n"
+            + "function formatCompactMoney(amount, currency) {\n"
+            + "  var absValue = Math.abs(Number(amount || 0));\n"
+            + "  var prefix = Number(amount || 0) < 0 ? '-' : '';\n"
+            + "  if (absValue >= 1000000000) return prefix + Number(absValue / 1000000000.0).toFixed(1) + 'B ' + currency;\n"
+            + "  if (absValue >= 1000000) return prefix + Number(absValue / 1000000.0).toFixed(1) + 'M ' + currency;\n"
+            + "  if (absValue >= 1000) return prefix + Number(absValue / 1000.0).toFixed(0) + 'k ' + currency;\n"
+            + "  return prefix + Number(absValue).toFixed(0) + ' ' + currency;\n"
+            + "}\n"
+            + "function convertBucketsToCurrency(buckets, targetCurrency) {\n"
+            + "  var target = normalizeCurrencyCodeInput(targetCurrency);\n"
+            + "  var targetRate = REPORT_RATES_TO_NOK[target];\n"
+            + "  if (!targetRate || targetRate <= 0) return null;\n"
+            + "  var totalNok = 0;\n"
+            + "  for (var code in buckets) {\n"
+            + "    if (!Object.prototype.hasOwnProperty.call(buckets, code)) continue;\n"
+            + "    var sourceRate = REPORT_RATES_TO_NOK[normalizeCurrencyCodeInput(code)];\n"
+            + "    if (!sourceRate || sourceRate <= 0) continue;\n"
+            + "    totalNok += Number(buckets[code] || 0) * sourceRate;\n"
+            + "  }\n"
+            + "  return totalNok / targetRate;\n"
+            + "}\n"
+            + "function refreshReportTotalsCurrency(targetCurrency) {\n"
+            + "  var target = normalizeCurrencyCodeInput(targetCurrency);\n"
+            + "  if (!REPORT_RATES_TO_NOK[target]) return false;\n"
+            + "  var fields = document.querySelectorAll('.js-convert-money');\n"
+            + "  fields.forEach(function (field) {\n"
+            + "    var raw = field.getAttribute('data-buckets');\n"
+            + "    if (!raw) return;\n"
+            + "    try {\n"
+            + "      var buckets = JSON.parse(raw);\n"
+            + "      var decimals = Number(field.getAttribute('data-decimals') || '2');\n"
+            + "      var converted = convertBucketsToCurrency(buckets, target);\n"
+            + "      if (converted == null) return;\n"
+            + "      field.textContent = formatMoneyValue(converted, target, decimals);\n"
+            + "    } catch (e) {\n"
+            + "      // Keep existing content if parsing fails.\n"
+            + "    }\n"
+            + "  });\n"
+            + "  document.querySelectorAll('.js-report-currency-code').forEach(function(node) {\n"
+            + "    node.textContent = target;\n"
+            + "  });\n"
+            + "  return true;\n"
+            + "}\n"
+            + "function refreshReportChartsCurrency(targetCurrency) {\n"
+            + "  var target = normalizeCurrencyCodeInput(targetCurrency);\n"
+            + "  var targetRate = REPORT_RATES_TO_NOK[target];\n"
+            + "  if (!targetRate || targetRate <= 0) return false;\n"
+            + "  document.querySelectorAll('.js-total-return-money-title').forEach(function (node) {\n"
+            + "    node.textContent = 'Total Return (' + target + ')';\n"
+            + "  });\n"
+            + "  document.querySelectorAll('.js-return-amount-label').forEach(function (node) {\n"
+            + "    node.textContent = 'Return (' + target + ')';\n"
+            + "  });\n"
+            + "  document.querySelectorAll('.js-chart-money').forEach(function (node) {\n"
+            + "    var valueNok = Number(node.getAttribute('data-value-nok') || '0');\n"
+            + "    var decimals = Number(node.getAttribute('data-decimals') || '0');\n"
+            + "    var prefix = node.getAttribute('data-prefix') || '';\n"
+            + "    var suffix = node.getAttribute('data-suffix') || '';\n"
+            + "    var mode = node.getAttribute('data-format') || 'money';\n"
+            + "    var converted = valueNok / targetRate;\n"
+            + "    var text = mode === 'compact'\n"
+            + "      ? prefix + formatCompactMoney(converted, target)\n"
+            + "      : prefix + formatMoneyValue(converted, target, decimals);\n"
+            + "    text += suffix;\n"
+            + "    node.textContent = text;\n"
+            + "  });\n"
+            + "  refreshSparklineSummaries();\n"
+            + "  return true;\n"
+            + "}\n"
+            + "function parseBucketsJson(raw) {\n"
+            + "  if (!raw) return {};\n"
+            + "  try {\n"
+            + "    var parsed = JSON.parse(raw);\n"
+            + "    return parsed && typeof parsed === 'object' ? parsed : {};\n"
+            + "  } catch (_) {\n"
+            + "    return {};\n"
+            + "  }\n"
+            + "}\n"
+            + "function addBucketValue(target, currency, amount) {\n"
+            + "  var code = normalizeCurrencyCodeInput(currency || 'NOK');\n"
+            + "  if (!code) code = 'NOK';\n"
+            + "  var value = Number(amount || 0);\n"
+            + "  target[code] = Number(target[code] || 0) + value;\n"
+            + "}\n"
+            + "function mergeBuckets(base, extra) {\n"
+            + "  var merged = {};\n"
+            + "  Object.keys(base || {}).forEach(function(code) {\n"
+            + "    merged[code] = Number(base[code] || 0);\n"
+            + "  });\n"
+            + "  Object.keys(extra || {}).forEach(function(code) {\n"
+            + "    merged[code] = Number(merged[code] || 0) + Number(extra[code] || 0);\n"
+            + "  });\n"
+            + "  return merged;\n"
+            + "}\n"
+            + "function makeGroupBuckets() {\n"
+            + "  return { market: {}, cost: {}, unrealized: {}, realized: {}, dividends: {}, historical: {}, dayChange: {}, prevClose: {} };\n"
+            + "}\n"
+            + "function applySubtotalSign(node, valueNok) {\n"
+            + "  if (!node) return;\n"
+            + "  node.classList.remove('positive', 'negative');\n"
+            + "  if (valueNok > 0) node.classList.add('positive');\n"
+            + "  else if (valueNok < 0) node.classList.add('negative');\n"
+            + "}\n"
+            + "function updateSubtotalGroup(prefix, gb) {\n"
+            + "  if (!gb) return;\n"
+            + "  var returnBuckets = mergeBuckets(gb.unrealized, mergeBuckets(gb.realized, gb.dividends));\n"
+            + "  var costNok = Number(convertBucketsToCurrency(gb.cost, 'NOK') || 0);\n"
+            + "  var unrealizedNok = Number(convertBucketsToCurrency(gb.unrealized, 'NOK') || 0);\n"
+            + "  var realizedNok = Number(convertBucketsToCurrency(gb.realized, 'NOK') || 0);\n"
+            + "  var returnNok = Number(convertBucketsToCurrency(returnBuckets, 'NOK') || 0);\n"
+            + "  var historicalNok = Number(convertBucketsToCurrency(gb.historical, 'NOK') || 0);\n"
+            + "  var dayChangeNok = Number(convertBucketsToCurrency(gb.dayChange, 'NOK') || 0);\n"
+            + "  var prevCloseNok = Number(convertBucketsToCurrency(gb.prevClose, 'NOK') || 0);\n"
+            + "  var unrealizedPct = costNok > 0 ? (unrealizedNok / costNok) * 100 : 0;\n"
+            + "  var realizedPct = costNok > 0 ? (realizedNok / costNok) * 100 : 0;\n"
+            + "  var returnPct = historicalNok > 0 ? (returnNok / historicalNok) * 100 : 0;\n"
+            + "  var dayChangePct = prevCloseNok > 0 ? (dayChangeNok / prevCloseNok) * 100 : 0;\n"
+            + "  function setBuckets(id, buckets) { var n = document.getElementById(id); if (n) n.setAttribute('data-buckets', JSON.stringify(buckets)); }\n"
+            + "  setBuckets(prefix + '-cost-basis', gb.cost);\n"
+            + "  setBuckets(prefix + '-market-value', gb.market);\n"
+            + "  setBuckets(prefix + '-unrealized-value', gb.unrealized);\n"
+            + "  setBuckets(prefix + '-realized-value', gb.realized);\n"
+            + "  setBuckets(prefix + '-dividends-value', gb.dividends);\n"
+            + "  setBuckets(prefix + '-total-return-value', returnBuckets);\n"
+            + "  setBuckets(prefix + '-day-change-value', gb.dayChange);\n"
+            + "  applySubtotalSign(document.getElementById(prefix + '-unrealized-value'), unrealizedNok);\n"
+            + "  applySubtotalSign(document.getElementById(prefix + '-realized-value'), realizedNok);\n"
+            + "  applySubtotalSign(document.getElementById(prefix + '-total-return-value'), returnNok);\n"
+            + "  applySubtotalSign(document.getElementById(prefix + '-day-change-value'), dayChangeNok);\n"
+            + "  var unrealizedPctNode = document.getElementById(prefix + '-unrealized-pct');\n"
+            + "  if (unrealizedPctNode) { unrealizedPctNode.textContent = formatPercentValue(unrealizedPct, 2); applySubtotalSign(unrealizedPctNode, unrealizedNok); }\n"
+            + "  var realizedPctNode = document.getElementById(prefix + '-realized-pct');\n"
+            + "  if (realizedPctNode) { realizedPctNode.textContent = formatPercentValue(realizedPct, 2); applySubtotalSign(realizedPctNode, realizedNok); }\n"
+            + "  var returnPctNode = document.getElementById(prefix + '-total-return-pct');\n"
+            + "  if (returnPctNode) { returnPctNode.textContent = formatPercentValue(returnPct, 2); applySubtotalSign(returnPctNode, returnNok); }\n"
+            + "  var dayChangePctNode = document.getElementById(prefix + '-day-change-pct');\n"
+            + "  if (dayChangePctNode) {\n"
+            + "    dayChangePctNode.classList.remove('positive', 'negative');\n"
+            + "    if (prevCloseNok > 0 && Number.isFinite(dayChangePct)) { dayChangePctNode.textContent = formatPercentValue(dayChangePct, 2); applySubtotalSign(dayChangePctNode, dayChangeNok); }\n"
+            + "    else { dayChangePctNode.textContent = '-'; }\n"
+            + "  }\n"
+            + "}\n"
+            + "function initAssetSubtotalToggles() {\n"
+            + "  function toggleForTable(table) {\n"
+            + "    if (!table) return;\n"
+            + "    var subtotalRows = Array.prototype.slice.call(table.querySelectorAll('.asset-subtotal-row'));\n"
+            + "    if (!subtotalRows.length) return;\n"
+            + "    var willOpen = subtotalRows.some(function(r) { return r.hasAttribute('hidden'); });\n"
+            + "    subtotalRows.forEach(function(r) { if (willOpen) { r.removeAttribute('hidden'); } else { r.setAttribute('hidden', ''); } });\n"
+            + "    table.querySelectorAll('.asset-divider-row').forEach(function(d) {\n"
+            + "      d.classList.toggle('is-open', willOpen);\n"
+            + "      var b = d.querySelector('.asset-divider-toggle');\n"
+            + "      if (b) b.setAttribute('aria-expanded', willOpen ? 'true' : 'false');\n"
+            + "    });\n"
+            + "    table.querySelectorAll('.total-row .subtotal-toggle-btn').forEach(function(b) {\n"
+            + "      b.setAttribute('aria-expanded', willOpen ? 'true' : 'false');\n"
+            + "      var row = b.closest('.total-row');\n"
+            + "      if (row) row.classList.toggle('is-open', willOpen);\n"
+            + "    });\n"
+            + "  }\n"
+            + "  document.querySelectorAll('.asset-divider-toggle, .subtotal-toggle-btn').forEach(function(btn) {\n"
+            + "    btn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); toggleForTable(btn.closest('table')); });\n"
+            + "  });\n"
+            + "}\n"
+            + "function refreshPortfolioValueBuckets() {\n"
+            + "  var portfolioNode = document.getElementById('hero-portfolio-value');\n"
+            + "  if (!portfolioNode) return;\n"
+            + "  var marketNode = document.getElementById('hero-total-market-value');\n"
+            + "  var cashNode = document.getElementById('cash-holdings-total');\n"
+            + "  var marketBuckets = parseBucketsJson(marketNode ? marketNode.getAttribute('data-buckets') : '{}');\n"
+            + "  var cashBuckets = parseBucketsJson(cashNode ? cashNode.getAttribute('data-buckets') : '{}');\n"
+            + "  portfolioNode.setAttribute('data-buckets', JSON.stringify(mergeBuckets(marketBuckets, cashBuckets)));\n"
+            + "}\n"
+            + "function getActiveReportCurrency() {\n"
+            + "  var input = document.getElementById('portfolio-currency-input');\n"
+            + "  var target = normalizeCurrencyCodeInput(input && input.value ? input.value : 'NOK');\n"
+            + "  if (!target || !REPORT_RATES_TO_NOK[target]) return 'NOK';\n"
+            + "  return target;\n"
+            + "}\n"
+            + "function formatPercentValue(value, decimals) {\n"
+            + "  return formatGroupedNumber(Number(value || 0), decimals) + '%';\n"
+            + "}\n"
+            + "function resolvePriceRefreshApiUrl() {\n"
+            + "  if (window.__portfolioReportPriceApiUrl) return String(window.__portfolioReportPriceApiUrl);\n"
+            + "  if (window.REPORT_PRICE_API_URL) return String(window.REPORT_PRICE_API_URL);\n"
+            + "  try {\n"
+            + "    if (window.parent && window.parent !== window) {\n"
+            + "      if (window.parent.__portfolioReportPriceApiUrl) return String(window.parent.__portfolioReportPriceApiUrl);\n"
+            + "      if (window.parent.REPORT_PRICE_API_URL) return String(window.parent.REPORT_PRICE_API_URL);\n"
+            + "    }\n"
+            + "  } catch (_) {\n"
+            + "    // Ignore parent access issues.\n"
+            + "  }\n"
+            + "  return '';\n"
+            + "}\n"
+            + "async function resolveReportAuthToken() {\n"
+            + "  try {\n"
+            + "    var getToken = typeof window.__getPortfolioReportAuthToken === 'function'\n"
+            + "      ? window.__getPortfolioReportAuthToken\n"
+            + "      : (window.parent && window.parent !== window && typeof window.parent.__getPortfolioReportAuthToken === 'function'\n"
+            + "          ? window.parent.__getPortfolioReportAuthToken\n"
+            + "          : null);\n"
+            + "    if (getToken) return String(await getToken() || '');\n"
+            + "  } catch (_) {}\n"
+            + "  return '';\n"
+            + "}\n"
+            + "async function fetchLatestPricesFromApi(tickers) {\n"
+            + "  var apiUrl = resolvePriceRefreshApiUrl();\n"
+            + "  if (!apiUrl) throw new Error('No price API configured.');\n"
+            + "  var authToken = await resolveReportAuthToken();\n"
+            + "  var fetchHeaders = { 'Content-Type': 'application/json' };\n"
+            + "  if (authToken) fetchHeaders['Authorization'] = 'Bearer ' + authToken;\n"
+            + "  var response = await fetch(apiUrl, {\n"
+            + "    method: 'POST',\n"
+            + "    headers: fetchHeaders,\n"
+            + "    body: JSON.stringify({ tickers: tickers })\n"
+            + "  });\n"
+            + "  if (!response.ok) {\n"
+            + "    var message = 'Price refresh failed with status ' + response.status;\n"
+            + "    try {\n"
+            + "      var payload = await response.json();\n"
+            + "      if (payload && payload.error) message = payload.error;\n"
+            + "    } catch (_) {\n"
+            + "      // Keep status-based message when no payload is available.\n"
+            + "    }\n"
+            + "    throw new Error(message);\n"
+            + "  }\n"
+            + "  var data = await response.json();\n"
+            + "  return {\n"
+            + "    prices: (data && data.prices && typeof data.prices === 'object') ? data.prices : {},\n"
+            + "    previousCloses: (data && data.previousCloses && typeof data.previousCloses === 'object') ? data.previousCloses : {}\n"
+            + "  };\n"
+            + "}\n"
+            + "async function fetchLatestDaySeriesFromApi(tickers) {\n"
+            + "  var apiUrl = resolvePriceRefreshApiUrl();\n"
+            + "  if (!apiUrl) throw new Error('No price API configured.');\n"
+            + "  var authToken = await resolveReportAuthToken();\n"
+            + "  var fetchHeaders = { 'Content-Type': 'application/json' };\n"
+            + "  if (authToken) fetchHeaders['Authorization'] = 'Bearer ' + authToken;\n"
+            + "  var response = await fetch(apiUrl, {\n"
+            + "    method: 'POST',\n"
+            + "    headers: fetchHeaders,\n"
+            + "    body: JSON.stringify({ tickers: tickers, includeDaySeries: true })\n"
+            + "  });\n"
+            + "  if (!response.ok) {\n"
+            + "    throw new Error('Day series fetch failed with status ' + response.status);\n"
+            + "  }\n"
+            + "  var data = await response.json();\n"
+            + "  var payload = data && data.daySeries && typeof data.daySeries === 'object' ? data.daySeries : {};\n"
+            + "  var normalized = {};\n"
+            + "  Object.keys(payload).forEach(function(ticker) {\n"
+            + "    var series = payload[ticker];\n"
+            + "    normalized[String(ticker || '').trim().toUpperCase()] = Array.isArray(series)\n"
+            + "      ? series.map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; })\n"
+            + "      : [];\n"
+            + "  });\n"
+            + "  return normalized;\n"
+            + "}\n"
+            + "async function fetchLatestPriceFromYahooDirect(ticker) {\n"
+            + "  var symbol = String(ticker || '').trim().toUpperCase();\n"
+            + "  if (!symbol) return 0;\n"
+            + "  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=5d';\n"
+            + "  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n"
+            + "  if (!response.ok) return 0;\n"
+            + "  var data = await response.json();\n"
+            + "  var result = data && data.chart && data.chart.result && data.chart.result[0];\n"
+            + "  if (!result) return 0;\n"
+            + "  var marketPrice = Number(result.meta && result.meta.regularMarketPrice || 0);\n"
+            + "  if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;\n"
+            + "  var closes = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n"
+            + "  if (!Array.isArray(closes)) return 0;\n"
+            + "  for (var i = closes.length - 1; i >= 0; i -= 1) {\n"
+            + "    var value = Number(closes[i]);\n"
+            + "    if (Number.isFinite(value) && value > 0) return value;\n"
+            + "  }\n"
+            + "  return 0;\n"
+            + "}\n"
+            + "async function fetchYahooChartResult(symbol, interval, range) {\n"
+            + "  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol)\n"
+            + "    + '?interval=' + encodeURIComponent(interval)\n"
+            + "    + '&range=' + encodeURIComponent(range)\n"
+            + "    + '&includePrePost=false';\n"
+            + "  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n"
+            + "  if (!response.ok) return null;\n"
+            + "  var data = await response.json();\n"
+            + "  return data && data.chart && data.chart.result && data.chart.result[0] ? data.chart.result[0] : null;\n"
+            + "}\n"
+            + "function extractLatestTradingSessionSeries(result) {\n"
+            + "  if (!result) return [];\n"
+            + "  var timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];\n"
+            + "  var closeSeries = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n"
+            + "  if (!Array.isArray(closeSeries) || !timestamps.length) return [];\n"
+            + "  var grouped = new Map();\n"
+            + "  var length = Math.min(timestamps.length, closeSeries.length);\n"
+            + "  for (var i = 0; i < length; i += 1) {\n"
+            + "    var ts = Number(timestamps[i]);\n"
+            + "    var closeValue = Number(closeSeries[i]);\n"
+            + "    if (!Number.isFinite(ts) || !Number.isFinite(closeValue) || closeValue <= 0) continue;\n"
+            + "    var dayKey = new Date(ts * 1000).toISOString().slice(0, 10);\n"
+            + "    if (!grouped.has(dayKey)) grouped.set(dayKey, []);\n"
+            + "    grouped.get(dayKey).push(closeValue);\n"
+            + "  }\n"
+            + "  if (!grouped.size) return [];\n"
+            + "  var orderedDays = Array.from(grouped.keys()).sort();\n"
+            + "  for (var j = orderedDays.length - 1; j >= 0; j -= 1) {\n"
+            + "    var daySeries = grouped.get(orderedDays[j]) || [];\n"
+            + "    if (daySeries.length >= 6) return daySeries;\n"
+            + "  }\n"
+            + "  return [];\n"
+            + "}\n"
+            + "async function fetchDaySeriesFromYahooDirect(ticker) {\n"
+            + "  var symbol = String(ticker || '').trim().toUpperCase();\n"
+            + "  if (!symbol) return [];\n"
+            + "  var oneDay = await fetchYahooChartResult(symbol, '5m', '1d');\n"
+            + "  var oneDaySeries = extractLatestTradingSessionSeries(oneDay);\n"
+            + "  if (oneDaySeries.length >= 6) return oneDaySeries;\n"
+            + "  var fiveDay = await fetchYahooChartResult(symbol, '5m', '5d');\n"
+            + "  var fiveDaySeries = extractLatestTradingSessionSeries(fiveDay);\n"
+            + "  return fiveDaySeries.length >= 6 ? fiveDaySeries : [];\n"
+            + "}\n"
+            + "function buildMiniDayChartSvg(prices) {\n"
+            + "  var chartPrices = Array.isArray(prices)\n"
+            + "    ? prices.map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; })\n"
+            + "    : [];\n"
+            + "  if (chartPrices.length < 6) return '';\n"
+            + "  var width = 96;\n"
+            + "  var height = 30;\n"
+            + "  var left = 1.5;\n"
+            + "  var right = width - 1.5;\n"
+            + "  var top = 2.0;\n"
+            + "  var bottom = height - 2.0;\n"
+            + "  var min = Math.min.apply(null, chartPrices);\n"
+            + "  var max = Math.max.apply(null, chartPrices);\n"
+            + "  var span = Math.max(0.000001, max - min);\n"
+            + "  var pointsArray = chartPrices.map(function(price, index) {\n"
+            + "    var ratioX = chartPrices.length <= 1 ? 0 : index / (chartPrices.length - 1);\n"
+            + "    var ratioY = (price - min) / span;\n"
+            + "    var x = left + ratioX * (right - left);\n"
+            + "    var y = bottom - ratioY * (bottom - top);\n"
+            + "    return { x: x, y: y };\n"
+            + "  });\n"
+            + "  var points = pointsArray.map(function(point) { return point.x.toFixed(2) + ',' + point.y.toFixed(2); }).join(' ');\n"
+            + "  var start = Number(chartPrices[0]);\n"
+            + "  var end = Number(chartPrices[chartPrices.length - 1]);\n"
+            + "  var lineClass = end >= start ? 'positive' : 'negative';\n"
+            + "  var openRatio = (start - min) / span;\n"
+            + "  var openY = bottom - openRatio * (bottom - top);\n"
+            + "  openY = Math.max(top, Math.min(bottom, openY));\n"
+            + "  var first = pointsArray[0];\n"
+            + "  var last = pointsArray[pointsArray.length - 1];\n"
+            + "  var areaPoints = first.x.toFixed(2) + ',' + openY.toFixed(2) + ' ' + points + ' ' + last.x.toFixed(2) + ',' + openY.toFixed(2);\n"
+            + "  return '<svg class=\"mini-day-chart\" viewBox=\"0 0 ' + width + ' ' + height + '\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">'\n"
+            + "    + '<line class=\"mini-day-chart-open\" x1=\"0\" y1=\"' + openY.toFixed(2) + '\" x2=\"' + width + '\" y2=\"' + openY.toFixed(2) + '\"></line>'\n"
+            + "    + '<polygon class=\"mini-day-chart-area ' + lineClass + '\" points=\"' + areaPoints + '\"></polygon>'\n"
+            + "    + '<polyline class=\"mini-day-chart-line ' + lineClass + '\" points=\"' + points + '\"></polyline>'\n"
+            + "    + '<circle class=\"mini-day-chart-end ' + lineClass + '\" cx=\"' + last.x.toFixed(2) + '\" cy=\"' + last.y.toFixed(2) + '\" r=\"2.3\"></circle>'\n"
+            + "    + '</svg>';\n"
+            + "}\n"
+            + "function initOverviewDayCharts() {\n"
+            + "  var nodes = Array.prototype.slice.call(document.querySelectorAll('.js-row-day-chart[data-ticker]'));\n"
+            + "  if (!nodes.length) return;\n"
+            + "  nodes.forEach(function(node) { node.textContent = '-'; });\n"
+            + "  var byTicker = new Map();\n"
+            + "  nodes.forEach(function(node) {\n"
+            + "    var ticker = String(node.getAttribute('data-ticker') || '').trim().toUpperCase();\n"
+            + "    if (!ticker) return;\n"
+            + "    if (!byTicker.has(ticker)) byTicker.set(ticker, []);\n"
+            + "    byTicker.get(ticker).push(node);\n"
+            + "  });\n"
+            + "  var tickers = Array.from(byTicker.keys());\n"
+            + "  if (!tickers.length) return;\n"
+            + "  fetchLatestDaySeriesFromApi(tickers).then(function(seriesMap) {\n"
+            + "    byTicker.forEach(function(targets, ticker) {\n"
+            + "      var series = seriesMap[ticker] || [];\n"
+            + "      var svg = buildMiniDayChartSvg(series);\n"
+            + "      targets.forEach(function(node) {\n"
+            + "        if (svg) node.innerHTML = svg;\n"
+            + "        else node.textContent = '-';\n"
+            + "      });\n"
+            + "    });\n"
+            + "  }).catch(function() {\n"
+            + "    byTicker.forEach(function(targets) {\n"
+            + "      targets.forEach(function(node) { node.textContent = '-'; });\n"
+            + "    });\n"
+            + "  });\n"
+            + "}\n"
+            + "async function fetchPriceDataFromYahooDirect(ticker) {\n"
+            + "  var symbol = String(ticker || '').trim().toUpperCase();\n"
+            + "  if (!symbol) return { price: 0, previousClose: 0 };\n"
+            + "  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=5d';\n"
+            + "  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n"
+            + "  if (!response.ok) return { price: 0, previousClose: 0 };\n"
+            + "  var data = await response.json();\n"
+            + "  var result = data && data.chart && data.chart.result && data.chart.result[0];\n"
+            + "  if (!result) return { price: 0, previousClose: 0 };\n"
+            + "  var meta = result.meta || {};\n"
+            + "  var marketPrice = Number(meta.regularMarketPrice || 0);\n"
+            + "  var priceFromMeta = Number.isFinite(marketPrice) && marketPrice > 0;\n"
+            + "  var price = priceFromMeta ? marketPrice : 0;\n"
+            + "  if (!price) {\n"
+            + "    var closesArr = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n"
+            + "    if (Array.isArray(closesArr)) {\n"
+            + "      for (var i = closesArr.length - 1; i >= 0; i -= 1) {\n"
+            + "        var v = Number(closesArr[i]);\n"
+            + "        if (Number.isFinite(v) && v > 0) { price = v; break; }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "  // Prior session close resolved relative to the LAST BAR: after the exchange-date\n"
+            + "  // midnight rollover Yahoo emits an unfinalized (null-close) bar while\n"
+            + "  // regularMarketPrice still holds the last session's price, so the prior session\n"
+            + "  // is then the LAST valid close, not the 2nd-to-last. No chartPreviousClose\n"
+            + "  // fallback: it spans the whole 5d window and would fake a day change.\n"
+            + "  var prevClose = 0;\n"
+            + "  var closes2 = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n"
+            + "  if (Array.isArray(closes2)) {\n"
+            + "    var validCloses = closes2.map(Number).filter(function(x) { return Number.isFinite(x) && x > 0; });\n"
+            + "    var lastRaw = closes2.length ? Number(closes2[closes2.length - 1]) : NaN;\n"
+            + "    var lastBarFinalized = Number.isFinite(lastRaw) && lastRaw > 0;\n"
+            + "    if (priceFromMeta && !lastBarFinalized) {\n"
+            + "      if (validCloses.length >= 1) prevClose = validCloses[validCloses.length - 1];\n"
+            + "    } else if (validCloses.length >= 2) {\n"
+            + "      prevClose = validCloses[validCloses.length - 2];\n"
+            + "    }\n"
+            + "  }\n"
+            + "  return { price: price, previousClose: prevClose };\n"
+            + "}\n"
+            + "async function fetchLatestPricesDirect(tickers) {\n"
+            + "  var prices = {};\n"
+            + "  var previousCloses = {};\n"
+            + "  for (var i = 0; i < tickers.length; i += 1) {\n"
+            + "    var symbol = String(tickers[i] || '').trim().toUpperCase();\n"
+            + "    if (!symbol) continue;\n"
+            + "    try {\n"
+            + "      var pd = await fetchPriceDataFromYahooDirect(symbol);\n"
+            + "      prices[symbol] = pd.price;\n"
+            + "      previousCloses[symbol] = pd.previousClose;\n"
+            + "    } catch (_) {\n"
+            + "      prices[symbol] = 0;\n"
+            + "      previousCloses[symbol] = 0;\n"
+            + "    }\n"
+            + "  }\n"
+            + "  return { prices: prices, previousCloses: previousCloses };\n"
+            + "}\n"
+            + "async function fetchLatestPrices(tickers) {\n"
+            + "  try {\n"
+            + "    return await fetchLatestPricesFromApi(tickers);\n"
+            + "  } catch (_) {\n"
+            + "    return fetchLatestPricesDirect(tickers);\n"
+            + "  }\n"
+            + "}\n"
+            + "function findOverviewRowsBySecurityKey(securityKey) {\n"
+            + "  var key = String(securityKey || '').trim();\n"
+            + "  if (!key) return [];\n"
+            + "  return Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-security-key]')).filter(function(row) {\n"
+            + "    return String(row.getAttribute('data-overview-security-key') || '').trim() === key;\n"
+            + "  });\n"
+            + "}\n"
+            + "function applyChangePctCell(cell, referenceClose, nextPrice) {\n"
+            + "  if (!cell) return;\n"
+            + "  cell.classList.remove('positive', 'negative');\n"
+            + "  if (Number.isFinite(referenceClose) && referenceClose > 0 && Number.isFinite(nextPrice) && nextPrice > 0) {\n"
+            + "    var pct = ((nextPrice / referenceClose) - 1) * 100;\n"
+            + "    cell.textContent = formatPercentValue(pct, 2);\n"
+            + "    if (pct > 0) cell.classList.add('positive');\n"
+            + "    else if (pct < 0) cell.classList.add('negative');\n"
+            + "  } else {\n"
+            + "    cell.textContent = '-';\n"
+            + "  }\n"
+            + "}\n"
+            + "function applyComputedOverviewRowValues(row, nextPrice) {\n"
+            + "  if (!row || !Number.isFinite(nextPrice) || nextPrice <= 0) return false;\n"
+            + "  var currency = normalizeCurrencyCodeInput(row.getAttribute('data-currency') || 'NOK');\n"
+            + "  var units = Number(row.getAttribute('data-units') || 0);\n"
+            + "  var positionCostBasis = Number(row.getAttribute('data-position-cost-basis') || 0);\n"
+            + "  var realized = Number(row.getAttribute('data-realized') || 0);\n"
+            + "  var dividends = Number(row.getAttribute('data-dividends') || 0);\n"
+            + "  var historicalCostBasis = Number(row.getAttribute('data-historical-cost-basis') || 0);\n"
+            + "  var previousClose = Number(row.getAttribute('data-previous-close') || 0);\n"
+            + "  var marketValue = units * nextPrice;\n"
+            + "  var unrealized = marketValue - positionCostBasis;\n"
+            + "  var unrealizedPct = positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100 : 0;\n"
+            + "  var totalReturn = unrealized + realized + dividends;\n"
+            + "  var totalReturnPct = historicalCostBasis > 0 ? (totalReturn / historicalCostBasis) * 100 : 0;\n"
+            + "  var hasDayChange = Number.isFinite(previousClose) && previousClose > 0;\n"
+            + "  var dayChangeValue = hasDayChange ? (nextPrice - previousClose) : Number.NaN;\n"
+            + "  var dayChangePct = hasDayChange ? ((nextPrice / previousClose) - 1) * 100 : Number.NaN;\n"
+            + "  row.setAttribute('data-latest-price', String(nextPrice));\n"
+            + "  if (Number.isFinite(marketValue)) row.setAttribute('data-market-value', String(marketValue));\n"
+            + "  if (Number.isFinite(unrealized)) row.setAttribute('data-unrealized-value', String(unrealized));\n"
+            + "  if (Number.isFinite(totalReturn)) row.setAttribute('data-total-return-value', String(totalReturn));\n"
+            + "  var priceCell = row.querySelector('.js-row-last-price');\n"
+            + "  var marketCell = row.querySelector('.js-row-market-value');\n"
+            + "  var unrealizedCell = row.querySelector('.js-row-unrealized');\n"
+            + "  var totalReturnCell = row.querySelector('.js-row-total-return');\n"
+            + "  var dayChangeCell = row.querySelector('.js-row-day-change');\n"
+            + "  var dayChangeValueCell = row.querySelector('.js-row-day-change-value');\n"
+            + "  var dayChangePositionValueCell = row.querySelector('.js-row-day-change-value-position');\n"
+            + "  var fundamentalsPriceCell = row.querySelector('.js-row-fundamentals-last-price');\n"
+            + "  var dayChartCell = row.querySelector('.js-row-day-chart');\n"
+            + "  if (priceCell) priceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n"
+            + "  if (marketCell) marketCell.textContent = formatMoneyValue(marketValue, currency, 2);\n"
+            + "  if (unrealizedCell) {\n"
+            + "    unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2) + ' (' + formatPercentValue(unrealizedPct, 2) + ')';\n"
+            + "    unrealizedCell.classList.remove('positive', 'negative');\n"
+            + "    if (unrealized > 0) unrealizedCell.classList.add('positive');\n"
+            + "    else if (unrealized < 0) unrealizedCell.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (totalReturnCell) {\n"
+            + "    totalReturnCell.textContent = formatMoneyValue(totalReturn, currency, 2) + ' (' + formatPercentValue(totalReturnPct, 2) + ')';\n"
+            + "    totalReturnCell.classList.remove('positive', 'negative');\n"
+            + "    if (totalReturn > 0) totalReturnCell.classList.add('positive');\n"
+            + "    else if (totalReturn < 0) totalReturnCell.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (fundamentalsPriceCell) fundamentalsPriceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n"
+            + "  if (dayChangeCell) {\n"
+            + "    if (hasDayChange && Number.isFinite(dayChangePct)) {\n"
+            + "      dayChangeCell.textContent = formatPercentValue(dayChangePct, 2);\n"
+            + "      dayChangeCell.classList.remove('positive', 'negative');\n"
+            + "      if (dayChangePct > 0) dayChangeCell.classList.add('positive');\n"
+            + "      else if (dayChangePct < 0) dayChangeCell.classList.add('negative');\n"
+            + "    } else {\n"
+            + "      dayChangeCell.textContent = '-';\n"
+            + "      dayChangeCell.classList.remove('positive', 'negative');\n"
+            + "    }\n"
+            + "  }\n"
+            + "  if (dayChangeValueCell) {\n"
+            + "    if (hasDayChange && Number.isFinite(dayChangeValue)) {\n"
+            + "      dayChangeValueCell.textContent = formatMoneyValue(dayChangeValue, currency, 2);\n"
+            + "      dayChangeValueCell.classList.remove('positive', 'negative');\n"
+            + "      if (dayChangeValue > 0) dayChangeValueCell.classList.add('positive');\n"
+            + "      else if (dayChangeValue < 0) dayChangeValueCell.classList.add('negative');\n"
+            + "    } else {\n"
+            + "      dayChangeValueCell.textContent = '-';\n"
+            + "      dayChangeValueCell.classList.remove('positive', 'negative');\n"
+            + "    }\n"
+            + "  }\n"
+            + "  if (dayChangePositionValueCell) {\n"
+            + "    var positionDayChangeValue = hasDayChange ? (dayChangeValue * units) : Number.NaN;\n"
+            + "    if (Number.isFinite(positionDayChangeValue)) {\n"
+            + "      dayChangePositionValueCell.textContent = formatMoneyValue(positionDayChangeValue, currency, 2);\n"
+            + "      dayChangePositionValueCell.classList.remove('positive', 'negative');\n"
+            + "      if (positionDayChangeValue > 0) dayChangePositionValueCell.classList.add('positive');\n"
+            + "      else if (positionDayChangeValue < 0) dayChangePositionValueCell.classList.add('negative');\n"
+            + "    } else {\n"
+            + "      dayChangePositionValueCell.textContent = '-';\n"
+            + "      dayChangePositionValueCell.classList.remove('positive', 'negative');\n"
+            + "    }\n"
+            + "  }\n"
+            + "  if (dayChartCell) {\n"
+            + "    dayChartCell.textContent = '-';\n"
+            + "  }\n"
+            + "  var change7dRef = Number(row.getAttribute('data-change-7d-ref') || 0);\n"
+            + "  var change1mRef = Number(row.getAttribute('data-change-1m-ref') || 0);\n"
+            + "  applyChangePctCell(row.querySelector('.js-row-change-7d'), change7dRef, nextPrice);\n"
+            + "  applyChangePctCell(row.querySelector('.js-row-change-1m'), change1mRef, nextPrice);\n"
+            + "  return true;\n"
+            + "}\n"
+            + "function applyOverviewRowPrice(row, nextPrice) {\n"
+            + "  if (!row || !Number.isFinite(nextPrice) || nextPrice <= 0) return false;\n"
+            + "  var securityKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n"
+            + "  var linkedRows = securityKey ? findOverviewRowsBySecurityKey(securityKey) : [];\n"
+            + "  if (!linkedRows.length) linkedRows = [row];\n"
+            + "  return linkedRows.some(function(targetRow) {\n"
+            + "    return applyComputedOverviewRowValues(targetRow, nextPrice);\n"
+            + "  });\n"
+            + "}\n"
+            + "function recalculateOverviewAndHeaderTotalsAfterPriceRefresh() {\n"
+            + "  var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-row=\"1\"]'));\n"
+            + "  var totalMarketBuckets = {};\n"
+            + "  var totalCostBasisBuckets = {};\n"
+            + "  var totalUnrealizedBuckets = {};\n"
+            + "  var totalRealizedBuckets = {};\n"
+            + "  var totalDividendsBuckets = {};\n"
+            + "  var totalHistoricalBuckets = {};\n"
+            + "  var activeTotalReturnBuckets = {};\n"
+            + "  var dayChangeBuckets = {};\n"
+            + "  var previousDayValueBuckets = {};\n"
+            + "  var groupBuckets = { STOCK: makeGroupBuckets(), FUND: makeGroupBuckets() };\n"
+            + "  rows.forEach(function(row) {\n"
+            + "    var currency = normalizeCurrencyCodeInput(row.getAttribute('data-currency') || 'NOK');\n"
+            + "    var latestPrice = Number(row.getAttribute('data-latest-price') || 0);\n"
+            + "    var previousClose = Number(row.getAttribute('data-previous-close') || 0);\n"
+            + "    var units = Number(row.getAttribute('data-units') || 0);\n"
+            + "    var positionCostBasis = Number(row.getAttribute('data-position-cost-basis') || 0);\n"
+            + "    var realized = Number(row.getAttribute('data-realized') || 0);\n"
+            + "    var dividends = Number(row.getAttribute('data-dividends') || 0);\n"
+            + "    var historicalCostBasis = Number(row.getAttribute('data-historical-cost-basis') || 0);\n"
+            + "    var hasPrice = Number.isFinite(latestPrice) && latestPrice > 0;\n"
+            + "    var marketValue = hasPrice ? (units * latestPrice) : 0;\n"
+            + "    var unrealized = hasPrice ? (marketValue - positionCostBasis) : 0;\n"
+            + "    var totalReturn = unrealized + realized + dividends;\n"
+            + "    addBucketValue(totalMarketBuckets, currency, marketValue);\n"
+            + "    addBucketValue(totalCostBasisBuckets, currency, positionCostBasis);\n"
+            + "    addBucketValue(totalUnrealizedBuckets, currency, unrealized);\n"
+            + "    addBucketValue(totalRealizedBuckets, currency, realized);\n"
+            + "    addBucketValue(totalDividendsBuckets, currency, dividends);\n"
+            + "    addBucketValue(totalHistoricalBuckets, currency, historicalCostBasis);\n"
+            + "    addBucketValue(activeTotalReturnBuckets, currency, totalReturn);\n"
+            + "    if (hasPrice && Number.isFinite(previousClose) && previousClose > 0) {\n"
+            + "      addBucketValue(dayChangeBuckets, currency, units * (latestPrice - previousClose));\n"
+            + "      addBucketValue(previousDayValueBuckets, currency, units * previousClose);\n"
+            + "    }\n"
+            + "    var gk = String(row.getAttribute('data-asset-group') || 'STOCK').toUpperCase() === 'FUND' ? 'FUND' : 'STOCK';\n"
+            + "    var gb = groupBuckets[gk];\n"
+            + "    addBucketValue(gb.market, currency, marketValue);\n"
+            + "    addBucketValue(gb.cost, currency, positionCostBasis);\n"
+            + "    addBucketValue(gb.unrealized, currency, unrealized);\n"
+            + "    addBucketValue(gb.realized, currency, realized);\n"
+            + "    addBucketValue(gb.dividends, currency, dividends);\n"
+            + "    addBucketValue(gb.historical, currency, historicalCostBasis);\n"
+            + "    if (hasPrice && Number.isFinite(previousClose) && previousClose > 0) {\n"
+            + "      addBucketValue(gb.dayChange, currency, units * (latestPrice - previousClose));\n"
+            + "      addBucketValue(gb.prevClose, currency, units * previousClose);\n"
+            + "    }\n"
+            + "  });\n"
+            + "  updateSubtotalGroup('overview-stock', groupBuckets.STOCK);\n"
+            + "  updateSubtotalGroup('overview-fund', groupBuckets.FUND);\n"
+            + "  updateSubtotalGroup('holdings-stock', groupBuckets.STOCK);\n"
+            + "  updateSubtotalGroup('holdings-fund', groupBuckets.FUND);\n"
+            + "  var totalReturnBuckets = mergeBuckets(totalUnrealizedBuckets, mergeBuckets(totalRealizedBuckets, totalDividendsBuckets));\n"
+            + "  var totalCostBasisNok = Number(convertBucketsToCurrency(totalCostBasisBuckets, 'NOK') || 0);\n"
+            + "  var totalUnrealizedNok = Number(convertBucketsToCurrency(totalUnrealizedBuckets, 'NOK') || 0);\n"
+            + "  var totalRealizedNok = Number(convertBucketsToCurrency(totalRealizedBuckets, 'NOK') || 0);\n"
+            + "  var totalReturnNok = Number(convertBucketsToCurrency(totalReturnBuckets, 'NOK') || 0);\n"
+            + "  var totalHistoricalNok = Number(convertBucketsToCurrency(totalHistoricalBuckets, 'NOK') || 0);\n"
+            + "  var dayChangeNok = Number(convertBucketsToCurrency(dayChangeBuckets, 'NOK') || 0);\n"
+            + "  var previousDayValueNok = Number(convertBucketsToCurrency(previousDayValueBuckets, 'NOK') || 0);\n"
+            + "  var unrealizedPct = totalCostBasisNok > 0 ? (totalUnrealizedNok / totalCostBasisNok) * 100 : 0;\n"
+            + "  var realizedPct = totalCostBasisNok > 0 ? (totalRealizedNok / totalCostBasisNok) * 100 : 0;\n"
+            + "  var totalReturnPct = totalHistoricalNok > 0 ? (totalReturnNok / totalHistoricalNok) * 100 : 0;\n"
+            + "  var dayChangePct = previousDayValueNok > 0 ? (dayChangeNok / previousDayValueNok) * 100 : 0;\n"
+            + "  var mapping = [\n"
+            + "    ['overview-total-cost-basis', totalCostBasisBuckets],\n"
+            + "    ['overview-total-market-value', totalMarketBuckets],\n"
+            + "    ['overview-total-unrealized', totalUnrealizedBuckets],\n"
+            + "    ['overview-total-realized', totalRealizedBuckets],\n"
+            + "    ['overview-total-dividends', totalDividendsBuckets],\n"
+            + "    ['overview-total-return', totalReturnBuckets],\n"
+            + "    ['holdings-total-cost-basis', totalCostBasisBuckets],\n"
+            + "    ['holdings-total-market-value', totalMarketBuckets],\n"
+            + "    ['holdings-total-unrealized-value', totalUnrealizedBuckets],\n"
+            + "    ['holdings-total-realized-value', totalRealizedBuckets],\n"
+            + "    ['holdings-total-dividends-value', totalDividendsBuckets],\n"
+            + "    ['holdings-total-total-return-value', totalReturnBuckets],\n"
+            + "    ['holdings-total-day-change-value', dayChangeBuckets],\n"
+            + "    ['hero-total-market-value', totalMarketBuckets],\n"
+            + "    ['hero-unrealized-value', totalUnrealizedBuckets],\n"
+            + "    ['hero-realized-value', totalRealizedBuckets],\n"
+            + "    ['hero-day-change-value', dayChangeBuckets]\n"
+            + "  ];\n"
+            + "  mapping.forEach(function(entry) {\n"
+            + "    var node = document.getElementById(entry[0]);\n"
+            + "    if (!node) return;\n"
+            + "    node.setAttribute('data-buckets', JSON.stringify(entry[1]));\n"
+            + "  });\n"
+            + "  var overviewUnrealizedPct = document.getElementById('overview-total-unrealized-pct');\n"
+            + "  var overviewRealizedPct = document.getElementById('overview-total-realized-pct');\n"
+            + "  var overviewTotalPct = document.getElementById('overview-total-return-pct');\n"
+            + "  if (overviewUnrealizedPct) overviewUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n"
+            + "  if (overviewRealizedPct) overviewRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n"
+            + "  if (overviewTotalPct) overviewTotalPct.textContent = formatPercentValue(totalReturnPct, 2);\n"
+            + "  var holdingsDayChangePct = document.getElementById('holdings-total-day-change-pct');\n"
+            + "  var holdingsDayChangeValue = document.getElementById('holdings-total-day-change-value');\n"
+            + "  if (holdingsDayChangePct) {\n"
+            + "    holdingsDayChangePct.classList.remove('positive', 'negative');\n"
+            + "    if (previousDayValueNok > 0 && Number.isFinite(dayChangePct)) {\n"
+            + "      holdingsDayChangePct.textContent = formatPercentValue(dayChangePct, 2);\n"
+            + "      if (dayChangePct > 0) holdingsDayChangePct.classList.add('positive');\n"
+            + "      else if (dayChangePct < 0) holdingsDayChangePct.classList.add('negative');\n"
+            + "    } else {\n"
+            + "      holdingsDayChangePct.textContent = '-';\n"
+            + "    }\n"
+            + "  }\n"
+            + "  if (holdingsDayChangeValue) {\n"
+            + "    holdingsDayChangeValue.classList.remove('positive', 'negative');\n"
+            + "    if (dayChangeNok > 0) holdingsDayChangeValue.classList.add('positive');\n"
+            + "    else if (dayChangeNok < 0) holdingsDayChangeValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  var holdingsUnrealizedPct = document.getElementById('holdings-total-unrealized-pct');\n"
+            + "  var holdingsUnrealizedPctWrap = document.getElementById('holdings-total-unrealized-pct-wrap');\n"
+            + "  var holdingsUnrealizedValue = document.getElementById('holdings-total-unrealized-value');\n"
+            + "  if (holdingsUnrealizedPct) {\n"
+            + "    holdingsUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n"
+            + "    holdingsUnrealizedPct.classList.remove('positive', 'negative');\n"
+            + "    if (totalUnrealizedNok > 0) holdingsUnrealizedPct.classList.add('positive');\n"
+            + "    else if (totalUnrealizedNok < 0) holdingsUnrealizedPct.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsUnrealizedPctWrap) {\n"
+            + "    holdingsUnrealizedPctWrap.classList.remove('positive', 'negative');\n"
+            + "    if (totalUnrealizedNok > 0) holdingsUnrealizedPctWrap.classList.add('positive');\n"
+            + "    else if (totalUnrealizedNok < 0) holdingsUnrealizedPctWrap.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsUnrealizedValue) {\n"
+            + "    holdingsUnrealizedValue.classList.remove('positive', 'negative');\n"
+            + "    if (totalUnrealizedNok > 0) holdingsUnrealizedValue.classList.add('positive');\n"
+            + "    else if (totalUnrealizedNok < 0) holdingsUnrealizedValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  var holdingsRealizedPct = document.getElementById('holdings-total-realized-pct');\n"
+            + "  var holdingsRealizedPctWrap = document.getElementById('holdings-total-realized-pct-wrap');\n"
+            + "  var holdingsRealizedValue = document.getElementById('holdings-total-realized-value');\n"
+            + "  if (holdingsRealizedPct) {\n"
+            + "    holdingsRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n"
+            + "    holdingsRealizedPct.classList.remove('positive', 'negative');\n"
+            + "    if (totalRealizedNok > 0) holdingsRealizedPct.classList.add('positive');\n"
+            + "    else if (totalRealizedNok < 0) holdingsRealizedPct.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsRealizedPctWrap) {\n"
+            + "    holdingsRealizedPctWrap.classList.remove('positive', 'negative');\n"
+            + "    if (totalRealizedNok > 0) holdingsRealizedPctWrap.classList.add('positive');\n"
+            + "    else if (totalRealizedNok < 0) holdingsRealizedPctWrap.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsRealizedValue) {\n"
+            + "    holdingsRealizedValue.classList.remove('positive', 'negative');\n"
+            + "    if (totalRealizedNok > 0) holdingsRealizedValue.classList.add('positive');\n"
+            + "    else if (totalRealizedNok < 0) holdingsRealizedValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  var holdingsTotalReturnPct = document.getElementById('holdings-total-total-return-pct');\n"
+            + "  var holdingsTotalReturnPctWrap = document.getElementById('holdings-total-total-return-pct-wrap');\n"
+            + "  var holdingsTotalReturnValue = document.getElementById('holdings-total-total-return-value');\n"
+            + "  if (holdingsTotalReturnPct) {\n"
+            + "    holdingsTotalReturnPct.textContent = formatPercentValue(totalReturnPct, 2);\n"
+            + "    holdingsTotalReturnPct.classList.remove('positive', 'negative');\n"
+            + "    if (totalReturnNok > 0) holdingsTotalReturnPct.classList.add('positive');\n"
+            + "    else if (totalReturnNok < 0) holdingsTotalReturnPct.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsTotalReturnPctWrap) {\n"
+            + "    holdingsTotalReturnPctWrap.classList.remove('positive', 'negative');\n"
+            + "    if (totalReturnNok > 0) holdingsTotalReturnPctWrap.classList.add('positive');\n"
+            + "    else if (totalReturnNok < 0) holdingsTotalReturnPctWrap.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (holdingsTotalReturnValue) {\n"
+            + "    holdingsTotalReturnValue.classList.remove('positive', 'negative');\n"
+            + "    if (totalReturnNok > 0) holdingsTotalReturnValue.classList.add('positive');\n"
+            + "    else if (totalReturnNok < 0) holdingsTotalReturnValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  var heroTotalReturn = document.getElementById('hero-total-return-value');\n"
+            + "  var heroTotalReturnPct = document.getElementById('hero-total-return-pct');\n"
+            + "  if (heroTotalReturn) {\n"
+            + "    var soldOnlyReturnBuckets = parseBucketsJson(heroTotalReturn.getAttribute('data-sold-only-return-buckets'));\n"
+            + "    var soldOnlyHistoricalBuckets = parseBucketsJson(heroTotalReturn.getAttribute('data-sold-only-historical-buckets'));\n"
+            + "    var fullReturnBuckets = mergeBuckets(soldOnlyReturnBuckets, activeTotalReturnBuckets);\n"
+            + "    var fullHistoricalBuckets = mergeBuckets(soldOnlyHistoricalBuckets, totalHistoricalBuckets);\n"
+            + "    heroTotalReturn.setAttribute('data-buckets', JSON.stringify(fullReturnBuckets));\n"
+            + "    var fullReturnNok = Number(convertBucketsToCurrency(fullReturnBuckets, 'NOK') || 0);\n"
+            + "    var fullHistoricalNok = Number(convertBucketsToCurrency(fullHistoricalBuckets, 'NOK') || 0);\n"
+            + "    var fullReturnPct = fullHistoricalNok > 0 ? (fullReturnNok / fullHistoricalNok) * 100 : 0;\n"
+            + "    heroTotalReturn.classList.remove('positive', 'negative');\n"
+            + "    if (fullReturnNok > 0) heroTotalReturn.classList.add('positive');\n"
+            + "    else if (fullReturnNok < 0) heroTotalReturn.classList.add('negative');\n"
+            + "    if (heroTotalReturnPct) {\n"
+            + "      heroTotalReturnPct.textContent = formatPercentValue(fullReturnPct, 2);\n"
+            + "      heroTotalReturnPct.classList.remove('positive', 'negative');\n"
+            + "      if (fullReturnNok > 0) heroTotalReturnPct.classList.add('positive');\n"
+            + "      else if (fullReturnNok < 0) heroTotalReturnPct.classList.add('negative');\n"
+            + "    }\n"
+            + "  }\n"
+            + "  var heroDividends = document.getElementById('hero-dividends-value');\n"
+            + "  if (heroDividends) {\n"
+            + "    var soldOnlyDividendsBuckets = parseBucketsJson(heroDividends.getAttribute('data-sold-only-dividends-buckets'));\n"
+            + "    var fullDividendsBuckets = mergeBuckets(soldOnlyDividendsBuckets, totalDividendsBuckets);\n"
+            + "    heroDividends.setAttribute('data-buckets', JSON.stringify(fullDividendsBuckets));\n"
+            + "  }\n"
+            + "  var heroDayChangeValue = document.getElementById('hero-day-change-value');\n"
+            + "  var heroDayChangePct = document.getElementById('hero-day-change-pct');\n"
+            + "  if (heroDayChangeValue) {\n"
+            + "    heroDayChangeValue.classList.remove('positive', 'negative');\n"
+            + "    if (dayChangeNok > 0) heroDayChangeValue.classList.add('positive');\n"
+            + "    else if (dayChangeNok < 0) heroDayChangeValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (heroDayChangePct) {\n"
+            + "    heroDayChangePct.textContent = formatPercentValue(dayChangePct, 2);\n"
+            + "    heroDayChangePct.classList.remove('positive', 'negative');\n"
+            + "    if (dayChangeNok > 0) heroDayChangePct.classList.add('positive');\n"
+            + "    else if (dayChangeNok < 0) heroDayChangePct.classList.add('negative');\n"
+            + "  }\n"
+            + "  var heroUnrealizedValue = document.getElementById('hero-unrealized-value');\n"
+            + "  var heroUnrealizedPct = document.getElementById('hero-unrealized-pct');\n"
+            + "  if (heroUnrealizedValue) {\n"
+            + "    heroUnrealizedValue.classList.remove('positive', 'negative');\n"
+            + "    if (totalUnrealizedNok > 0) heroUnrealizedValue.classList.add('positive');\n"
+            + "    else if (totalUnrealizedNok < 0) heroUnrealizedValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (heroUnrealizedPct) {\n"
+            + "    heroUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n"
+            + "    heroUnrealizedPct.classList.remove('positive', 'negative');\n"
+            + "    if (totalUnrealizedNok > 0) heroUnrealizedPct.classList.add('positive');\n"
+            + "    else if (totalUnrealizedNok < 0) heroUnrealizedPct.classList.add('negative');\n"
+            + "  }\n"
+            + "  var heroRealizedValue = document.getElementById('hero-realized-value');\n"
+            + "  var heroRealizedPct = document.getElementById('hero-realized-pct');\n"
+            + "  if (heroRealizedValue) {\n"
+            + "    heroRealizedValue.classList.remove('positive', 'negative');\n"
+            + "    if (totalRealizedNok > 0) heroRealizedValue.classList.add('positive');\n"
+            + "    else if (totalRealizedNok < 0) heroRealizedValue.classList.add('negative');\n"
+            + "  }\n"
+            + "  if (heroRealizedPct) {\n"
+            + "    heroRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n"
+            + "    heroRealizedPct.classList.remove('positive', 'negative');\n"
+            + "    if (totalRealizedNok > 0) heroRealizedPct.classList.add('positive');\n"
+            + "    else if (totalRealizedNok < 0) heroRealizedPct.classList.add('negative');\n"
+            + "  }\n"
+            + "  refreshPortfolioValueBuckets();\n"
+            + "  var activeCurrency = getActiveReportCurrency();\n"
+            + "  refreshReportTotalsCurrency(activeCurrency);\n"
+            + "  refreshReportChartsCurrency(activeCurrency);\n"
+            + "}\n"
+            + "function formatReportRefreshTimestamp(dateValue) {\n"
+            + "  var date = dateValue instanceof Date ? dateValue : new Date();\n"
+            + "  if (!date || Number.isNaN(date.getTime())) return '-';\n"
+            + "  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();\n"
+            + "}\n"
+            + "function updateReportDateChip(dateValue) {\n"
+            + "  var node = document.getElementById('report-date-value');\n"
+            + "  if (!node) return;\n"
+            + "  node.textContent = formatReportRefreshTimestamp(dateValue);\n"
+            + "}\n";
+
+    private static final String SCRIPT_PART_2 =
+            "function refreshOpenDetailPanels(priceBySecurityKey) {\n"
+            + "  var lotRows = Array.prototype.slice.call(\n"
+            + "    document.querySelectorAll('tr[data-lot-units][data-lot-cost-basis][data-overview-security-key]')\n"
+            + "  );\n"
+            + "  lotRows.forEach(function(row) {\n"
+            + "    var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n"
+            + "    var nextPrice = Number(priceBySecurityKey[secKey] || 0);\n"
+            + "    if (!nextPrice || !Number.isFinite(nextPrice)) return;\n"
+            + "    var units = Number(row.getAttribute('data-lot-units') || 0);\n"
+            + "    var costBasis = Number(row.getAttribute('data-lot-cost-basis') || 0);\n"
+            + "    var currency = String(row.getAttribute('data-currency') || 'NOK');\n"
+            + "    if (units <= 0 || costBasis <= 0) return;\n"
+            + "    var unrealized = units * nextPrice - costBasis;\n"
+            + "    var unrealizedPct = (unrealized / costBasis) * 100;\n"
+            + "    var unrealizedCell = row.querySelector('.js-lot-unrealized');\n"
+            + "    var unrealizedPctCell = row.querySelector('.js-lot-unrealized-pct');\n"
+            + "    if (unrealizedCell) {\n"
+            + "      unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2);\n"
+            + "      unrealizedCell.classList.remove('positive', 'negative');\n"
+            + "      if (unrealized > 0) unrealizedCell.classList.add('positive');\n"
+            + "      else if (unrealized < 0) unrealizedCell.classList.add('negative');\n"
+            + "    }\n"
+            + "    if (unrealizedPctCell) {\n"
+            + "      unrealizedPctCell.textContent = formatPercentValue(unrealizedPct, 2);\n"
+            + "      unrealizedPctCell.classList.remove('positive', 'negative');\n"
+            + "      if (unrealizedPct > 0) unrealizedPctCell.classList.add('positive');\n"
+            + "      else if (unrealizedPct < 0) unrealizedPctCell.classList.add('negative');\n"
+            + "    }\n"
+            + "  });\n"
+            + "}\n"
+            + "function initPriceRefreshButton() {\n"
+            + "  var button = document.getElementById('refresh-prices-btn');\n"
+            + "  var status = document.getElementById('refresh-prices-status');\n"
+            + "  if (!button) return;\n"
+            + "  button.addEventListener('click', async function() {\n"
+            + "    var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-row=\"1\"]'));\n"
+            + "    var tickers = Array.from(new Set(rows.map(function(row) {\n"
+            + "      return String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n"
+            + "    }).filter(function(value) { return value.length > 0; })));\n"
+            + "    if (!tickers.length) {\n"
+            + "      if (status) status.textContent = 'No holdings available for update.';\n"
+            + "      return;\n"
+            + "    }\n"
+            + "    button.disabled = true;\n"
+            + "    if (status) status.textContent = 'Updating portfolio data...';\n"
+            + "    try {\n"
+            + "      var priceData = await fetchLatestPrices(tickers);\n"
+            + "      var prices = priceData.prices || {};\n"
+            + "      var previousCloses = priceData.previousCloses || {};\n"
+            + "      // Update data-previous-close on every linked row BEFORE computing day change\n"
+            + "      rows.forEach(function(row) {\n"
+            + "        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n"
+            + "        var newPrevClose = Number(previousCloses[ticker] || 0);\n"
+            + "        if (newPrevClose > 0) {\n"
+            + "          var securityKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n"
+            + "          var linkedRows = securityKey ? findOverviewRowsBySecurityKey(securityKey) : [];\n"
+            + "          if (!linkedRows.length) linkedRows = [row];\n"
+            + "          linkedRows.forEach(function(lr) {\n"
+            + "            lr.setAttribute('data-previous-close', String(newPrevClose));\n"
+            + "          });\n"
+            + "        }\n"
+            + "      });\n"
+            + "      // Build securityKey→price map for detail panel refresh\n"
+            + "      var securityKeyToPrice = {};\n"
+            + "      var updatedRows = 0;\n"
+            + "      rows.forEach(function(row) {\n"
+            + "        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n"
+            + "        var nextPrice = Number(prices[ticker] || 0);\n"
+            + "        var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n"
+            + "        if (nextPrice > 0 && secKey) securityKeyToPrice[secKey] = nextPrice;\n"
+            + "        if (applyOverviewRowPrice(row, nextPrice)) {\n"
+            + "          updatedRows += 1;\n"
+            + "        }\n"
+            + "      });\n"
+            + "      recalculateOverviewAndHeaderTotalsAfterPriceRefresh();\n"
+            + "      initOverviewDayCharts();\n"
+            + "      refreshOpenDetailPanels(securityKeyToPrice);\n"
+            + "      var refreshedAt = new Date();\n"
+            + "      updateReportDateChip(refreshedAt);\n"
+            + "      var staleTickers = tickers.filter(function(t) { return !(Number(prices[t]) > 0); });\n"
+            + "      var staleNote = staleTickers.length ? ' (' + staleTickers.length + ' unavailable, showing last known)' : '';\n"
+            + "      if (status) status.textContent = 'Updated portfolio for ' + updatedRows + ' holdings at ' + formatReportRefreshTimestamp(refreshedAt) + staleNote + '.';\n"
+            + "    } catch (error) {\n"
+            + "      if (status) status.textContent = 'Could not update portfolio: ' + (error && error.message ? error.message : 'Unknown error');\n"
+            + "    } finally {\n"
+            + "      button.disabled = false;\n"
+            + "    }\n"
+            + "  });\n"
+            + "}\n"
+            + "function parseSortableNumber(value) {\n"
+            + "  var text = String(value || '').trim();\n"
+            + "  if (!text || text === '-') return Number.NaN;\n"
+            + "  var normalized = text.replace(/\u00A0/g, ' ').replace(/,/g, '.');\n"
+            + "  var match = normalized.match(/-?\\d[\\d\\s]*(?:\\.\\d+)?/);\n"
+            + "  if (!match) return Number.NaN;\n"
+            + "  return Number(match[0].replace(/\s+/g, ''));\n"
+            + "}\n"
+            + "function parseSortableDate(value) {\n"
+            + "  var text = String(value || '').trim();\n"
+            + "  if (!text || text === '-') return Number.NaN;\n"
+            + "  if (/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(text)) {\n"
+            + "    var parts = text.split('.');\n"
+            + "    var day = Number(parts[0]);\n"
+            + "    var month = Number(parts[1]);\n"
+            + "    var year = Number(parts[2]);\n"
+            + "    var date = new Date(year, month - 1, day);\n"
+            + "    var timestamp = date.getTime();\n"
+            + "    return Number.isFinite(timestamp) ? timestamp : Number.NaN;\n"
+            + "  }\n"
+            + "  var parsed = Date.parse(text);\n"
+            + "  return Number.isFinite(parsed) ? parsed : Number.NaN;\n"
+            + "}\n"
+            + "function detectSortMode(headerLabel) {\n"
+            + "  var text = String(headerLabel || '').trim().toLowerCase();\n"
+            + "  if (!text || text.indexOf('details') === 0) return 'none';\n"
+            + "  if (text.indexOf('ticker') >= 0 || text.indexOf('security') >= 0 || text.indexOf('type') >= 0) return 'text';\n"
+            + "  if (text.indexOf('date') >= 0) return 'date';\n"
+            + "  return 'number';\n"
+            + "}\n"
+            + "function compareValues(a, b, direction) {\n"
+            + "  if (typeof a === 'string' || typeof b === 'string') {\n"
+            + "    var left = String(a || '');\n"
+            + "    var right = String(b || '');\n"
+            + "    return direction === 'asc'\n"
+            + "      ? left.localeCompare(right, undefined, { sensitivity: 'base' })\n"
+            + "      : right.localeCompare(left, undefined, { sensitivity: 'base' });\n"
+            + "  }\n"
+            + "  var leftNumber = Number(a);\n"
+            + "  var rightNumber = Number(b);\n"
+            + "  if (!Number.isFinite(leftNumber) && !Number.isFinite(rightNumber)) return 0;\n"
+            + "  if (!Number.isFinite(leftNumber)) return 1;\n"
+            + "  if (!Number.isFinite(rightNumber)) return -1;\n"
+            + "  return direction === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;\n"
+            + "}\n"
+            + "function extractSortableValue(cell, mode) {\n"
+            + "  if (!cell) return mode === 'text' ? '' : Number.NaN;\n"
+            + "  var text = String(cell.textContent || '').trim();\n"
+            + "  if (mode === 'text') return text.toLowerCase();\n"
+            + "  if (mode === 'date') return parseSortableDate(text);\n"
+            + "  return parseSortableNumber(text);\n"
+            + "}\n"
+            + "function applyHeaderSortState(headers, activeHeader, direction) {\n"
+            + "  headers.forEach(function(header) {\n"
+            + "    header.classList.remove('sort-asc', 'sort-desc');\n"
+            + "    if (header !== activeHeader) {\n"
+            + "      header.dataset.sortDirection = '';\n"
+            + "    }\n"
+            + "  });\n"
+            + "  activeHeader.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');\n"
+            + "  activeHeader.dataset.sortDirection = direction;\n"
+            + "}\n"
+            + "function getDirectTableRows(table) {\n"
+            + "  if (!table) return [];\n"
+            + "  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n"
+            + "  if (table.tBodies && table.tBodies.length > 1) {\n"
+            + "    for (var i = 1; i < table.tBodies.length; i += 1) {\n"
+            + "      var extraBody = table.tBodies[i];\n"
+            + "      while (extraBody && extraBody.firstElementChild) {\n"
+            + "        body.appendChild(extraBody.firstElementChild);\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "  return Array.prototype.slice.call(body.children).filter(function(node) {\n"
+            + "    return node && node.tagName === 'TR';\n"
+            + "  });\n"
+            + "}\n"
+            + "function sortPrimaryTable(table, columnIndex, mode, direction) {\n"
+            + "  if (!table || mode === 'none') return;\n"
+            + "  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n"
+            + "  var allRows = getDirectTableRows(table);\n"
+            + "  if (allRows.length <= 2) return;\n"
+            + "  var groups = [];\n"
+            + "  for (var i = 1; i < allRows.length; i += 1) {\n"
+            + "    var row = allRows[i];\n"
+            + "    if (row.classList.contains('details-row') || row.classList.contains('total-row') || row.classList.contains('asset-subtotal-row') || (row.hasAttribute && row.hasAttribute('data-asset-divider'))) continue;\n"
+            + "    var assetGroup = String(row.getAttribute('data-asset-group') || 'STOCK').toUpperCase() === 'FUND' ? 'FUND' : 'STOCK';\n"
+            + "    var details = row.nextElementSibling;\n"
+            + "    if (details && details.classList && details.classList.contains('details-row')) {\n"
+            + "      groups.push({ row: row, details: details, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n"
+            + "    } else {\n"
+            + "      groups.push({ row: row, details: null, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n"
+            + "    }\n"
+            + "  }\n"
+            + "  var byAssetGroup = { STOCK: [], FUND: [] };\n"
+            + "  groups.forEach(function(group) {\n"
+            + "    byAssetGroup[group.assetGroup].push(group);\n"
+            + "  });\n"
+            + "  byAssetGroup.STOCK.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n"
+            + "  byAssetGroup.FUND.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n"
+            + "  var orderedGroups = byAssetGroup.STOCK.concat(byAssetGroup.FUND);\n"
+            + "  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n"
+            + "  var stockSubtotalRow = null, fundSubtotalRow = null;\n"
+            + "  allRows.forEach(function(row) {\n"
+            + "    if (!row.classList || !row.classList.contains('asset-subtotal-row')) return;\n"
+            + "    if (String(row.getAttribute('data-subtotal-group') || '').toUpperCase() === 'FUND') { fundSubtotalRow = row; } else { stockSubtotalRow = row; }\n"
+            + "  });\n"
+            + "  var previousGroup = '';\n"
+            + "  orderedGroups.forEach(function(group, index) {\n"
+            + "    group.row.classList.remove('asset-split');\n"
+            + "    if (index > 0 && group.assetGroup !== previousGroup) {\n"
+            + "      group.row.classList.add('asset-split');\n"
+            + "    }\n"
+            + "    previousGroup = group.assetGroup;\n"
+            + "    body.appendChild(group.row);\n"
+            + "    if (group.details) body.appendChild(group.details);\n"
+            + "  });\n"
+            + "  if (stockSubtotalRow) body.appendChild(stockSubtotalRow);\n"
+            + "  if (fundSubtotalRow) body.appendChild(fundSubtotalRow);\n"
+            + "  if (totalRow) body.appendChild(totalRow);\n"
+            + "}\n"
+            + "function sortSimpleTable(table, columnIndex, mode, direction) {\n"
+            + "  if (!table || mode === 'none') return;\n"
+            + "  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n"
+            + "  var allRows = getDirectTableRows(table);\n"
+            + "  if (allRows.length <= 2) return;\n"
+            + "  var dataRows = allRows.slice(1).filter(function(row) { return !row.classList.contains('total-row'); });\n"
+            + "  dataRows.sort(function(a, b) {\n"
+            + "    var aValue = extractSortableValue(a.cells[columnIndex], mode);\n"
+            + "    var bValue = extractSortableValue(b.cells[columnIndex], mode);\n"
+            + "    return compareValues(aValue, bValue, direction);\n"
+            + "  });\n"
+            + "  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n"
+            + "  dataRows.forEach(function(row) { body.appendChild(row); });\n"
+            + "  if (totalRow) body.appendChild(totalRow);\n"
+            + "}\n"
+            + "function initSortableTables() {\n"
+            + "  function wireTable(table, sorter) {\n"
+            + "    if (!table || table.dataset.sortableReady === '1') return;\n"
+            + "    var headerRow = getDirectTableRows(table)[0];\n"
+            + "    if (!headerRow) return;\n"
+            + "    var headers = Array.prototype.slice.call(headerRow.querySelectorAll('th'));\n"
+            + "    headers.forEach(function(header, index) {\n"
+            + "      var mode = detectSortMode(header.textContent);\n"
+            + "      if (mode === 'none') return;\n"
+            + "      header.classList.add('sortable-header');\n"
+            + "      header.addEventListener('click', function() {\n"
+            + "        var nextDirection = header.dataset.sortDirection === 'asc' ? 'desc' : 'asc';\n"
+            + "        applyHeaderSortState(headers, header, nextDirection);\n"
+            + "        sorter(table, index, mode, nextDirection);\n"
+            + "      });\n"
+            + "    });\n"
+            + "    table.dataset.sortableReady = '1';\n"
+            + "  }\n"
+            + "  document.querySelectorAll('.overview-table, .realized-table').forEach(function(table) {\n"
+            + "    wireTable(table, sortPrimaryTable);\n"
+            + "  });\n"
+            + "  document.querySelectorAll('.details-table').forEach(function(table) {\n"
+            + "    wireTable(table, sortSimpleTable);\n"
+            + "  });\n"
+            + "}\n"
+            + "function initOverviewModeSwitcher() {\n"
+            + "  var buttons = Array.prototype.slice.call(document.querySelectorAll('.overview-mode-btn[data-overview-mode]'));\n"
+            + "  var panels = Array.prototype.slice.call(document.querySelectorAll('.js-overview-mode-panel[data-overview-mode-panel]'));\n"
+            + "  var detailsToggleBtn = document.getElementById('overview-details-toggle');\n"
+            + "  if (!buttons.length || !panels.length) return;\n"
+            + "  function syncOverviewState(sourceMode, targetMode) {\n"
+            + "    var prefixes = { summary: 'overview-details-', holdings: 'holdings-details-' };\n"
+            + "    var srcPrefix = prefixes[sourceMode], tgtPrefix = prefixes[targetMode];\n"
+            + "    if (!srcPrefix || !tgtPrefix) return;\n"
+            + "    document.querySelectorAll('tr[id^=\"' + srcPrefix + '\"]').forEach(function(srcRow) {\n"
+            + "      var tgtRow = document.getElementById(tgtPrefix + srcRow.id.slice(srcPrefix.length));\n"
+            + "      if (tgtRow) tgtRow.style.display = srcRow.style.display;\n"
+            + "    });\n"
+            + "    var srcTable = document.querySelector('.overview-' + sourceMode + '-table');\n"
+            + "    var tgtTable = document.querySelector('.overview-' + targetMode + '-table');\n"
+            + "    if (!srcTable || !tgtTable) return;\n"
+            + "    var srcSub = srcTable.querySelector('.asset-subtotal-row');\n"
+            + "    var open = !!srcSub && !srcSub.hasAttribute('hidden');\n"
+            + "    tgtTable.querySelectorAll('.asset-subtotal-row').forEach(function(r) { if (open) { r.removeAttribute('hidden'); } else { r.setAttribute('hidden', ''); } });\n"
+            + "    tgtTable.querySelectorAll('.total-row .subtotal-toggle-btn').forEach(function(b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); var tr = b.closest('.total-row'); if (tr) tr.classList.toggle('is-open', open); });\n"
+            + "  }\n"
+            + "  function activate(mode) {\n"
+            + "    if (mode === 'summary') { syncOverviewState('holdings', 'summary'); }\n"
+            + "    else if (mode === 'holdings') { syncOverviewState('summary', 'holdings'); }\n"
+            + "    buttons.forEach(function(btn) {\n"
+            + "      var active = btn.getAttribute('data-overview-mode') === mode;\n"
+            + "      btn.classList.toggle('is-active', active);\n"
+            + "      btn.setAttribute('aria-selected', active ? 'true' : 'false');\n"
+            + "    });\n"
+            + "    panels.forEach(function(panel) {\n"
+            + "      var visible = panel.getAttribute('data-overview-mode-panel') === mode;\n"
+            + "      panel.hidden = !visible;\n"
+            + "    });\n"
+            + "    if (detailsToggleBtn) {\n"
+            + "      var groupName = mode === 'summary' ? 'overview-details' : (mode === 'holdings' ? 'holdings-details' : '');\n"
+            + "      var baseLabel = detailsToggleBtn.getAttribute('data-detail-label') || 'Open all details';\n"
+            + "      detailsToggleBtn.textContent = baseLabel + ' ▸';\n"
+            + "      detailsToggleBtn.setAttribute('data-detail-group', groupName);\n"
+            + "      detailsToggleBtn.disabled = !groupName;\n"
+            + "      detailsToggleBtn.setAttribute('aria-disabled', groupName ? 'false' : 'true');\n"
+            + "    }\n"
+            + "  }\n"
+            + "  if (detailsToggleBtn && detailsToggleBtn.dataset.bound !== '1') {\n"
+            + "    detailsToggleBtn.dataset.bound = '1';\n"
+            + "    detailsToggleBtn.addEventListener('click', function() {\n"
+            + "      var groupName = detailsToggleBtn.getAttribute('data-detail-group') || '';\n"
+            + "      if (!groupName) return;\n"
+            + "      toggleDetailGroup(groupName, detailsToggleBtn);\n"
+            + "    });\n"
+            + "  }\n"
+            + "  buttons.forEach(function(btn) {\n"
+            + "    btn.addEventListener('click', function() {\n"
+            + "      activate(btn.getAttribute('data-overview-mode') || 'summary');\n"
+            + "    });\n"
+            + "  });\n"
+            + "  activate('summary');\n"
+            + "}\n"
+            + "function resolveCashHoldingsBridge() {\n"
+            + "  try {\n"
+            + "    if (window.parent && window.parent !== window && window.parent.__portfolioCashHoldingsBridge) {\n"
+            + "      return window.parent.__portfolioCashHoldingsBridge;\n"
+            + "    }\n"
+            + "  } catch (_) {\n"
+            + "    // Parent bridge is optional.\n"
+            + "  }\n"
+            + "  return null;\n"
+            + "}\n"
+            + "function detectLoggedInFromParentContext() {\n"
+            + "  try {\n"
+            + "    if (!window.parent || window.parent === window || !window.parent.document) return false;\n"
+            + "    var logoutButton = window.parent.document.getElementById('logout-btn');\n"
+            + "    return !!(logoutButton && logoutButton.hidden === false);\n"
+            + "  } catch (_) {\n"
+            + "    return false;\n"
+            + "  }\n"
+            + "}\n"
+            + "function resolveCashHoldingsStorageKey() {\n"
+            + "  var identity = 'anonymous';\n"
+            + "  try {\n"
+            + "    if (window.parent && window.parent !== window && window.parent.document) {\n"
+            + "      var accountLabel = window.parent.document.getElementById('account-email');\n"
+            + "      if (accountLabel && accountLabel.textContent) {\n"
+            + "        identity = String(accountLabel.textContent).replace(/^\\s*User:\\s*/i, '').trim() || identity;\n"
+            + "      }\n"
+            + "    }\n"
+            + "  } catch (_) {\n"
+            + "    // Keep anonymous identity.\n"
+            + "  }\n"
+            + "  return 'portfolio-manual-cash-holdings::' + identity;\n"
+            + "}\n"
+            + "function sanitizeManualCashState(raw) {\n"
+            + "  var state = raw && typeof raw === 'object' ? raw : {};\n"
+            + "  var accounts = Array.isArray(state.accounts) ? state.accounts : [];\n"
+            + "  return {\n"
+            + "    accounts: accounts.map(function(account) {\n"
+            + "      var transactions = Array.isArray(account && account.transactions) ? account.transactions : [];\n"
+            + "      return {\n"
+            + "        id: String(account && account.id || 'acc-' + Math.random().toString(36).slice(2, 10)),\n"
+            + "        name: String(account && account.name || '').trim(),\n"
+            + "        hidden: !!(account && account.hidden),\n"
+            + "        transactions: transactions.map(function(tx) {\n"
+            + "          return {\n"
+            + "            id: String(tx && tx.id || 'tx-' + Math.random().toString(36).slice(2, 10)),\n"
+            + "            amount: Number(tx && tx.amount || 0),\n"
+            + "            currency: normalizeCurrencyCodeInput(tx && tx.currency || 'NOK') || 'NOK'\n"
+            + "          };\n"
+            + "        }).filter(function(tx) { return Number.isFinite(tx.amount); })\n"
+            + "      };\n"
+            + "    }).filter(function(account) { return account.name.length > 0; })\n"
+            + "  };\n"
+            + "}\n"
+            + "async function loadManualCashState() {\n"
+            + "  var bridge = resolveCashHoldingsBridge();\n"
+            + "  if (bridge && typeof bridge.loadManualCashHoldings === 'function') {\n"
+            + "    try {\n"
+            + "      return sanitizeManualCashState(await bridge.loadManualCashHoldings());\n"
+            + "    } catch (_) {\n"
+            + "      // Fall back to local storage below.\n"
+            + "    }\n"
+            + "  }\n"
+            + "  try {\n"
+            + "    var raw = window.localStorage.getItem(resolveCashHoldingsStorageKey());\n"
+            + "    return sanitizeManualCashState(raw ? JSON.parse(raw) : {});\n"
+            + "  } catch (_) {\n"
+            + "    return sanitizeManualCashState({});\n"
+            + "  }\n"
+            + "}\n"
+            + "async function saveManualCashState(state) {\n"
+            + "  var safeState = sanitizeManualCashState(state);\n"
+            + "  var bridge = resolveCashHoldingsBridge();\n"
+            + "  var bridgeError = null;\n"
+            + "  if (bridge && typeof bridge.saveManualCashHoldings === 'function') {\n"
+            + "    try {\n"
+            + "      await bridge.saveManualCashHoldings(safeState);\n"
+            + "      return safeState;\n"
+            + "    } catch (e) {\n"
+            + "      bridgeError = e;\n"
+            + "    }\n"
+            + "  }\n"
+            + "  // Bridge save failed — write localStorage backup so data is not lost.\n"
+            + "  try {\n"
+            + "    window.localStorage.setItem(resolveCashHoldingsStorageKey(), JSON.stringify(safeState));\n"
+            + "  } catch (_) {}\n"
+            + "  if (bridgeError) throw bridgeError;\n"
+            + "  return safeState;\n"
+            + "}\n"
+            + "function summarizeManualCashAccount(account) {\n"
+            + "  var totals = {};\n"
+            + "  (account.transactions || []).forEach(function(tx) {\n"
+            + "    var currency = normalizeCurrencyCodeInput(tx.currency || 'NOK') || 'NOK';\n"
+            + "    totals[currency] = Number(totals[currency] || 0) + Number(tx.amount || 0);\n"
+            + "  });\n"
+            + "  var parts = Object.keys(totals).sort().map(function(currency) {\n"
+            + "    return formatMoneyValue(totals[currency], currency, 0);\n"
+            + "  });\n"
+            + "  var accountName = String(account && account.name || '').trim() || 'Unnamed account';\n"
+            + "  return accountName + ': ' + (parts.length ? parts.join(' + ') : '0 NOK');\n"
+            + "}\n"
+            + "function formatCashBucketsSummary(buckets) {\n"
+            + "  var parts = Object.keys(buckets || {}).sort().map(function(currency) {\n"
+            + "    return formatMoneyValue(Number(buckets[currency] || 0), currency, 0);\n"
+            + "  });\n"
+            + "  return parts.length ? parts.join(' + ') : '0 NOK';\n"
+            + "}\n"
+            + "function resolvePortfolioBaseCashBuckets() {\n"
+            + "  var totalNode = document.getElementById('cash-holdings-total');\n"
+            + "  if (!totalNode) return {};\n"
+            + "  var raw = totalNode.getAttribute('data-base-buckets') || totalNode.getAttribute('data-buckets') || '{}';\n"
+            + "  return parseBucketsJson(raw);\n"
+            + "}\n"
+            + "function renderManualCashSummaryLines(state) {\n"
+            + "  var list = document.getElementById('manual-cash-holdings-list');\n"
+            + "  if (!list) return;\n"
+            + "  list.innerHTML = '';\n"
+            + "  var portfolioLine = document.createElement('div');\n"
+            + "  portfolioLine.className = 'manual-cash-holding-line is-portfolio';\n"
+            + "  portfolioLine.textContent = 'Portfolio: ' + formatCashBucketsSummary(resolvePortfolioBaseCashBuckets());\n"
+            + "  list.appendChild(portfolioLine);\n"
+            + "  var accounts = state.accounts || [];\n"
+            + "  if (!accounts.length) {\n"
+            + "    return;\n"
+            + "  }\n"
+            + "  accounts.forEach(function(account) {\n"
+            + "    if (account.hidden) return;\n"
+            + "    var line = document.createElement('div');\n"
+            + "    line.className = 'manual-cash-holding-line';\n"
+            + "    line.textContent = summarizeManualCashAccount(account);\n"
+            + "    list.appendChild(line);\n"
+            + "  });\n"
+            + "}\n"
+            + "function buildManualCashBuckets(state) {\n"
+            + "  var buckets = {};\n"
+            + "  (state.accounts || []).forEach(function(account) {\n"
+            + "    if (account.hidden) return;\n"
+            + "    (account.transactions || []).forEach(function(tx) {\n"
+            + "      addBucketValue(buckets, tx.currency || 'NOK', Number(tx.amount || 0));\n"
+            + "    });\n"
+            + "  });\n"
+            + "  return buckets;\n"
+            + "}\n"
+            + "function refreshCashHoldingsTotalFromState(state) {\n"
+            + "  var totalNode = document.getElementById('cash-holdings-total');\n"
+            + "  if (!totalNode) return;\n"
+            + "  var baseRaw = totalNode.getAttribute('data-base-buckets');\n"
+            + "  if (!baseRaw) {\n"
+            + "    baseRaw = totalNode.getAttribute('data-buckets') || '{}';\n"
+            + "    totalNode.setAttribute('data-base-buckets', baseRaw);\n"
+            + "  }\n"
+            + "  var baseBuckets = parseBucketsJson(baseRaw);\n"
+            + "  var manualBuckets = buildManualCashBuckets(state);\n"
+            + "  totalNode.setAttribute('data-buckets', JSON.stringify(mergeBuckets(baseBuckets, manualBuckets)));\n"
+            + "  refreshPortfolioValueBuckets();\n"
+            + "  refreshReportTotalsCurrency(getActiveReportCurrency());\n"
+            + "}\n"
+            + "function parseManualCashAmountInput(value) {\n"
+            + "  var normalized = String(value == null ? '' : value).replace(/\\s+/g, '').replace(',', '.');\n"
+            + "  if (!normalized) return Number.NaN;\n"
+            + "  var amount = Number(normalized);\n"
+            + "  return Number.isFinite(amount) ? amount : Number.NaN;\n"
+            + "}\n"
+            + "function setManualCashManagerMessage(ui, text, isError) {\n"
+            + "  if (!ui || !ui.message) return;\n"
+            + "  ui.message.textContent = String(text || '');\n"
+            + "  ui.message.classList.toggle('is-error', !!isError);\n"
+            + "}\n"
+            + "function ensureManualCashManagerUi() {\n"
+            + "  if (window.__manualCashManagerUi) return window.__manualCashManagerUi;\n"
+            + "  var overlay = document.createElement('div');\n"
+            + "  overlay.className = 'cash-manager-overlay';\n"
+            + "  overlay.hidden = true;\n"
+            + "  overlay.innerHTML = '<div class=\"cash-manager-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Manage cash holdings\"><div class=\"cash-manager-header\"><h4>Manage Cash Holdings</h4><button type=\"button\" class=\"cash-manager-close\" aria-label=\"Close\">×</button></div><div class=\"cash-manager-form-row\"><input type=\"text\" class=\"cash-manager-account-name\" placeholder=\"New account name\"><button type=\"button\" class=\"cash-manager-btn cash-manager-create-account\">Create account</button></div><div class=\"cash-manager-form-row\"><select class=\"cash-manager-account-select\" aria-label=\"Select account\"></select><input type=\"text\" class=\"cash-manager-amount-input\" placeholder=\"Amount (+/-)\" inputmode=\"decimal\"><input type=\"text\" class=\"cash-manager-currency-input\" value=\"NOK\" maxlength=\"5\" aria-label=\"Currency\"><button type=\"button\" class=\"cash-manager-btn cash-manager-add-transaction\">Add transaction</button></div><div class=\"cash-manager-message\"></div><div class=\"cash-manager-accounts\"></div></div>';\n"
+            + "  document.body.appendChild(overlay);\n"
+            + "  var closeButton = overlay.querySelector('.cash-manager-close');\n"
+            + "  var accountNameInput = overlay.querySelector('.cash-manager-account-name');\n"
+            + "  var accountSelect = overlay.querySelector('.cash-manager-account-select');\n"
+            + "  var amountInput = overlay.querySelector('.cash-manager-amount-input');\n"
+            + "  var currencyInput = overlay.querySelector('.cash-manager-currency-input');\n"
+            + "  var createAccountButton = overlay.querySelector('.cash-manager-create-account');\n"
+            + "  var addTransactionButton = overlay.querySelector('.cash-manager-add-transaction');\n"
+            + "  var accountsContainer = overlay.querySelector('.cash-manager-accounts');\n"
+            + "  var message = overlay.querySelector('.cash-manager-message');\n"
+            + "  function close() { overlay.hidden = true; }\n"
+            + "  function open() { overlay.hidden = false; }\n"
+            + "  closeButton.addEventListener('click', close);\n"
+            + "  overlay.addEventListener('click', function(event) { if (event.target === overlay) close(); });\n"
+            + "  document.addEventListener('keydown', function(event) { if (event.key === 'Escape' && !overlay.hidden) close(); });\n"
+            + "  window.__manualCashManagerUi = {\n"
+            + "    overlay: overlay,\n"
+            + "    open: open,\n"
+            + "    message: message,\n"
+            + "    accountNameInput: accountNameInput,\n"
+            + "    accountSelect: accountSelect,\n"
+            + "    amountInput: amountInput,\n"
+            + "    currencyInput: currencyInput,\n"
+            + "    createAccountButton: createAccountButton,\n"
+            + "    addTransactionButton: addTransactionButton,\n"
+            + "    accountsContainer: accountsContainer\n"
+            + "  };\n"
+            + "  return window.__manualCashManagerUi;\n"
+            + "}\n"
+            + "var __cashCollapsedAccounts = {};\n"
+            + "function renderManualCashManager(state, ui, commitStateChange) {\n"
+            + "  if (!ui) return;\n"
+            + "  var accounts = state.accounts || [];\n"
+            + "  var previousSelection = ui.accountSelect.value;\n"
+            + "  ui.accountSelect.innerHTML = '';\n"
+            + "  if (accounts.length) {\n"
+            + "    accounts.forEach(function(account) {\n"
+            + "      var option = document.createElement('option');\n"
+            + "      option.value = account.id;\n"
+            + "      option.textContent = account.name;\n"
+            + "      ui.accountSelect.appendChild(option);\n"
+            + "    });\n"
+            + "    ui.accountSelect.disabled = false;\n"
+            + "    if (previousSelection && accounts.some(function(account) { return account.id === previousSelection; })) ui.accountSelect.value = previousSelection;\n"
+            + "  } else {\n"
+            + "    var emptyOption = document.createElement('option');\n"
+            + "    emptyOption.value = '';\n"
+            + "    emptyOption.textContent = 'No account available';\n"
+            + "    ui.accountSelect.appendChild(emptyOption);\n"
+            + "    ui.accountSelect.disabled = true;\n"
+            + "  }\n"
+            + "  ui.accountsContainer.innerHTML = '';\n"
+            + "  if (!accounts.length) {\n"
+            + "    var empty = document.createElement('p');\n"
+            + "    empty.className = 'cash-manager-empty';\n"
+            + "    empty.textContent = 'No manual cash accounts created yet.';\n"
+            + "    ui.accountsContainer.appendChild(empty);\n"
+            + "    return;\n"
+            + "  }\n"
+            + "  accounts.forEach(function(account) {\n"
+            + "    var block = document.createElement('section');\n"
+            + "    block.className = 'cash-account-block';\n"
+            + "    var head = document.createElement('div');\n"
+            + "    head.className = 'cash-account-head';\n"
+            + "    var title = document.createElement('p');\n"
+            + "    title.className = 'cash-account-title' + (account.hidden ? ' is-hidden-label' : '');\n"
+            + "    title.style.cursor = 'pointer';\n"
+            + "    var caret = document.createElement('span');\n"
+            + "    caret.className = 'cash-account-caret';\n"
+            + "    var titleLabel = document.createElement('span');\n"
+            + "    titleLabel.textContent = summarizeManualCashAccount(account);\n"
+            + "    title.appendChild(caret);\n"
+            + "    title.appendChild(titleLabel);\n"
+            + "    if (account.hidden) block.classList.add('is-hidden');\n"
+            + "    var headButtons = document.createElement('div');\n"
+            + "    headButtons.className = 'cash-account-head-buttons';\n"
+            + "    var toggleHideButton = document.createElement('button');\n"
+            + "    toggleHideButton.type = 'button';\n"
+            + "    toggleHideButton.className = 'cash-manager-btn';\n"
+            + "    toggleHideButton.textContent = account.hidden ? 'Show' : 'Hide';\n"
+            + "    toggleHideButton.addEventListener('click', function() {\n"
+            + "      var wasHidden = account.hidden;\n"
+            + "      commitStateChange(function(nextState) {\n"
+            + "        var target = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n"
+            + "        if (target) target.hidden = !target.hidden;\n"
+            + "      }, wasHidden ? 'Account shown.' : 'Account hidden.');\n"
+            + "    });\n"
+            + "    var deleteAccountButton = document.createElement('button');\n"
+            + "    deleteAccountButton.type = 'button';\n"
+            + "    deleteAccountButton.className = 'cash-manager-btn danger';\n"
+            + "    deleteAccountButton.textContent = 'Delete account';\n"
+            + "    deleteAccountButton.addEventListener('click', function() {\n"
+            + "      commitStateChange(function(nextState) {\n"
+            + "        nextState.accounts = (nextState.accounts || []).filter(function(candidate) { return candidate.id !== account.id; });\n"
+            + "      }, 'Account deleted.');\n"
+            + "    });\n"
+            + "    var renameAccountButton = document.createElement('button');\n"
+            + "    renameAccountButton.type = 'button';\n"
+            + "    renameAccountButton.className = 'cash-manager-btn';\n"
+            + "    renameAccountButton.textContent = 'Edit';\n"
+            + "    renameAccountButton.setAttribute('aria-label', 'Rename account');\n"
+            + "    renameAccountButton.addEventListener('click', function() {\n"
+            + "      var editRow = document.createElement('div');\n"
+            + "      editRow.className = 'cash-tx-edit-row';\n"
+            + "      var nameInput = document.createElement('input');\n"
+            + "      nameInput.type = 'text';\n"
+            + "      nameInput.className = 'cash-account-name-edit';\n"
+            + "      nameInput.value = account.name;\n"
+            + "      nameInput.maxLength = 60;\n"
+            + "      var saveNameButton = document.createElement('button');\n"
+            + "      saveNameButton.type = 'button';\n"
+            + "      saveNameButton.className = 'cash-manager-btn';\n"
+            + "      saveNameButton.textContent = 'Save';\n"
+            + "      function saveName() {\n"
+            + "        var newName = String(nameInput.value || '').trim();\n"
+            + "        if (!newName) { setManualCashManagerMessage(managerUi, 'Account name is required.', true); nameInput.focus(); return; }\n"
+            + "        commitStateChange(function(nextState) {\n"
+            + "          var target = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n"
+            + "          if (target) target.name = newName;\n"
+            + "        }, 'Account renamed.');\n"
+            + "      }\n"
+            + "      saveNameButton.addEventListener('click', saveName);\n"
+            + "      nameInput.addEventListener('keydown', function(event) { if (event.key === 'Enter') { event.preventDefault(); saveName(); } });\n"
+            + "      var cancelNameButton = document.createElement('button');\n"
+            + "      cancelNameButton.type = 'button';\n"
+            + "      cancelNameButton.className = 'cash-manager-btn';\n"
+            + "      cancelNameButton.textContent = 'Cancel';\n"
+            + "      cancelNameButton.addEventListener('click', function() { head.removeChild(editRow); title.style.display = ''; headButtons.style.display = ''; });\n"
+            + "      editRow.appendChild(nameInput);\n"
+            + "      editRow.appendChild(saveNameButton);\n"
+            + "      editRow.appendChild(cancelNameButton);\n"
+            + "      title.style.display = 'none';\n"
+            + "      headButtons.style.display = 'none';\n"
+            + "      head.appendChild(editRow);\n"
+            + "      nameInput.focus();\n"
+            + "      nameInput.select();\n"
+            + "    });\n"
+            + "    headButtons.appendChild(renameAccountButton);\n"
+            + "    headButtons.appendChild(toggleHideButton);\n"
+            + "    headButtons.appendChild(deleteAccountButton);\n"
+            + "    head.appendChild(title);\n"
+            + "    head.appendChild(headButtons);\n"
+            + "    block.appendChild(head);\n"
+            + "    var summary = document.createElement('p');\n"
+            + "    summary.className = 'cash-account-summary';\n"
+            + "    summary.textContent = 'Transactions';\n"
+            + "    block.appendChild(summary);\n"
+            + "    var txList = document.createElement('div');\n"
+            + "    txList.className = 'cash-transaction-list';\n"
+            + "    function applyCashCollapse() {\n"
+            + "      var collapsed = !!__cashCollapsedAccounts[account.id];\n"
+            + "      caret.textContent = collapsed ? '\\u25B8 ' : '\\u25BE ';\n"
+            + "      summary.style.display = collapsed ? 'none' : '';\n"
+            + "      txList.style.display = collapsed ? 'none' : '';\n"
+            + "    }\n"
+            + "    title.addEventListener('click', function() {\n"
+            + "      __cashCollapsedAccounts[account.id] = !__cashCollapsedAccounts[account.id];\n"
+            + "      applyCashCollapse();\n"
+            + "    });\n"
+            + "    if (!account.transactions.length) {\n"
+            + "      var noTx = document.createElement('div');\n"
+            + "      noTx.className = 'cash-manager-empty';\n"
+            + "      noTx.textContent = 'No transactions yet.';\n"
+            + "      txList.appendChild(noTx);\n"
+            + "    } else {\n"
+            + "      account.transactions.slice().reverse().forEach(function(tx) {\n"
+            + "        var txItem = document.createElement('div');\n"
+            + "        txItem.className = 'cash-transaction-item';\n"
+            + "        function renderTxView() {\n"
+            + "          txItem.innerHTML = '';\n"
+            + "          var txText = document.createElement('span');\n"
+            + "          txText.textContent = formatMoneyValue(tx.amount, tx.currency, 0);\n"
+            + "          var editTxButton = document.createElement('button');\n"
+            + "          editTxButton.type = 'button';\n"
+            + "          editTxButton.className = 'cash-manager-btn';\n"
+            + "          editTxButton.textContent = 'Edit';\n"
+            + "          editTxButton.addEventListener('click', renderTxEditForm);\n"
+            + "          var deleteTxButton = document.createElement('button');\n"
+            + "          deleteTxButton.type = 'button';\n"
+            + "          deleteTxButton.className = 'cash-manager-btn danger';\n"
+            + "          deleteTxButton.textContent = 'Delete';\n"
+            + "          deleteTxButton.addEventListener('click', function() {\n"
+            + "            commitStateChange(function(nextState) {\n"
+            + "              var targetAccount = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n"
+            + "              if (!targetAccount || !Array.isArray(targetAccount.transactions)) return;\n"
+            + "              targetAccount.transactions = targetAccount.transactions.filter(function(c) { return c.id !== tx.id; });\n"
+            + "            }, 'Transaction deleted.');\n"
+            + "          });\n"
+            + "          var txBtnGroup = document.createElement('div');\n"
+            + "          txBtnGroup.style.display = 'flex';\n"
+            + "          txBtnGroup.style.gap = '4px';\n"
+            + "          txBtnGroup.style.flexShrink = '0';\n"
+            + "          txBtnGroup.appendChild(editTxButton);\n"
+            + "          txBtnGroup.appendChild(deleteTxButton);\n"
+            + "          txItem.appendChild(txText);\n"
+            + "          txItem.appendChild(txBtnGroup);\n"
+            + "        }\n"
+            + "        function renderTxEditForm() {\n"
+            + "          txItem.innerHTML = '';\n"
+            + "          var editRow = document.createElement('div');\n"
+            + "          editRow.className = 'cash-tx-edit-row';\n"
+            + "          var editAmount = document.createElement('input');\n"
+            + "          editAmount.type = 'text';\n"
+            + "          editAmount.className = 'cash-tx-edit-amount';\n"
+            + "          editAmount.value = String(tx.amount);\n"
+            + "          editAmount.inputMode = 'decimal';\n"
+            + "          var editCurrency = document.createElement('input');\n"
+            + "          editCurrency.type = 'text';\n"
+            + "          editCurrency.className = 'cash-tx-edit-currency';\n"
+            + "          editCurrency.value = tx.currency || 'NOK';\n"
+            + "          editCurrency.maxLength = 5;\n"
+            + "          var saveBtn = document.createElement('button');\n"
+            + "          saveBtn.type = 'button';\n"
+            + "          saveBtn.className = 'cash-manager-btn';\n"
+            + "          saveBtn.textContent = 'Save';\n"
+            + "          function saveTx() {\n"
+            + "            var newAmount = parseManualCashAmountInput(editAmount.value);\n"
+            + "            if (!Number.isFinite(newAmount)) { setManualCashManagerMessage(managerUi, 'Invalid amount.', true); return; }\n"
+            + "            var newCurrency = normalizeCurrencyCodeInput(editCurrency.value) || 'NOK';\n"
+            + "            commitStateChange(function(nextState) {\n"
+            + "              var targetAccount = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n"
+            + "              if (!targetAccount) return;\n"
+            + "              var targetTx = (targetAccount.transactions || []).find(function(c) { return c.id === tx.id; });\n"
+            + "              if (!targetTx) return;\n"
+            + "              targetTx.amount = newAmount;\n"
+            + "              targetTx.currency = newCurrency;\n"
+            + "            }, 'Transaction updated.');\n"
+            + "          }\n"
+            + "          saveBtn.addEventListener('click', saveTx);\n"
+            + "          function saveTxOnEnter(event) { if (event.key === 'Enter') { event.preventDefault(); saveTx(); } }\n"
+            + "          editAmount.addEventListener('keydown', saveTxOnEnter);\n"
+            + "          editCurrency.addEventListener('keydown', saveTxOnEnter);\n"
+            + "          var cancelBtn = document.createElement('button');\n"
+            + "          cancelBtn.type = 'button';\n"
+            + "          cancelBtn.className = 'cash-manager-btn';\n"
+            + "          cancelBtn.textContent = 'Cancel';\n"
+            + "          cancelBtn.addEventListener('click', renderTxView);\n"
+            + "          editRow.appendChild(editAmount);\n"
+            + "          editRow.appendChild(editCurrency);\n"
+            + "          editRow.appendChild(saveBtn);\n"
+            + "          editRow.appendChild(cancelBtn);\n"
+            + "          txItem.appendChild(editRow);\n"
+            + "          editAmount.focus();\n"
+            + "          editAmount.select();\n"
+            + "        }\n"
+            + "        renderTxView();\n"
+            + "        txList.appendChild(txItem);\n"
+            + "      });\n"
+            + "    }\n"
+            + "    block.appendChild(txList);\n"
+            + "    applyCashCollapse();\n"
+            + "    ui.accountsContainer.appendChild(block);\n"
+            + "  });\n"
+            + "}\n"
+            + "async function initManualCashHoldings() {\n"
+            + "  var addButton = document.getElementById('cash-holdings-add-btn');\n"
+            + "  if (!addButton) return;\n"
+            + "  var isLoggedIn = detectLoggedInFromParentContext();\n"
+            + "  if (!isLoggedIn) {\n"
+            + "    addButton.style.display = 'none';\n"
+            + "    return;\n"
+            + "  }\n"
+            + "  addButton.style.display = 'inline-flex';\n"
+            + "  addButton.textContent = 'Manage';\n"
+            + "  var managerUi = ensureManualCashManagerUi();\n"
+            + "  var state = await loadManualCashState();\n"
+            + "  renderManualCashSummaryLines(state);\n"
+            + "  refreshCashHoldingsTotalFromState(state);\n"
+            + "  async function commitStateChange(mutator, successMessage) {\n"
+            + "    var nextState = sanitizeManualCashState(state);\n"
+            + "    if (typeof mutator === 'function') mutator(nextState);\n"
+            + "    var saveOk = true;\n"
+            + "    var saveErrMsg = '';\n"
+            + "    try {\n"
+            + "      state = sanitizeManualCashState(await saveManualCashState(nextState));\n"
+            + "    } catch (saveErr) {\n"
+            + "      state = sanitizeManualCashState(nextState);\n"
+            + "      saveOk = false;\n"
+            + "      saveErrMsg = saveErr && saveErr.message ? saveErr.message : String(saveErr || '');\n"
+            + "    }\n"
+            + "    renderManualCashSummaryLines(state);\n"
+            + "    refreshCashHoldingsTotalFromState(state);\n"
+            + "    renderManualCashManager(state, managerUi, commitStateChange);\n"
+            + "    if (!saveOk) {\n"
+            + "      setManualCashManagerMessage(managerUi, 'Saved locally — sync failed' + (saveErrMsg ? ': ' + saveErrMsg : '.'), true);\n"
+            + "    } else if (successMessage) {\n"
+            + "      setManualCashManagerMessage(managerUi, successMessage, false);\n"
+            + "    }\n"
+            + "  }\n"
+            + "  renderManualCashManager(state, managerUi, commitStateChange);\n"
+            + "  if (!managerUi.overlay.dataset.boundEvents) {\n"
+            + "    managerUi.overlay.dataset.boundEvents = '1';\n"
+            + "    managerUi.createAccountButton.addEventListener('click', function() {\n"
+            + "      var name = String(managerUi.accountNameInput.value || '').trim();\n"
+            + "      if (!name) {\n"
+            + "        setManualCashManagerMessage(managerUi, 'Account name is required.', true);\n"
+            + "        managerUi.accountNameInput.focus();\n"
+            + "        return;\n"
+            + "      }\n"
+            + "      managerUi.accountNameInput.value = '';\n"
+            + "      commitStateChange(function(nextState) {\n"
+            + "        nextState.accounts.push({ id: 'acc-' + Math.random().toString(36).slice(2, 10), name: name, transactions: [] });\n"
+            + "      }, 'Account created.');\n"
+            + "    });\n"
+            + "    managerUi.addTransactionButton.addEventListener('click', function() {\n"
+            + "      var accountId = String(managerUi.accountSelect.value || '').trim();\n"
+            + "      if (!accountId) {\n"
+            + "        setManualCashManagerMessage(managerUi, 'Create an account before adding transactions.', true);\n"
+            + "        return;\n"
+            + "      }\n"
+            + "      var amount = parseManualCashAmountInput(managerUi.amountInput.value);\n"
+            + "      if (!Number.isFinite(amount) || amount === 0) {\n"
+            + "        setManualCashManagerMessage(managerUi, 'Amount must be a non-zero number.', true);\n"
+            + "        managerUi.amountInput.focus();\n"
+            + "        return;\n"
+            + "      }\n"
+            + "      var currency = normalizeCurrencyCodeInput(managerUi.currencyInput.value || 'NOK') || 'NOK';\n"
+            + "      managerUi.amountInput.value = '';\n"
+            + "      managerUi.currencyInput.value = currency;\n"
+            + "      commitStateChange(function(nextState) {\n"
+            + "        var account = (nextState.accounts || []).find(function(candidate) { return candidate.id === accountId; });\n"
+            + "        if (!account) return;\n"
+            + "        if (!Array.isArray(account.transactions)) account.transactions = [];\n"
+            + "        account.transactions.push({ id: 'tx-' + Math.random().toString(36).slice(2, 10), amount: amount, currency: currency });\n"
+            + "      }, 'Transaction added.');\n"
+            + "    });\n"
+            + "    managerUi.accountNameInput.addEventListener('keydown', function(event) {\n"
+            + "      if (event.key !== 'Enter') return;\n"
+            + "      event.preventDefault();\n"
+            + "      managerUi.createAccountButton.click();\n"
+            + "    });\n"
+            + "    managerUi.amountInput.addEventListener('keydown', function(event) {\n"
+            + "      if (event.key !== 'Enter') return;\n"
+            + "      event.preventDefault();\n"
+            + "      managerUi.addTransactionButton.click();\n"
+            + "    });\n"
+            + "    managerUi.currencyInput.addEventListener('keydown', function(event) {\n"
+            + "      if (event.key !== 'Enter') return;\n"
+            + "      event.preventDefault();\n"
+            + "      managerUi.addTransactionButton.click();\n"
+            + "    });\n"
+            + "  }\n"
+            + "  addButton.addEventListener('click', function() {\n"
+            + "    state = sanitizeManualCashState(state);\n"
+            + "    renderManualCashManager(state, managerUi, commitStateChange);\n"
+            + "    setManualCashManagerMessage(managerUi, '', false);\n"
+            + "    managerUi.open();\n"
+            + "  });\n"
+            + "}\n"
+            + "function initChartHoverEffects() {\n"
+            + "  var tooltip = document.createElement('div');\n"
+            + "  tooltip.className = 'chart-tooltip';\n"
+            + "  document.body.appendChild(tooltip);\n"
+            + "  var activeTarget = null;\n"
+            + "  function getActiveCurrencyCode() {\n"
+            + "    var input = document.getElementById('portfolio-currency-input');\n"
+            + "    var fallback = 'NOK';\n"
+            + "    var code = normalizeCurrencyCodeInput(input && input.value ? input.value : fallback);\n"
+            + "    return REPORT_RATES_TO_NOK[code] ? code : fallback;\n"
+            + "  }\n"
+            + "  function formatMoneyTooltip(target) {\n"
+            + "    var currency = getActiveCurrencyCode();\n"
+            + "    var targetRate = REPORT_RATES_TO_NOK[currency];\n"
+            + "    if (!targetRate || targetRate <= 0) return '';\n"
+            + "    var valueNok = Number(target.getAttribute('data-tooltip-value-nok') || '0');\n"
+            + "    var decimals = Number(target.getAttribute('data-tooltip-decimals') || '0');\n"
+            + "    var prefix = target.getAttribute('data-tooltip-prefix') || '';\n"
+            + "    var suffix = target.getAttribute('data-tooltip-suffix') || '';\n"
+            + "    var mode = target.getAttribute('data-tooltip-format') || 'money';\n"
+            + "    var converted = valueNok / targetRate;\n"
+            + "    var text = mode === 'compact'\n"
+            + "      ? prefix + formatCompactMoney(converted, currency)\n"
+            + "      : prefix + formatMoneyValue(converted, currency, decimals);\n"
+            + "    return text + suffix;\n"
+            + "  }\n"
+            + "  function readTooltipText(target) {\n"
+            + "    if (!target) return '';\n"
+            + "    if (target.getAttribute('data-tooltip-kind') === 'money') {\n"
+            + "      var moneyText = formatMoneyTooltip(target);\n"
+            + "      if (moneyText) return moneyText;\n"
+            + "      return String(target.getAttribute('data-tooltip-fallback') || '').trim();\n"
+            + "    }\n"
+            + "    return String(target.getAttribute('data-tooltip') || '').trim();\n"
+            + "  }\n"
+            + "  function placeTooltip(event) {\n"
+            + "    var offsetX = 14;\n"
+            + "    var offsetY = 14;\n"
+            + "    var x = event.clientX + offsetX;\n"
+            + "    var y = event.clientY + offsetY;\n"
+            + "    var rect = tooltip.getBoundingClientRect();\n"
+            + "    if (x + rect.width + 10 > window.innerWidth) x = event.clientX - rect.width - 12;\n"
+            + "    if (y + rect.height + 10 > window.innerHeight) y = event.clientY - rect.height - 12;\n"
+            + "    tooltip.style.left = Math.max(8, x) + 'px';\n"
+            + "    tooltip.style.top = Math.max(8, y) + 'px';\n"
+            + "  }\n"
+            + "  function hideTooltip() {\n"
+            + "    tooltip.classList.remove('visible');\n"
+            + "    activeTarget = null;\n"
+            + "  }\n"
+            + "  document.querySelectorAll('.chart-hover-target').forEach(function (target) {\n"
+            + "    var nativeTitle = target.querySelector('title');\n"
+            + "    if (nativeTitle) {\n"
+            + "      var isMoneyTitle = (nativeTitle.classList && nativeTitle.classList.contains('js-chart-money')) || nativeTitle.hasAttribute('data-value-nok');\n"
+            + "      if (isMoneyTitle) {\n"
+            + "        target.setAttribute('data-tooltip-kind', 'money');\n"
+            + "        target.setAttribute('data-tooltip-value-nok', nativeTitle.getAttribute('data-value-nok') || '0');\n"
+            + "        target.setAttribute('data-tooltip-decimals', nativeTitle.getAttribute('data-decimals') || '0');\n"
+            + "        target.setAttribute('data-tooltip-prefix', nativeTitle.getAttribute('data-prefix') || '');\n"
+            + "        target.setAttribute('data-tooltip-suffix', nativeTitle.getAttribute('data-suffix') || '');\n"
+            + "        target.setAttribute('data-tooltip-format', nativeTitle.getAttribute('data-format') || 'money');\n"
+            + "        target.setAttribute('data-tooltip-fallback', String(nativeTitle.textContent || '').trim());\n"
+            + "      } else {\n"
+            + "        target.setAttribute('data-tooltip-kind', 'text');\n"
+            + "        target.setAttribute('data-tooltip', String(nativeTitle.textContent || '').trim());\n"
+            + "      }\n"
+            + "      var key = String(nativeTitle.textContent || '').toLowerCase();\n"
+            + "      if (key) target.setAttribute('data-filter-key', key);\n"
+            + "      nativeTitle.remove();\n"
+            + "    }\n"
+            + "    target.addEventListener('mouseenter', function (event) {\n"
+            + "      var text = readTooltipText(target);\n"
+            + "      if (!text) return;\n"
+            + "      activeTarget = target;\n"
+            + "      target.classList.add('is-hovered');\n"
+            + "      tooltip.textContent = text;\n"
+            + "      tooltip.classList.add('visible');\n"
+            + "      placeTooltip(event);\n"
+            + "    });\n"
+            + "    target.addEventListener('mousemove', function (event) {\n"
+            + "      if (activeTarget !== target) return;\n"
+            + "      var text = readTooltipText(target);\n"
+            + "      if (text) tooltip.textContent = text;\n"
+            + "      placeTooltip(event);\n"
+            + "    });\n"
+            + "    target.addEventListener('mouseleave', function () {\n"
+            + "      target.classList.remove('is-hovered');\n"
+            + "      hideTooltip();\n"
+            + "    });\n"
+            + "  });\n"
+            + "  window.addEventListener('scroll', hideTooltip, true);\n"
+            + "}\n"
+            + "function initAllocationDrilldown() {\n"
+            + "  function ensureListHost(svg) {\n"
+            + "    var panel = svg.closest('.allocation-panel');\n"
+            + "    if (!panel) return null;\n"
+            + "    var host = panel.querySelector('.allocation-drilldown-list');\n"
+            + "    if (host) return host;\n"
+            + "    host = document.createElement('div');\n"
+            + "    host.className = 'allocation-drilldown-list';\n"
+            + "    host.hidden = true;\n"
+            + "    panel.appendChild(host);\n"
+            + "    return host;\n"
+            + "  }\n"
+            + "  function escapeHtml(text) {\n"
+            + "    return String(text || '')\n"
+            + "      .replace(/&/g, '&amp;')\n"
+            + "      .replace(/</g, '&lt;')\n"
+            + "      .replace(/>/g, '&gt;')\n"
+            + "      .replace(/\\\"/g, '&quot;')\n"
+            + "      .replace(/'/g, '&#39;');\n"
+            + "  }\n"
+            + "  function clearDrilldown(svg) {\n"
+            + "    var host = ensureListHost(svg);\n"
+            + "    if (host) { host.hidden = true; host.innerHTML = ''; }\n"
+            + "    svg.querySelectorAll('.allocation-legend-default').forEach(function(node) { node.style.display = ''; });\n"
+            + "    svg.querySelectorAll('.chart-hover-slice.is-selected').forEach(function(node) { node.classList.remove('is-selected'); });\n"
+            + "    delete svg.dataset.activeDrilldown;\n"
+            + "  }\n"
+            + "  function parseItems(slice) {\n"
+            + "    var raw = slice.getAttribute('data-drilldown-items') || '[]';\n"
+            + "    try {\n"
+            + "      var parsed = JSON.parse(raw);\n"
+            + "      return Array.isArray(parsed) ? parsed : [];\n"
+            + "    } catch (_) {\n"
+            + "      return [];\n"
+            + "    }\n"
+            + "  }\n"
+            + "  function renderDrilldown(svg, selectionLabel, items) {\n"
+            + "    var host = ensureListHost(svg);\n"
+            + "    if (!host) return;\n"
+            + "    var selectedText = String(selectionLabel || '').trim();\n"
+            + "    var html = '';\n"
+            + "    if (selectedText) {\n"
+            + "      html += '<div class=\"allocation-drilldown-selected\">Selected: ' + escapeHtml(selectedText) + '</div>';\n"
+            + "    }\n"
+            + "    html += '<div class=\"allocation-drilldown-grid\">';\n"
+            + "    items.forEach(function(item) {\n"
+            + "      var name = String(item && item.label || '-');\n"
+            + "      var pctValue = Number(item && item.pct || 0);\n"
+            + "      var pct = (Number.isFinite(pctValue) ? pctValue : 0).toFixed(1) + '%';\n"
+            + "      html += '<div class=\"allocation-drilldown-name\" title=\"' + escapeHtml(name) + '\"><span class=\"allocation-drilldown-dot\"></span><span>' + escapeHtml(name) + '</span></div>';\n"
+            + "      html += '<div class=\"allocation-drilldown-pct\">' + pct + '</div>';\n"
+            + "    });\n"
+            + "    html += '</div>';\n"
+            + "    host.innerHTML = html;\n"
+            + "    host.hidden = false;\n"
+            + "  }\n"
+            + "  function findSliceByLabel(svg, label) {\n"
+            + "    var target = String(label || '').trim();\n"
+            + "    if (!target) return null;\n"
+            + "    var slices = svg.querySelectorAll('.chart-hover-slice[data-allocation-label]');\n"
+            + "    for (var i = 0; i < slices.length; i++) {\n"
+            + "      if (String(slices[i].getAttribute('data-allocation-label') || '').trim() === target) {\n"
+            + "        return slices[i];\n"
+            + "      }\n"
+            + "    }\n"
+            + "    return null;\n"
+            + "  }\n"
+            + "  function activateSlice(svg, slice) {\n"
+            + "    if (slice.getAttribute('data-drilldown-disabled') === '1') return;\n"
+            + "    var label = String(slice.getAttribute('data-allocation-label') || '').trim();\n"
+            + "    if (!label) return;\n"
+            + "    if (svg.dataset.activeDrilldown === label) { clearDrilldown(svg); return; }\n"
+            + "    var items = parseItems(slice);\n"
+            + "    if (!items.length) return;\n"
+            + "    clearDrilldown(svg);\n"
+            + "    svg.querySelectorAll('.allocation-legend-default').forEach(function(node) { node.style.display = 'none'; });\n"
+            + "    slice.classList.add('is-selected');\n"
+            + "    svg.dataset.activeDrilldown = label;\n"
+            + "    renderDrilldown(svg, label, items);\n"
+            + "  }\n"
+            + "  document.querySelectorAll('.allocation-panel svg.chart-svg[data-allocation-drilldown=\"1\"]').forEach(function(svg) {\n"
+            + "    svg.addEventListener('click', function(event) {\n"
+            + "      var slice = event.target && event.target.closest ? event.target.closest('.chart-hover-slice') : null;\n"
+            + "      if (!slice) {\n"
+            + "        var legendTarget = event.target && event.target.closest ? event.target.closest('.chart-hover-legend[data-allocation-label]') : null;\n"
+            + "        if (legendTarget) {\n"
+            + "          var label = String(legendTarget.getAttribute('data-allocation-label') || '').trim();\n"
+            + "          if (legendTarget.getAttribute('data-drilldown-disabled') !== '1') {\n"
+            + "            var mappedSlice = findSliceByLabel(svg, label);\n"
+            + "            if (mappedSlice) {\n"
+            + "              activateSlice(svg, mappedSlice);\n"
+            + "              event.stopPropagation();\n"
+            + "              return;\n"
+            + "            }\n"
+            + "          }\n"
+            + "          clearDrilldown(svg);\n"
+            + "          event.stopPropagation();\n"
+            + "          return;\n"
+            + "        }\n"
+            + "      }\n"
+            + "      if (!slice) { clearDrilldown(svg); event.stopPropagation(); return; }\n"
+            + "      activateSlice(svg, slice);\n"
+            + "      event.stopPropagation();\n"
+            + "    });\n"
+            + "    document.addEventListener('click', function(event) {\n"
+            + "      if (svg.contains(event.target)) return;\n"
+            + "      var host = ensureListHost(svg);\n"
+            + "      if (host && host.contains(event.target)) return;\n"
+            + "      clearDrilldown(svg);\n"
+            + "    });\n"
+            + "  });\n"
+            + "}\n"
+            + "function notifyParentThemeChange(theme) {\n"
+            + "  try {\n"
+            + "    if (window.parent && window.parent !== window && window.parent.__portfolioReportThemeBridge\n"
+            + "        && typeof window.parent.__portfolioReportThemeBridge.onThemeChange === 'function') {\n"
+            + "      window.parent.__portfolioReportThemeBridge.onThemeChange(theme);\n"
+            + "    }\n"
+            + "  } catch (_) {\n"
+            + "    // Parent bridge is optional; report works standalone.\n"
+            + "  }\n"
+            + "}\n"
+            + "function initThemeToggle() {\n"
+            + "  var button = document.getElementById('report-theme-toggle');\n"
+            + "  var storageKey = 'portfolioReportTheme';\n"
+            + "  var savedTheme = '';\n"
+            + "  try { savedTheme = window.localStorage.getItem(storageKey) || ''; } catch (_) { savedTheme = ''; }\n"
+            + "  if (savedTheme === 'dark') {\n"
+            + "    document.body.classList.add('theme-dark');\n"
+            + "  }\n"
+            + "  function refreshLabel() {\n"
+            + "    if (!button) return;\n"
+            + "    button.textContent = document.body.classList.contains('theme-dark') ? 'Light mode' : 'Dark mode';\n"
+            + "  }\n"
+            + "  refreshLabel();\n"
+            + "  notifyParentThemeChange(document.body.classList.contains('theme-dark') ? 'dark' : 'light');\n"
+            + "  if (!button) return;\n"
+            + "  button.addEventListener('click', function () {\n"
+            + "    var dark = document.body.classList.toggle('theme-dark');\n"
+            + "    try { window.localStorage.setItem(storageKey, dark ? 'dark' : 'light'); } catch (_) { }\n"
+            + "    refreshLabel();\n"
+            + "    notifyParentThemeChange(dark ? 'dark' : 'light');\n"
+            + "  });\n"
+            + "}\n"
+            + "function initInteractiveChartControls() {\n"
+            + "  function ensureToolbar(container, row) {\n"
+            + "    var existing = container.querySelector('.chart-toolbar');\n"
+            + "    if (existing) return existing;\n"
+            + "    var toolbar = document.createElement('div');\n"
+            + "    toolbar.className = 'chart-toolbar';\n"
+            + "    var heading = row.querySelector(':scope > h3, :scope > h4, :scope > .hero-side-title');\n"
+            + "    if (heading) { heading.insertAdjacentElement('afterend', toolbar); } else { row.appendChild(toolbar); }\n"
+            + "    return toolbar;\n"
+            + "  }\n"
+            + "  function attachControls(container) {\n"
+            + "    var svg = container.querySelector('svg.chart-svg');\n"
+            + "    if (!svg || svg.dataset.interactiveReady === '1') return;\n"
+            + "    svg.dataset.interactiveReady = '1';\n"
+            + "    var row = container.querySelector('.chart-title-row');\n"
+            + "    if (!row) return;\n"
+            + "    var toolbar = ensureToolbar(container, row);\n"
+            + "    var viewport = svg.closest('.chart-viewport');\n"
+            + "    if (!viewport) {\n"
+            + "      viewport = document.createElement('div');\n"
+            + "      viewport.className = 'chart-viewport';\n"
+            + "      svg.parentNode.insertBefore(viewport, svg);\n"
+            + "      viewport.appendChild(svg);\n"
+            + "    }\n"
+            + "    var zoomInBtn = document.createElement('button');\n"
+            + "    zoomInBtn.type = 'button';\n"
+            + "    zoomInBtn.className = 'chart-tool-btn';\n"
+            + "    zoomInBtn.textContent = '+';\n"
+            + "    var zoomOutBtn = document.createElement('button');\n"
+            + "    zoomOutBtn.type = 'button';\n"
+            + "    zoomOutBtn.className = 'chart-tool-btn';\n"
+            + "    zoomOutBtn.textContent = '-';\n"
+            + "    var resetBtn = document.createElement('button');\n"
+            + "    resetBtn.type = 'button';\n"
+            + "    resetBtn.className = 'chart-tool-btn';\n"
+            + "    resetBtn.textContent = 'Reset';\n"
+            + "    var filterInput = document.createElement('input');\n"
+            + "    filterInput.className = 'chart-filter-input';\n"
+            + "    filterInput.type = 'text';\n"
+            + "    filterInput.placeholder = 'Filter';\n"
+            + "    toolbar.appendChild(zoomInBtn);\n"
+            + "    toolbar.appendChild(zoomOutBtn);\n"
+            + "    toolbar.appendChild(resetBtn);\n"
+            + "    toolbar.appendChild(filterInput);\n"
+            + "    var state = { scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, originTx: 0, originTy: 0 };\n"
+            + "    function applyTransform() {\n"
+            + "      svg.style.transform = 'translate(' + state.tx + 'px,' + state.ty + 'px) scale(' + state.scale + ')';\n"
+            + "    }\n"
+            + "    function zoomTo(nextScale, anchorClientX, anchorClientY) {\n"
+            + "      var clamped = Math.max(1, Math.min(4, nextScale));\n"
+            + "      if (Math.abs(clamped - state.scale) < 0.0001) return;\n"
+            + "      var rect = svg.getBoundingClientRect();\n"
+            + "      var anchorX = rect.width / 2;\n"
+            + "      var anchorY = rect.height / 2;\n"
+            + "      if (typeof anchorClientX === 'number' && typeof anchorClientY === 'number') {\n"
+            + "        anchorX = Math.max(0, Math.min(rect.width, anchorClientX - rect.left));\n"
+            + "        anchorY = Math.max(0, Math.min(rect.height, anchorClientY - rect.top));\n"
+            + "      }\n"
+            + "      var contentX = (anchorX - state.tx) / state.scale;\n"
+            + "      var contentY = (anchorY - state.ty) / state.scale;\n"
+            + "      state.scale = clamped;\n"
+            + "      state.tx = anchorX - contentX * state.scale;\n"
+            + "      state.ty = anchorY - contentY * state.scale;\n"
+            + "      if (state.scale <= 1) { state.tx = 0; state.ty = 0; }\n"
+            + "      applyTransform();\n"
+            + "    }\n"
+            + "    zoomInBtn.addEventListener('click', function() { zoomTo(state.scale + 0.2); });\n"
+            + "    zoomOutBtn.addEventListener('click', function() { zoomTo(state.scale - 0.2); });\n"
+            + "    resetBtn.addEventListener('click', function() { state.scale = 1; state.tx = 0; state.ty = 0; applyTransform(); filterInput.value = ''; applyFilter(''); });\n"
+            + "    svg.addEventListener('wheel', function(event) {\n"
+            + "      if (!(event.ctrlKey || event.metaKey)) return;\n"
+            + "      event.preventDefault();\n"
+            + "      var zoomFactor = Math.exp(-event.deltaY * 0.0015);\n"
+            + "      zoomTo(state.scale * zoomFactor, event.clientX, event.clientY);\n"
+            + "    }, { passive: false });\n"
+            + "    svg.addEventListener('mousedown', function(event) {\n"
+            + "      if (event.button !== 0 || state.scale <= 1) return;\n"
+            + "      state.dragging = true;\n"
+            + "      state.startX = event.clientX;\n"
+            + "      state.startY = event.clientY;\n"
+            + "      state.originTx = state.tx;\n"
+            + "      state.originTy = state.ty;\n"
+            + "      svg.classList.add('is-panning');\n"
+            + "      event.preventDefault();\n"
+            + "    });\n"
+            + "    window.addEventListener('mousemove', function(event) {\n"
+            + "      if (!state.dragging) return;\n"
+            + "      state.tx = state.originTx + (event.clientX - state.startX);\n"
+            + "      state.ty = state.originTy + (event.clientY - state.startY);\n"
+            + "      applyTransform();\n"
+            + "    });\n"
+            + "    window.addEventListener('mouseup', function() {\n"
+            + "      state.dragging = false;\n"
+            + "      svg.classList.remove('is-panning');\n"
+            + "    });\n"
+            + "    function applyFilter(term) {\n"
+            + "      var normalized = String(term || '').trim().toLowerCase();\n"
+            + "      var targets = svg.querySelectorAll('.chart-hover-target');\n"
+            + "      targets.forEach(function(target) {\n"
+            + "        var key = String(target.getAttribute('data-filter-key') || '').toLowerCase();\n"
+            + "        var visible = !normalized || key.indexOf(normalized) >= 0;\n"
+            + "        target.style.opacity = visible ? '' : '0.08';\n"
+            + "        target.style.pointerEvents = visible ? '' : 'none';\n"
+            + "      });\n"
+            + "    }\n"
+            + "    filterInput.addEventListener('input', function() { applyFilter(filterInput.value); });\n"
+            + "  }\n"
+            + "  document.querySelectorAll('.overview-chart, .allocation-panel, .hero-side').forEach(attachControls);\n"
+            + "}\n"
+            + "function formatSparklineRangeLabel(rangeKey) {\n"
+            + "  var key = String(rangeKey || '').toUpperCase();\n"
+            + "  if (key === '1M') return '1-month';\n"
+            + "  if (key === '3M') return '3-month';\n"
+            + "  if (key === '6M') return '6-month';\n"
+            + "  if (key === '1Y') return '1-year';\n"
+            + "  if (key === 'YTD') return 'year-to-date';\n"
+            + "  if (key === '3Y') return '3-year';\n"
+            + "  if (key === '5Y') return '5-year';\n"
+            + "  if (key === 'YEAR') return 'year';\n"
+            + "  return key || 'selected';\n"
+            + "}\n"
+            + "function updateSparklineReturnSummary(widget) {\n"
+            + "  if (!widget) return;\n"
+            + "  var summaryNode = widget.querySelector('.js-sparkline-return-summary');\n"
+            + "  if (!summaryNode) return;\n"
+            + "  var activePanel = widget.querySelector('.sparkline-panel.is-active');\n"
+            + "  if (!activePanel) { summaryNode.textContent = ''; return; }\n"
+            + "  var returnNok = Number(activePanel.getAttribute('data-return-nok') || 0);\n"
+            + "  var returnPct = Number(activePanel.getAttribute('data-return-pct') || 0);\n"
+            + "  var rangeLabel = formatSparklineRangeLabel(activePanel.getAttribute('data-range'));\n"
+            + "  var targetCurrency = getActiveReportCurrency();\n"
+            + "  var targetRate = REPORT_RATES_TO_NOK[targetCurrency] || REPORT_RATES_TO_NOK.NOK || 1;\n"
+            + "  var converted = Number.isFinite(targetRate) && targetRate > 0 ? (returnNok / targetRate) : returnNok;\n"
+            + "  var direction = returnNok > 0 ? 'gain' : (returnNok < 0 ? 'loss' : 'change');\n"
+            + "  summaryNode.classList.remove('positive', 'negative');\n"
+            + "  if (returnNok > 0) summaryNode.classList.add('positive');\n"
+            + "  else if (returnNok < 0) summaryNode.classList.add('negative');\n"
+            + "  summaryNode.textContent = formatMoneyValue(converted, targetCurrency, 2) + ' (' + formatPercentValue(returnPct, 2) + ') ' + rangeLabel + ' ' + direction;\n"
+            + "}\n"
+            + "function updateSparklineGrowthSummary(widget) {\n"
+            + "  if (!widget) return;\n"
+            + "  var summaryNode = widget.querySelector('.js-sparkline-growth-summary');\n"
+            + "  if (!summaryNode) return;\n"
+            + "  var activePanel = widget.querySelector('.sparkline-panel.is-active');\n"
+            + "  if (!activePanel) { summaryNode.textContent = ''; return; }\n"
+            + "  var growthNok = Number(activePanel.getAttribute('data-growth-nok') || 0);\n"
+            + "  var growthPct = Number(activePanel.getAttribute('data-growth-pct') || 0);\n"
+            + "  var rangeLabel = formatSparklineRangeLabel(activePanel.getAttribute('data-range'));\n"
+            + "  var targetCurrency = getActiveReportCurrency();\n"
+            + "  var targetRate = REPORT_RATES_TO_NOK[targetCurrency] || REPORT_RATES_TO_NOK.NOK || 1;\n"
+            + "  var converted = Number.isFinite(targetRate) && targetRate > 0 ? (growthNok / targetRate) : growthNok;\n"
+            + "  var direction = growthNok > 0 ? 'growth' : (growthNok < 0 ? 'decline' : 'change');\n"
+            + "  summaryNode.classList.remove('positive', 'negative');\n"
+            + "  if (growthNok > 0) summaryNode.classList.add('positive');\n"
+            + "  else if (growthNok < 0) summaryNode.classList.add('negative');\n"
+            + "  summaryNode.textContent = formatMoneyValue(converted, targetCurrency, 2) + ' (' + formatPercentValue(growthPct, 2) + ') ' + rangeLabel + ' ' + direction;\n"
+            + "}\n"
+            + "function refreshSparklineSummaries() {\n"
+            + "  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n"
+            + "    updateSparklineReturnSummary(widget);\n"
+            + "    updateSparklineGrowthSummary(widget);\n"
+            + "  });\n"
+            + "}\n"
+            + "function initSparklineRangeControls() {\n"
+            + "  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n"
+            + "    var rangeButtons = widget.querySelectorAll('.sparkline-range-btn');\n"
+            + "    var metricButtons = widget.querySelectorAll('.sparkline-metric-btn');\n"
+            + "    var panels = widget.querySelectorAll('.sparkline-panel');\n"
+            + "    if (!panels.length) return;\n"
+            + "    var defaultRangeSource = widget.querySelector('.sparkline-range-btn.is-active') || rangeButtons[0] || panels[0];\n"
+            + "    var activeRange = defaultRangeSource ? defaultRangeSource.getAttribute('data-range') : '';\n"
+            + "    var metricSource = widget.querySelector('.sparkline-metric-btn.is-active') || metricButtons[0] || panels[0];\n"
+            + "    var activeMetric = metricSource ? String(metricSource.getAttribute('data-metric') || '') : '';\n"
+            + "    function refresh() {\n"
+            + "      rangeButtons.forEach(function(btn) {\n"
+            + "        btn.classList.toggle('is-active', btn.getAttribute('data-range') === activeRange);\n"
+            + "      });\n"
+            + "      metricButtons.forEach(function(btn) {\n"
+            + "        btn.classList.toggle('is-active', btn.getAttribute('data-metric') === activeMetric);\n"
+            + "      });\n"
+            + "      panels.forEach(function(panel) {\n"
+            + "        var matchRange = panel.getAttribute('data-range') === activeRange;\n"
+            + "        var panelMetric = String(panel.getAttribute('data-metric') || '');\n"
+            + "        var matchMetric = !activeMetric || panelMetric === activeMetric;\n"
+            + "        panel.classList.toggle('is-active', matchRange && matchMetric);\n"
+            + "      });\n"
+            + "      updateSparklineReturnSummary(widget);\n"
+            + "      updateSparklineGrowthSummary(widget);\n"
+            + "    }\n"
+            + "    rangeButtons.forEach(function(btn) {\n"
+            + "      btn.addEventListener('click', function() {\n"
+            + "        activeRange = btn.getAttribute('data-range');\n"
+            + "        refresh();\n"
+            + "      });\n"
+            + "    });\n"
+            + "    metricButtons.forEach(function(btn) {\n"
+            + "      btn.addEventListener('click', function() {\n"
+            + "        activeMetric = btn.getAttribute('data-metric');\n"
+            + "        refresh();\n"
+            + "      });\n"
+            + "    });\n"
+            + "    refresh();\n"
+            + "  });\n"
+            + "}\n"
+            + "function initTimelineInfoPopup() {\n"
+            + "  document.querySelectorAll('.timeline-info-btn').forEach(function(openBtn) {\n"
+            + "    if (openBtn.dataset.timelineInfoBound === '1') return;\n"
+            + "    openBtn.dataset.timelineInfoBound = '1';\n";
+
+    private static final String SCRIPT_PART_3 =
+            "    var host = openBtn.closest('.hero-side, .annual-graphs-section, .annual-kpi-deck');\n"
+            + "    var overlay = host ? host.querySelector('.timeline-info-overlay') : null;\n"
+            + "    if (!overlay) return;\n"
+            + "    var closeBtn = overlay.querySelector('.timeline-info-close');\n"
+            + "    function closeDialog() { overlay.hidden = true; }\n"
+            + "    function openDialog() { overlay.hidden = false; }\n"
+            + "    openBtn.addEventListener('click', openDialog);\n"
+            + "    if (closeBtn) closeBtn.addEventListener('click', closeDialog);\n"
+            + "    overlay.addEventListener('click', function(event) {\n"
+            + "      if (event.target === overlay) closeDialog();\n"
+            + "    });\n"
+            + "    window.addEventListener('keydown', function(event) {\n"
+            + "      if (!overlay.hidden && event.key === 'Escape') closeDialog();\n"
+            + "    });\n"
+            + "  });\n"
+            + "}\n"
+            + "function initInlineCellDragHandles() {\n"
+            + "  var active = null;\n"
+            + "  var startX = 0;\n"
+            + "  var startScrollLeft = 0;\n"
+            + "  function stopDrag() {\n"
+            + "    if (!active) return;\n"
+            + "    active.classList.remove('is-dragging');\n"
+            + "    document.body.classList.remove('inline-cell-dragging');\n"
+            + "    active = null;\n"
+            + "  }\n"
+            + "  window.addEventListener('mousemove', function (event) {\n"
+            + "    if (!active) return;\n"
+            + "    var deltaX = event.clientX - startX;\n"
+            + "    active.scrollLeft = startScrollLeft - deltaX;\n"
+            + "  });\n"
+            + "  window.addEventListener('mouseup', stopDrag);\n"
+            + "  window.addEventListener('mouseleave', stopDrag);\n"
+            + "  document.querySelectorAll('.security-scroll, .ticker-scroll').forEach(function (node) {\n"
+            + "    if (node.dataset.dragHandleInit === '1') return;\n"
+            + "    node.dataset.dragHandleInit = '1';\n"
+            + "    node.addEventListener('mousedown', function (event) {\n"
+            + "      if (event.button !== 0) return;\n"
+            + "      active = node;\n"
+            + "      startX = event.clientX;\n"
+            + "      startScrollLeft = node.scrollLeft;\n"
+            + "      node.classList.add('is-dragging');\n"
+            + "      document.body.classList.add('inline-cell-dragging');\n"
+            + "      event.preventDefault();\n"
+            + "    });\n"
+            + "  });\n"
+            + "}\n"
+            + "function toDownloadSafeName(value) {\n"
+            + "  return String(value || 'chart')\n"
+            + "    .trim()\n"
+            + "    .toLowerCase()\n"
+            + "    .replace(/[^a-z0-9]+/g, '-')\n"
+            + "    .replace(/^-+|-+$/g, '') || 'chart';\n"
+            + "}\n"
+            + "function resolveChartName(container, fallback) {\n"
+            + "  if (!container) return fallback;\n"
+            + "  var heading = container.querySelector('h3, h4, .hero-side-title');\n"
+            + "  var text = heading ? String(heading.textContent || '').trim() : '';\n"
+            + "  return text || fallback;\n"
+            + "}\n"
+            + "function downloadSvgImage(svgElement, fileName) {\n"
+            + "  if (!svgElement) return;\n"
+            + "  var cloned = svgElement.cloneNode(true);\n"
+            + "  if (!cloned.getAttribute('xmlns')) cloned.setAttribute('xmlns', 'http://www.w3.org/2000/svg');\n"
+            + "  if (!cloned.getAttribute('xmlns:xlink')) cloned.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');\n"
+            + "  var serializer = new XMLSerializer();\n"
+            + "  var source = serializer.serializeToString(cloned);\n"
+            + "  var encoded = window.btoa(unescape(encodeURIComponent(source)));\n"
+            + "  var dataUrl = 'data:image/svg+xml;base64,' + encoded;\n"
+            + "  var img = new Image();\n"
+            + "  img.onload = function() {\n"
+            + "    var width = Number(svgElement.viewBox && svgElement.viewBox.baseVal && svgElement.viewBox.baseVal.width) || svgElement.clientWidth || 1200;\n"
+            + "    var height = Number(svgElement.viewBox && svgElement.viewBox.baseVal && svgElement.viewBox.baseVal.height) || svgElement.clientHeight || 800;\n"
+            + "    width = Math.max(1, Math.round(width));\n"
+            + "    height = Math.max(1, Math.round(height));\n"
+            + "    var canvas = document.createElement('canvas');\n"
+            + "    canvas.width = width;\n"
+            + "    canvas.height = height;\n"
+            + "    var context = canvas.getContext('2d');\n"
+            + "    if (!context) return;\n"
+            + "    context.fillStyle = '#ffffff';\n"
+            + "    context.fillRect(0, 0, width, height);\n"
+            + "    context.drawImage(img, 0, 0, width, height);\n"
+            + "    canvas.toBlob(function(blob) {\n"
+            + "      if (!blob) return;\n"
+            + "      var url = URL.createObjectURL(blob);\n"
+            + "      var anchor = document.createElement('a');\n"
+            + "      anchor.href = url;\n"
+            + "      anchor.download = toDownloadSafeName(fileName) + '.png';\n"
+            + "      document.body.appendChild(anchor);\n"
+            + "      anchor.click();\n"
+            + "      anchor.remove();\n"
+            + "      URL.revokeObjectURL(url);\n"
+            + "    }, 'image/png');\n"
+            + "  };\n"
+            + "  img.src = dataUrl;\n"
+            + "}\n"
+            + "function appendChartDownloadButton(container, findSvg, fallbackName) {\n"
+            + "  if (!container || container.querySelector('.chart-download-btn')) return;\n"
+            + "  var heading = container.querySelector(':scope > h3, :scope > h4, :scope > .hero-side-title');\n"
+            + "  if (!heading) return;\n"
+            + "  var row = document.createElement('div');\n"
+            + "  row.className = 'chart-title-row';\n"
+            + "  var button = document.createElement('button');\n"
+            + "  button.type = 'button';\n"
+            + "  button.className = 'chart-download-btn';\n"
+            + "  button.setAttribute('title', 'Download PNG');\n"
+            + "  button.setAttribute('aria-label', 'Download PNG');\n"
+            + "  button.innerHTML = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v11\"></path><path d=\"M7.5 10.5L12 15l4.5-4.5\"></path><path d=\"M4 18h16\"></path></svg>';\n"
+            + "  button.addEventListener('click', function() {\n"
+            + "    var svg = typeof findSvg === 'function' ? findSvg() : null;\n"
+            + "    if (!svg) return;\n"
+            + "    var chartName = resolveChartName(container, fallbackName);\n"
+            + "    downloadSvgImage(svg, chartName);\n"
+            + "  });\n"
+            + "  heading.parentNode.insertBefore(row, heading);\n"
+            + "  row.appendChild(heading);\n"
+            + "  row.appendChild(button);\n"
+            + "}\n"
+            + "function initChartDownloadButtons() {\n"
+            + "  document.querySelectorAll('.overview-chart, .allocation-panel').forEach(function(container) {\n"
+            + "    appendChartDownloadButton(container, function() {\n"
+            + "      return container.querySelector('svg.chart-svg');\n"
+            + "    }, 'chart');\n"
+            + "  });\n"
+            + "  document.querySelectorAll('.hero-side').forEach(function(side) {\n"
+            + "    appendChartDownloadButton(side, function() {\n"
+            + "      var widget = side.querySelector('.sparkline-widget');\n"
+            + "      if (!widget) return null;\n"
+            + "      var activePanel = widget.querySelector('.sparkline-panel.is-active');\n"
+            + "      var fallbackPanel = widget.querySelector('.sparkline-panel');\n"
+            + "      var panel = activePanel || fallbackPanel;\n"
+            + "      return panel ? panel.querySelector('svg') : null;\n"
+            + "    }, 'portfolio-value-timeline');\n"
+            + "  });\n"
+            + "}\n"
+            + "(function initReportCurrencyInput() {\n"
+            + "  var input = document.getElementById('portfolio-currency-input');\n"
+            + "  if (!input) return;\n"
+            + "  input.addEventListener('change', function () {\n"
+            + "    var target = normalizeCurrencyCodeInput(input.value);\n";
+
+    private static final String SCRIPT_PART_4 =
+            "    refreshReportTotalsCurrency(target);\n"
+            + "    refreshReportChartsCurrency(target);\n"
+            + "  });\n";
+
+    private static final String SCRIPT_PART_5 =
+            "  initSparklineRangeControls();\n"
+            + "  initTimelineInfoPopup();\n"
+            + "  initInlineCellDragHandles();\n"
+            + "  initSortableTables();\n"
+            + "  initAssetSubtotalToggles();\n"
+            + "  initOverviewModeSwitcher();\n"
+            + "  initOverviewDayCharts();\n"
+            + "  initChartDownloadButtons();\n"
+            + "  initChartHoverEffects();\n"
+            + "  initInteractiveChartControls();\n"
+            + "  initAllocationDrilldown();\n"
+            + "  initThemeToggle();\n"
+            + "  initPriceRefreshButton();\n"
+            + "  initManualCashHoldings();\n"
+            + "})();\n";
+
+
     static void write(FileWriter writer, Map<String, Double> ratesToNok) throws IOException {
         writer.write("const REPORT_RATES_TO_NOK = " + CurrencyConversionService.toJson(ratesToNok) + ";\n");
-        writer.write("function normalizeCurrencyCodeInput(value) {\n");
-        writer.write("  return String(value || '').trim().toUpperCase();\n");
-        writer.write("}\n");
-        writer.write("function formatGroupedNumber(value, decimals) {\n");
-        writer.write("  var fixed = Number(value || 0).toFixed(decimals);\n");
-        writer.write("  var parts = fixed.split('.');\n");
-        writer.write("  var whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ' ');\n");
-        writer.write("  return decimals > 0 ? whole + '.' + parts[1] : whole;\n");
-        writer.write("}\n");
-        writer.write("function formatMoneyValue(amount, currency, decimals) {\n");
-        writer.write("  return formatGroupedNumber(amount, decimals) + ' ' + currency;\n");
-        writer.write("}\n");
-        writer.write("function formatCompactMoney(amount, currency) {\n");
-        writer.write("  var absValue = Math.abs(Number(amount || 0));\n");
-        writer.write("  var prefix = Number(amount || 0) < 0 ? '-' : '';\n");
-        writer.write("  if (absValue >= 1000000000) return prefix + Number(absValue / 1000000000.0).toFixed(1) + 'B ' + currency;\n");
-        writer.write("  if (absValue >= 1000000) return prefix + Number(absValue / 1000000.0).toFixed(1) + 'M ' + currency;\n");
-        writer.write("  if (absValue >= 1000) return prefix + Number(absValue / 1000.0).toFixed(0) + 'k ' + currency;\n");
-        writer.write("  return prefix + Number(absValue).toFixed(0) + ' ' + currency;\n");
-        writer.write("}\n");
-        writer.write("function convertBucketsToCurrency(buckets, targetCurrency) {\n");
-        writer.write("  var target = normalizeCurrencyCodeInput(targetCurrency);\n");
-        writer.write("  var targetRate = REPORT_RATES_TO_NOK[target];\n");
-        writer.write("  if (!targetRate || targetRate <= 0) return null;\n");
-        writer.write("  var totalNok = 0;\n");
-        writer.write("  for (var code in buckets) {\n");
-        writer.write("    if (!Object.prototype.hasOwnProperty.call(buckets, code)) continue;\n");
-        writer.write("    var sourceRate = REPORT_RATES_TO_NOK[normalizeCurrencyCodeInput(code)];\n");
-        writer.write("    if (!sourceRate || sourceRate <= 0) continue;\n");
-        writer.write("    totalNok += Number(buckets[code] || 0) * sourceRate;\n");
-        writer.write("  }\n");
-        writer.write("  return totalNok / targetRate;\n");
-        writer.write("}\n");
-        writer.write("function refreshReportTotalsCurrency(targetCurrency) {\n");
-        writer.write("  var target = normalizeCurrencyCodeInput(targetCurrency);\n");
-        writer.write("  if (!REPORT_RATES_TO_NOK[target]) return false;\n");
-        writer.write("  var fields = document.querySelectorAll('.js-convert-money');\n");
-        writer.write("  fields.forEach(function (field) {\n");
-        writer.write("    var raw = field.getAttribute('data-buckets');\n");
-        writer.write("    if (!raw) return;\n");
-        writer.write("    try {\n");
-        writer.write("      var buckets = JSON.parse(raw);\n");
-        writer.write("      var decimals = Number(field.getAttribute('data-decimals') || '2');\n");
-        writer.write("      var converted = convertBucketsToCurrency(buckets, target);\n");
-        writer.write("      if (converted == null) return;\n");
-        writer.write("      field.textContent = formatMoneyValue(converted, target, decimals);\n");
-        writer.write("    } catch (e) {\n");
-        writer.write("      // Keep existing content if parsing fails.\n");
-        writer.write("    }\n");
-        writer.write("  });\n");
-        writer.write("  document.querySelectorAll('.js-report-currency-code').forEach(function(node) {\n");
-        writer.write("    node.textContent = target;\n");
-        writer.write("  });\n");
-        writer.write("  return true;\n");
-        writer.write("}\n");
-        writer.write("function refreshReportChartsCurrency(targetCurrency) {\n");
-        writer.write("  var target = normalizeCurrencyCodeInput(targetCurrency);\n");
-        writer.write("  var targetRate = REPORT_RATES_TO_NOK[target];\n");
-        writer.write("  if (!targetRate || targetRate <= 0) return false;\n");
-        writer.write("  document.querySelectorAll('.js-total-return-money-title').forEach(function (node) {\n");
-        writer.write("    node.textContent = 'Total Return (' + target + ')';\n");
-        writer.write("  });\n");
-        writer.write("  document.querySelectorAll('.js-return-amount-label').forEach(function (node) {\n");
-        writer.write("    node.textContent = 'Return (' + target + ')';\n");
-        writer.write("  });\n");
-        writer.write("  document.querySelectorAll('.js-chart-money').forEach(function (node) {\n");
-        writer.write("    var valueNok = Number(node.getAttribute('data-value-nok') || '0');\n");
-        writer.write("    var decimals = Number(node.getAttribute('data-decimals') || '0');\n");
-        writer.write("    var prefix = node.getAttribute('data-prefix') || '';\n");
-        writer.write("    var suffix = node.getAttribute('data-suffix') || '';\n");
-        writer.write("    var mode = node.getAttribute('data-format') || 'money';\n");
-        writer.write("    var converted = valueNok / targetRate;\n");
-        writer.write("    var text = mode === 'compact'\n");
-        writer.write("      ? prefix + formatCompactMoney(converted, target)\n");
-        writer.write("      : prefix + formatMoneyValue(converted, target, decimals);\n");
-        writer.write("    text += suffix;\n");
-        writer.write("    node.textContent = text;\n");
-        writer.write("  });\n");
-        writer.write("  refreshSparklineSummaries();\n");
-        writer.write("  return true;\n");
-        writer.write("}\n");
-        writer.write("function parseBucketsJson(raw) {\n");
-        writer.write("  if (!raw) return {};\n");
-        writer.write("  try {\n");
-        writer.write("    var parsed = JSON.parse(raw);\n");
-        writer.write("    return parsed && typeof parsed === 'object' ? parsed : {};\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    return {};\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function addBucketValue(target, currency, amount) {\n");
-        writer.write("  var code = normalizeCurrencyCodeInput(currency || 'NOK');\n");
-        writer.write("  if (!code) code = 'NOK';\n");
-        writer.write("  var value = Number(amount || 0);\n");
-        writer.write("  target[code] = Number(target[code] || 0) + value;\n");
-        writer.write("}\n");
-        writer.write("function mergeBuckets(base, extra) {\n");
-        writer.write("  var merged = {};\n");
-        writer.write("  Object.keys(base || {}).forEach(function(code) {\n");
-        writer.write("    merged[code] = Number(base[code] || 0);\n");
-        writer.write("  });\n");
-        writer.write("  Object.keys(extra || {}).forEach(function(code) {\n");
-        writer.write("    merged[code] = Number(merged[code] || 0) + Number(extra[code] || 0);\n");
-        writer.write("  });\n");
-        writer.write("  return merged;\n");
-        writer.write("}\n");
-        writer.write("function makeGroupBuckets() {\n");
-        writer.write("  return { market: {}, cost: {}, unrealized: {}, realized: {}, dividends: {}, historical: {}, dayChange: {}, prevClose: {} };\n");
-        writer.write("}\n");
-        writer.write("function applySubtotalSign(node, valueNok) {\n");
-        writer.write("  if (!node) return;\n");
-        writer.write("  node.classList.remove('positive', 'negative');\n");
-        writer.write("  if (valueNok > 0) node.classList.add('positive');\n");
-        writer.write("  else if (valueNok < 0) node.classList.add('negative');\n");
-        writer.write("}\n");
-        writer.write("function updateSubtotalGroup(prefix, gb) {\n");
-        writer.write("  if (!gb) return;\n");
-        writer.write("  var returnBuckets = mergeBuckets(gb.unrealized, mergeBuckets(gb.realized, gb.dividends));\n");
-        writer.write("  var costNok = Number(convertBucketsToCurrency(gb.cost, 'NOK') || 0);\n");
-        writer.write("  var unrealizedNok = Number(convertBucketsToCurrency(gb.unrealized, 'NOK') || 0);\n");
-        writer.write("  var realizedNok = Number(convertBucketsToCurrency(gb.realized, 'NOK') || 0);\n");
-        writer.write("  var returnNok = Number(convertBucketsToCurrency(returnBuckets, 'NOK') || 0);\n");
-        writer.write("  var historicalNok = Number(convertBucketsToCurrency(gb.historical, 'NOK') || 0);\n");
-        writer.write("  var dayChangeNok = Number(convertBucketsToCurrency(gb.dayChange, 'NOK') || 0);\n");
-        writer.write("  var prevCloseNok = Number(convertBucketsToCurrency(gb.prevClose, 'NOK') || 0);\n");
-        writer.write("  var unrealizedPct = costNok > 0 ? (unrealizedNok / costNok) * 100 : 0;\n");
-        writer.write("  var realizedPct = costNok > 0 ? (realizedNok / costNok) * 100 : 0;\n");
-        writer.write("  var returnPct = historicalNok > 0 ? (returnNok / historicalNok) * 100 : 0;\n");
-        writer.write("  var dayChangePct = prevCloseNok > 0 ? (dayChangeNok / prevCloseNok) * 100 : 0;\n");
-        writer.write("  function setBuckets(id, buckets) { var n = document.getElementById(id); if (n) n.setAttribute('data-buckets', JSON.stringify(buckets)); }\n");
-        writer.write("  setBuckets(prefix + '-cost-basis', gb.cost);\n");
-        writer.write("  setBuckets(prefix + '-market-value', gb.market);\n");
-        writer.write("  setBuckets(prefix + '-unrealized-value', gb.unrealized);\n");
-        writer.write("  setBuckets(prefix + '-realized-value', gb.realized);\n");
-        writer.write("  setBuckets(prefix + '-dividends-value', gb.dividends);\n");
-        writer.write("  setBuckets(prefix + '-total-return-value', returnBuckets);\n");
-        writer.write("  setBuckets(prefix + '-day-change-value', gb.dayChange);\n");
-        writer.write("  applySubtotalSign(document.getElementById(prefix + '-unrealized-value'), unrealizedNok);\n");
-        writer.write("  applySubtotalSign(document.getElementById(prefix + '-realized-value'), realizedNok);\n");
-        writer.write("  applySubtotalSign(document.getElementById(prefix + '-total-return-value'), returnNok);\n");
-        writer.write("  applySubtotalSign(document.getElementById(prefix + '-day-change-value'), dayChangeNok);\n");
-        writer.write("  var unrealizedPctNode = document.getElementById(prefix + '-unrealized-pct');\n");
-        writer.write("  if (unrealizedPctNode) { unrealizedPctNode.textContent = formatPercentValue(unrealizedPct, 2); applySubtotalSign(unrealizedPctNode, unrealizedNok); }\n");
-        writer.write("  var realizedPctNode = document.getElementById(prefix + '-realized-pct');\n");
-        writer.write("  if (realizedPctNode) { realizedPctNode.textContent = formatPercentValue(realizedPct, 2); applySubtotalSign(realizedPctNode, realizedNok); }\n");
-        writer.write("  var returnPctNode = document.getElementById(prefix + '-total-return-pct');\n");
-        writer.write("  if (returnPctNode) { returnPctNode.textContent = formatPercentValue(returnPct, 2); applySubtotalSign(returnPctNode, returnNok); }\n");
-        writer.write("  var dayChangePctNode = document.getElementById(prefix + '-day-change-pct');\n");
-        writer.write("  if (dayChangePctNode) {\n");
-        writer.write("    dayChangePctNode.classList.remove('positive', 'negative');\n");
-        writer.write("    if (prevCloseNok > 0 && Number.isFinite(dayChangePct)) { dayChangePctNode.textContent = formatPercentValue(dayChangePct, 2); applySubtotalSign(dayChangePctNode, dayChangeNok); }\n");
-        writer.write("    else { dayChangePctNode.textContent = '-'; }\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function initAssetSubtotalToggles() {\n");
-        writer.write("  function toggleForTable(table) {\n");
-        writer.write("    if (!table) return;\n");
-        writer.write("    var subtotalRows = Array.prototype.slice.call(table.querySelectorAll('.asset-subtotal-row'));\n");
-        writer.write("    if (!subtotalRows.length) return;\n");
-        writer.write("    var willOpen = subtotalRows.some(function(r) { return r.hasAttribute('hidden'); });\n");
-        writer.write("    subtotalRows.forEach(function(r) { if (willOpen) { r.removeAttribute('hidden'); } else { r.setAttribute('hidden', ''); } });\n");
-        writer.write("    table.querySelectorAll('.asset-divider-row').forEach(function(d) {\n");
-        writer.write("      d.classList.toggle('is-open', willOpen);\n");
-        writer.write("      var b = d.querySelector('.asset-divider-toggle');\n");
-        writer.write("      if (b) b.setAttribute('aria-expanded', willOpen ? 'true' : 'false');\n");
-        writer.write("    });\n");
-        writer.write("    table.querySelectorAll('.total-row .subtotal-toggle-btn').forEach(function(b) {\n");
-        writer.write("      b.setAttribute('aria-expanded', willOpen ? 'true' : 'false');\n");
-        writer.write("      var row = b.closest('.total-row');\n");
-        writer.write("      if (row) row.classList.toggle('is-open', willOpen);\n");
-        writer.write("    });\n");
-        writer.write("  }\n");
-        writer.write("  document.querySelectorAll('.asset-divider-toggle, .subtotal-toggle-btn').forEach(function(btn) {\n");
-        writer.write("    btn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); toggleForTable(btn.closest('table')); });\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function refreshPortfolioValueBuckets() {\n");
-        writer.write("  var portfolioNode = document.getElementById('hero-portfolio-value');\n");
-        writer.write("  if (!portfolioNode) return;\n");
-        writer.write("  var marketNode = document.getElementById('hero-total-market-value');\n");
-        writer.write("  var cashNode = document.getElementById('cash-holdings-total');\n");
-        writer.write("  var marketBuckets = parseBucketsJson(marketNode ? marketNode.getAttribute('data-buckets') : '{}');\n");
-        writer.write("  var cashBuckets = parseBucketsJson(cashNode ? cashNode.getAttribute('data-buckets') : '{}');\n");
-        writer.write("  portfolioNode.setAttribute('data-buckets', JSON.stringify(mergeBuckets(marketBuckets, cashBuckets)));\n");
-        writer.write("}\n");
-        writer.write("function getActiveReportCurrency() {\n");
-        writer.write("  var input = document.getElementById('portfolio-currency-input');\n");
-        writer.write("  var target = normalizeCurrencyCodeInput(input && input.value ? input.value : 'NOK');\n");
-        writer.write("  if (!target || !REPORT_RATES_TO_NOK[target]) return 'NOK';\n");
-        writer.write("  return target;\n");
-        writer.write("}\n");
-        writer.write("function formatPercentValue(value, decimals) {\n");
-        writer.write("  return formatGroupedNumber(Number(value || 0), decimals) + '%';\n");
-        writer.write("}\n");
-        writer.write("function resolvePriceRefreshApiUrl() {\n");
-        writer.write("  if (window.__portfolioReportPriceApiUrl) return String(window.__portfolioReportPriceApiUrl);\n");
-        writer.write("  if (window.REPORT_PRICE_API_URL) return String(window.REPORT_PRICE_API_URL);\n");
-        writer.write("  try {\n");
-        writer.write("    if (window.parent && window.parent !== window) {\n");
-        writer.write("      if (window.parent.__portfolioReportPriceApiUrl) return String(window.parent.__portfolioReportPriceApiUrl);\n");
-        writer.write("      if (window.parent.REPORT_PRICE_API_URL) return String(window.parent.REPORT_PRICE_API_URL);\n");
-        writer.write("    }\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    // Ignore parent access issues.\n");
-        writer.write("  }\n");
-        writer.write("  return '';\n");
-        writer.write("}\n");
-        writer.write("async function resolveReportAuthToken() {\n");
-        writer.write("  try {\n");
-        writer.write("    var getToken = typeof window.__getPortfolioReportAuthToken === 'function'\n");
-        writer.write("      ? window.__getPortfolioReportAuthToken\n");
-        writer.write("      : (window.parent && window.parent !== window && typeof window.parent.__getPortfolioReportAuthToken === 'function'\n");
-        writer.write("          ? window.parent.__getPortfolioReportAuthToken\n");
-        writer.write("          : null);\n");
-        writer.write("    if (getToken) return String(await getToken() || '');\n");
-        writer.write("  } catch (_) {}\n");
-        writer.write("  return '';\n");
-        writer.write("}\n");
-        writer.write("async function fetchLatestPricesFromApi(tickers) {\n");
-        writer.write("  var apiUrl = resolvePriceRefreshApiUrl();\n");
-        writer.write("  if (!apiUrl) throw new Error('No price API configured.');\n");
-        writer.write("  var authToken = await resolveReportAuthToken();\n");
-        writer.write("  var fetchHeaders = { 'Content-Type': 'application/json' };\n");
-        writer.write("  if (authToken) fetchHeaders['Authorization'] = 'Bearer ' + authToken;\n");
-        writer.write("  var response = await fetch(apiUrl, {\n");
-        writer.write("    method: 'POST',\n");
-        writer.write("    headers: fetchHeaders,\n");
-        writer.write("    body: JSON.stringify({ tickers: tickers })\n");
-        writer.write("  });\n");
-        writer.write("  if (!response.ok) {\n");
-        writer.write("    var message = 'Price refresh failed with status ' + response.status;\n");
-        writer.write("    try {\n");
-        writer.write("      var payload = await response.json();\n");
-        writer.write("      if (payload && payload.error) message = payload.error;\n");
-        writer.write("    } catch (_) {\n");
-        writer.write("      // Keep status-based message when no payload is available.\n");
-        writer.write("    }\n");
-        writer.write("    throw new Error(message);\n");
-        writer.write("  }\n");
-        writer.write("  var data = await response.json();\n");
-        writer.write("  return {\n");
-        writer.write("    prices: (data && data.prices && typeof data.prices === 'object') ? data.prices : {},\n");
-        writer.write("    previousCloses: (data && data.previousCloses && typeof data.previousCloses === 'object') ? data.previousCloses : {}\n");
-        writer.write("  };\n");
-        writer.write("}\n");
-        writer.write("async function fetchLatestDaySeriesFromApi(tickers) {\n");
-        writer.write("  var apiUrl = resolvePriceRefreshApiUrl();\n");
-        writer.write("  if (!apiUrl) throw new Error('No price API configured.');\n");
-        writer.write("  var authToken = await resolveReportAuthToken();\n");
-        writer.write("  var fetchHeaders = { 'Content-Type': 'application/json' };\n");
-        writer.write("  if (authToken) fetchHeaders['Authorization'] = 'Bearer ' + authToken;\n");
-        writer.write("  var response = await fetch(apiUrl, {\n");
-        writer.write("    method: 'POST',\n");
-        writer.write("    headers: fetchHeaders,\n");
-        writer.write("    body: JSON.stringify({ tickers: tickers, includeDaySeries: true })\n");
-        writer.write("  });\n");
-        writer.write("  if (!response.ok) {\n");
-        writer.write("    throw new Error('Day series fetch failed with status ' + response.status);\n");
-        writer.write("  }\n");
-        writer.write("  var data = await response.json();\n");
-        writer.write("  var payload = data && data.daySeries && typeof data.daySeries === 'object' ? data.daySeries : {};\n");
-        writer.write("  var normalized = {};\n");
-        writer.write("  Object.keys(payload).forEach(function(ticker) {\n");
-        writer.write("    var series = payload[ticker];\n");
-        writer.write("    normalized[String(ticker || '').trim().toUpperCase()] = Array.isArray(series)\n");
-        writer.write("      ? series.map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; })\n");
-        writer.write("      : [];\n");
-        writer.write("  });\n");
-        writer.write("  return normalized;\n");
-        writer.write("}\n");
-        writer.write("async function fetchLatestPriceFromYahooDirect(ticker) {\n");
-        writer.write("  var symbol = String(ticker || '').trim().toUpperCase();\n");
-        writer.write("  if (!symbol) return 0;\n");
-        writer.write("  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=5d';\n");
-        writer.write("  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n");
-        writer.write("  if (!response.ok) return 0;\n");
-        writer.write("  var data = await response.json();\n");
-        writer.write("  var result = data && data.chart && data.chart.result && data.chart.result[0];\n");
-        writer.write("  if (!result) return 0;\n");
-        writer.write("  var marketPrice = Number(result.meta && result.meta.regularMarketPrice || 0);\n");
-        writer.write("  if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;\n");
-        writer.write("  var closes = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
-        writer.write("  if (!Array.isArray(closes)) return 0;\n");
-        writer.write("  for (var i = closes.length - 1; i >= 0; i -= 1) {\n");
-        writer.write("    var value = Number(closes[i]);\n");
-        writer.write("    if (Number.isFinite(value) && value > 0) return value;\n");
-        writer.write("  }\n");
-        writer.write("  return 0;\n");
-        writer.write("}\n");
-        writer.write("async function fetchYahooChartResult(symbol, interval, range) {\n");
-        writer.write("  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol)\n");
-        writer.write("    + '?interval=' + encodeURIComponent(interval)\n");
-        writer.write("    + '&range=' + encodeURIComponent(range)\n");
-        writer.write("    + '&includePrePost=false';\n");
-        writer.write("  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n");
-        writer.write("  if (!response.ok) return null;\n");
-        writer.write("  var data = await response.json();\n");
-        writer.write("  return data && data.chart && data.chart.result && data.chart.result[0] ? data.chart.result[0] : null;\n");
-        writer.write("}\n");
-        writer.write("function extractLatestTradingSessionSeries(result) {\n");
-        writer.write("  if (!result) return [];\n");
-        writer.write("  var timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];\n");
-        writer.write("  var closeSeries = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
-        writer.write("  if (!Array.isArray(closeSeries) || !timestamps.length) return [];\n");
-        writer.write("  var grouped = new Map();\n");
-        writer.write("  var length = Math.min(timestamps.length, closeSeries.length);\n");
-        writer.write("  for (var i = 0; i < length; i += 1) {\n");
-        writer.write("    var ts = Number(timestamps[i]);\n");
-        writer.write("    var closeValue = Number(closeSeries[i]);\n");
-        writer.write("    if (!Number.isFinite(ts) || !Number.isFinite(closeValue) || closeValue <= 0) continue;\n");
-        writer.write("    var dayKey = new Date(ts * 1000).toISOString().slice(0, 10);\n");
-        writer.write("    if (!grouped.has(dayKey)) grouped.set(dayKey, []);\n");
-        writer.write("    grouped.get(dayKey).push(closeValue);\n");
-        writer.write("  }\n");
-        writer.write("  if (!grouped.size) return [];\n");
-        writer.write("  var orderedDays = Array.from(grouped.keys()).sort();\n");
-        writer.write("  for (var j = orderedDays.length - 1; j >= 0; j -= 1) {\n");
-        writer.write("    var daySeries = grouped.get(orderedDays[j]) || [];\n");
-        writer.write("    if (daySeries.length >= 6) return daySeries;\n");
-        writer.write("  }\n");
-        writer.write("  return [];\n");
-        writer.write("}\n");
-        writer.write("async function fetchDaySeriesFromYahooDirect(ticker) {\n");
-        writer.write("  var symbol = String(ticker || '').trim().toUpperCase();\n");
-        writer.write("  if (!symbol) return [];\n");
-        writer.write("  var oneDay = await fetchYahooChartResult(symbol, '5m', '1d');\n");
-        writer.write("  var oneDaySeries = extractLatestTradingSessionSeries(oneDay);\n");
-        writer.write("  if (oneDaySeries.length >= 6) return oneDaySeries;\n");
-        writer.write("  var fiveDay = await fetchYahooChartResult(symbol, '5m', '5d');\n");
-        writer.write("  var fiveDaySeries = extractLatestTradingSessionSeries(fiveDay);\n");
-        writer.write("  return fiveDaySeries.length >= 6 ? fiveDaySeries : [];\n");
-        writer.write("}\n");
-        writer.write("function buildMiniDayChartSvg(prices) {\n");
-        writer.write("  var chartPrices = Array.isArray(prices)\n");
-        writer.write("    ? prices.map(function(value) { return Number(value); }).filter(function(value) { return Number.isFinite(value) && value > 0; })\n");
-        writer.write("    : [];\n");
-        writer.write("  if (chartPrices.length < 6) return '';\n");
-        writer.write("  var width = 96;\n");
-        writer.write("  var height = 30;\n");
-        writer.write("  var left = 1.5;\n");
-        writer.write("  var right = width - 1.5;\n");
-        writer.write("  var top = 2.0;\n");
-        writer.write("  var bottom = height - 2.0;\n");
-        writer.write("  var min = Math.min.apply(null, chartPrices);\n");
-        writer.write("  var max = Math.max.apply(null, chartPrices);\n");
-        writer.write("  var span = Math.max(0.000001, max - min);\n");
-        writer.write("  var pointsArray = chartPrices.map(function(price, index) {\n");
-        writer.write("    var ratioX = chartPrices.length <= 1 ? 0 : index / (chartPrices.length - 1);\n");
-        writer.write("    var ratioY = (price - min) / span;\n");
-        writer.write("    var x = left + ratioX * (right - left);\n");
-        writer.write("    var y = bottom - ratioY * (bottom - top);\n");
-        writer.write("    return { x: x, y: y };\n");
-        writer.write("  });\n");
-        writer.write("  var points = pointsArray.map(function(point) { return point.x.toFixed(2) + ',' + point.y.toFixed(2); }).join(' ');\n");
-        writer.write("  var start = Number(chartPrices[0]);\n");
-        writer.write("  var end = Number(chartPrices[chartPrices.length - 1]);\n");
-        writer.write("  var lineClass = end >= start ? 'positive' : 'negative';\n");
-        writer.write("  var openRatio = (start - min) / span;\n");
-        writer.write("  var openY = bottom - openRatio * (bottom - top);\n");
-        writer.write("  openY = Math.max(top, Math.min(bottom, openY));\n");
-        writer.write("  var first = pointsArray[0];\n");
-        writer.write("  var last = pointsArray[pointsArray.length - 1];\n");
-        writer.write("  var areaPoints = first.x.toFixed(2) + ',' + openY.toFixed(2) + ' ' + points + ' ' + last.x.toFixed(2) + ',' + openY.toFixed(2);\n");
-        writer.write("  return '<svg class=\"mini-day-chart\" viewBox=\"0 0 ' + width + ' ' + height + '\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">'\n");
-        writer.write("    + '<line class=\"mini-day-chart-open\" x1=\"0\" y1=\"' + openY.toFixed(2) + '\" x2=\"' + width + '\" y2=\"' + openY.toFixed(2) + '\"></line>'\n");
-        writer.write("    + '<polygon class=\"mini-day-chart-area ' + lineClass + '\" points=\"' + areaPoints + '\"></polygon>'\n");
-        writer.write("    + '<polyline class=\"mini-day-chart-line ' + lineClass + '\" points=\"' + points + '\"></polyline>'\n");
-        writer.write("    + '<circle class=\"mini-day-chart-end ' + lineClass + '\" cx=\"' + last.x.toFixed(2) + '\" cy=\"' + last.y.toFixed(2) + '\" r=\"2.3\"></circle>'\n");
-        writer.write("    + '</svg>';\n");
-        writer.write("}\n");
-        writer.write("function initOverviewDayCharts() {\n");
-        writer.write("  var nodes = Array.prototype.slice.call(document.querySelectorAll('.js-row-day-chart[data-ticker]'));\n");
-        writer.write("  if (!nodes.length) return;\n");
-        writer.write("  nodes.forEach(function(node) { node.textContent = '-'; });\n");
-        writer.write("  var byTicker = new Map();\n");
-        writer.write("  nodes.forEach(function(node) {\n");
-        writer.write("    var ticker = String(node.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
-        writer.write("    if (!ticker) return;\n");
-        writer.write("    if (!byTicker.has(ticker)) byTicker.set(ticker, []);\n");
-        writer.write("    byTicker.get(ticker).push(node);\n");
-        writer.write("  });\n");
-        writer.write("  var tickers = Array.from(byTicker.keys());\n");
-        writer.write("  if (!tickers.length) return;\n");
-        writer.write("  fetchLatestDaySeriesFromApi(tickers).then(function(seriesMap) {\n");
-        writer.write("    byTicker.forEach(function(targets, ticker) {\n");
-        writer.write("      var series = seriesMap[ticker] || [];\n");
-        writer.write("      var svg = buildMiniDayChartSvg(series);\n");
-        writer.write("      targets.forEach(function(node) {\n");
-        writer.write("        if (svg) node.innerHTML = svg;\n");
-        writer.write("        else node.textContent = '-';\n");
-        writer.write("      });\n");
-        writer.write("    });\n");
-        writer.write("  }).catch(function() {\n");
-        writer.write("    byTicker.forEach(function(targets) {\n");
-        writer.write("      targets.forEach(function(node) { node.textContent = '-'; });\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("async function fetchPriceDataFromYahooDirect(ticker) {\n");
-        writer.write("  var symbol = String(ticker || '').trim().toUpperCase();\n");
-        writer.write("  if (!symbol) return { price: 0, previousClose: 0 };\n");
-        writer.write("  var url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?interval=1d&range=5d';\n");
-        writer.write("  var response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });\n");
-        writer.write("  if (!response.ok) return { price: 0, previousClose: 0 };\n");
-        writer.write("  var data = await response.json();\n");
-        writer.write("  var result = data && data.chart && data.chart.result && data.chart.result[0];\n");
-        writer.write("  if (!result) return { price: 0, previousClose: 0 };\n");
-        writer.write("  var meta = result.meta || {};\n");
-        writer.write("  var marketPrice = Number(meta.regularMarketPrice || 0);\n");
-        writer.write("  var price = (Number.isFinite(marketPrice) && marketPrice > 0) ? marketPrice : 0;\n");
-        writer.write("  if (!price) {\n");
-        writer.write("    var closesArr = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
-        writer.write("    if (Array.isArray(closesArr)) {\n");
-        writer.write("      for (var i = closesArr.length - 1; i >= 0; i -= 1) {\n");
-        writer.write("        var v = Number(closesArr[i]);\n");
-        writer.write("        if (Number.isFinite(v) && v > 0) { price = v; break; }\n");
-        writer.write("      }\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  // Prior session close = 2nd-to-last daily close; chartPreviousClose spans the whole 5d window.\n");
-        writer.write("  var prevClose = 0;\n");
-        writer.write("  var closes2 = result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close;\n");
-        writer.write("  if (Array.isArray(closes2)) {\n");
-        writer.write("    var validCloses = closes2.map(Number).filter(function(x) { return Number.isFinite(x) && x > 0; });\n");
-        writer.write("    if (validCloses.length >= 2) prevClose = validCloses[validCloses.length - 2];\n");
-        writer.write("  }\n");
-        writer.write("  if (!prevClose || !Number.isFinite(prevClose)) {\n");
-        writer.write("    prevClose = Number(meta.chartPreviousClose || meta.previousClose || 0);\n");
-        writer.write("  }\n");
-        writer.write("  return { price: price, previousClose: prevClose };\n");
-        writer.write("}\n");
-        writer.write("async function fetchLatestPricesDirect(tickers) {\n");
-        writer.write("  var prices = {};\n");
-        writer.write("  var previousCloses = {};\n");
-        writer.write("  for (var i = 0; i < tickers.length; i += 1) {\n");
-        writer.write("    var symbol = String(tickers[i] || '').trim().toUpperCase();\n");
-        writer.write("    if (!symbol) continue;\n");
-        writer.write("    try {\n");
-        writer.write("      var pd = await fetchPriceDataFromYahooDirect(symbol);\n");
-        writer.write("      prices[symbol] = pd.price;\n");
-        writer.write("      previousCloses[symbol] = pd.previousClose;\n");
-        writer.write("    } catch (_) {\n");
-        writer.write("      prices[symbol] = 0;\n");
-        writer.write("      previousCloses[symbol] = 0;\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  return { prices: prices, previousCloses: previousCloses };\n");
-        writer.write("}\n");
-        writer.write("async function fetchLatestPrices(tickers) {\n");
-        writer.write("  try {\n");
-        writer.write("    return await fetchLatestPricesFromApi(tickers);\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    return fetchLatestPricesDirect(tickers);\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function findOverviewRowsBySecurityKey(securityKey) {\n");
-        writer.write("  var key = String(securityKey || '').trim();\n");
-        writer.write("  if (!key) return [];\n");
-        writer.write("  return Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-security-key]')).filter(function(row) {\n");
-        writer.write("    return String(row.getAttribute('data-overview-security-key') || '').trim() === key;\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function applyChangePctCell(cell, referenceClose, nextPrice) {\n");
-        writer.write("  if (!cell) return;\n");
-        writer.write("  cell.classList.remove('positive', 'negative');\n");
-        writer.write("  if (Number.isFinite(referenceClose) && referenceClose > 0 && Number.isFinite(nextPrice) && nextPrice > 0) {\n");
-        writer.write("    var pct = ((nextPrice / referenceClose) - 1) * 100;\n");
-        writer.write("    cell.textContent = formatPercentValue(pct, 2);\n");
-        writer.write("    if (pct > 0) cell.classList.add('positive');\n");
-        writer.write("    else if (pct < 0) cell.classList.add('negative');\n");
-        writer.write("  } else {\n");
-        writer.write("    cell.textContent = '-';\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function applyComputedOverviewRowValues(row, nextPrice) {\n");
-        writer.write("  if (!row || !Number.isFinite(nextPrice) || nextPrice <= 0) return false;\n");
-        writer.write("  var currency = normalizeCurrencyCodeInput(row.getAttribute('data-currency') || 'NOK');\n");
-        writer.write("  var units = Number(row.getAttribute('data-units') || 0);\n");
-        writer.write("  var positionCostBasis = Number(row.getAttribute('data-position-cost-basis') || 0);\n");
-        writer.write("  var realized = Number(row.getAttribute('data-realized') || 0);\n");
-        writer.write("  var dividends = Number(row.getAttribute('data-dividends') || 0);\n");
-        writer.write("  var historicalCostBasis = Number(row.getAttribute('data-historical-cost-basis') || 0);\n");
-        writer.write("  var previousClose = Number(row.getAttribute('data-previous-close') || 0);\n");
-        writer.write("  var marketValue = units * nextPrice;\n");
-        writer.write("  var unrealized = marketValue - positionCostBasis;\n");
-        writer.write("  var unrealizedPct = positionCostBasis > 0 ? (unrealized / positionCostBasis) * 100 : 0;\n");
-        writer.write("  var totalReturn = unrealized + realized + dividends;\n");
-        writer.write("  var totalReturnPct = historicalCostBasis > 0 ? (totalReturn / historicalCostBasis) * 100 : 0;\n");
-        writer.write("  var hasDayChange = Number.isFinite(previousClose) && previousClose > 0;\n");
-        writer.write("  var dayChangeValue = hasDayChange ? (nextPrice - previousClose) : Number.NaN;\n");
-        writer.write("  var dayChangePct = hasDayChange ? ((nextPrice / previousClose) - 1) * 100 : Number.NaN;\n");
-        writer.write("  row.setAttribute('data-latest-price', String(nextPrice));\n");
-        writer.write("  if (Number.isFinite(marketValue)) row.setAttribute('data-market-value', String(marketValue));\n");
-        writer.write("  if (Number.isFinite(unrealized)) row.setAttribute('data-unrealized-value', String(unrealized));\n");
-        writer.write("  if (Number.isFinite(totalReturn)) row.setAttribute('data-total-return-value', String(totalReturn));\n");
-        writer.write("  var priceCell = row.querySelector('.js-row-last-price');\n");
-        writer.write("  var marketCell = row.querySelector('.js-row-market-value');\n");
-        writer.write("  var unrealizedCell = row.querySelector('.js-row-unrealized');\n");
-        writer.write("  var totalReturnCell = row.querySelector('.js-row-total-return');\n");
-        writer.write("  var dayChangeCell = row.querySelector('.js-row-day-change');\n");
-        writer.write("  var dayChangeValueCell = row.querySelector('.js-row-day-change-value');\n");
-        writer.write("  var dayChangePositionValueCell = row.querySelector('.js-row-day-change-value-position');\n");
-        writer.write("  var fundamentalsPriceCell = row.querySelector('.js-row-fundamentals-last-price');\n");
-        writer.write("  var dayChartCell = row.querySelector('.js-row-day-chart');\n");
-        writer.write("  if (priceCell) priceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n");
-        writer.write("  if (marketCell) marketCell.textContent = formatMoneyValue(marketValue, currency, 2);\n");
-        writer.write("  if (unrealizedCell) {\n");
-        writer.write("    unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2) + ' (' + formatPercentValue(unrealizedPct, 2) + ')';\n");
-        writer.write("    unrealizedCell.classList.remove('positive', 'negative');\n");
-        writer.write("    if (unrealized > 0) unrealizedCell.classList.add('positive');\n");
-        writer.write("    else if (unrealized < 0) unrealizedCell.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (totalReturnCell) {\n");
-        writer.write("    totalReturnCell.textContent = formatMoneyValue(totalReturn, currency, 2) + ' (' + formatPercentValue(totalReturnPct, 2) + ')';\n");
-        writer.write("    totalReturnCell.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalReturn > 0) totalReturnCell.classList.add('positive');\n");
-        writer.write("    else if (totalReturn < 0) totalReturnCell.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (fundamentalsPriceCell) fundamentalsPriceCell.textContent = formatMoneyValue(nextPrice, currency, 2);\n");
-        writer.write("  if (dayChangeCell) {\n");
-        writer.write("    if (hasDayChange && Number.isFinite(dayChangePct)) {\n");
-        writer.write("      dayChangeCell.textContent = formatPercentValue(dayChangePct, 2);\n");
-        writer.write("      dayChangeCell.classList.remove('positive', 'negative');\n");
-        writer.write("      if (dayChangePct > 0) dayChangeCell.classList.add('positive');\n");
-        writer.write("      else if (dayChangePct < 0) dayChangeCell.classList.add('negative');\n");
-        writer.write("    } else {\n");
-        writer.write("      dayChangeCell.textContent = '-';\n");
-        writer.write("      dayChangeCell.classList.remove('positive', 'negative');\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  if (dayChangeValueCell) {\n");
-        writer.write("    if (hasDayChange && Number.isFinite(dayChangeValue)) {\n");
-        writer.write("      dayChangeValueCell.textContent = formatMoneyValue(dayChangeValue, currency, 2);\n");
-        writer.write("      dayChangeValueCell.classList.remove('positive', 'negative');\n");
-        writer.write("      if (dayChangeValue > 0) dayChangeValueCell.classList.add('positive');\n");
-        writer.write("      else if (dayChangeValue < 0) dayChangeValueCell.classList.add('negative');\n");
-        writer.write("    } else {\n");
-        writer.write("      dayChangeValueCell.textContent = '-';\n");
-        writer.write("      dayChangeValueCell.classList.remove('positive', 'negative');\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  if (dayChangePositionValueCell) {\n");
-        writer.write("    var positionDayChangeValue = hasDayChange ? (dayChangeValue * units) : Number.NaN;\n");
-        writer.write("    if (Number.isFinite(positionDayChangeValue)) {\n");
-        writer.write("      dayChangePositionValueCell.textContent = formatMoneyValue(positionDayChangeValue, currency, 2);\n");
-        writer.write("      dayChangePositionValueCell.classList.remove('positive', 'negative');\n");
-        writer.write("      if (positionDayChangeValue > 0) dayChangePositionValueCell.classList.add('positive');\n");
-        writer.write("      else if (positionDayChangeValue < 0) dayChangePositionValueCell.classList.add('negative');\n");
-        writer.write("    } else {\n");
-        writer.write("      dayChangePositionValueCell.textContent = '-';\n");
-        writer.write("      dayChangePositionValueCell.classList.remove('positive', 'negative');\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  if (dayChartCell) {\n");
-        writer.write("    dayChartCell.textContent = '-';\n");
-        writer.write("  }\n");
-        writer.write("  var change7dRef = Number(row.getAttribute('data-change-7d-ref') || 0);\n");
-        writer.write("  var change1mRef = Number(row.getAttribute('data-change-1m-ref') || 0);\n");
-        writer.write("  applyChangePctCell(row.querySelector('.js-row-change-7d'), change7dRef, nextPrice);\n");
-        writer.write("  applyChangePctCell(row.querySelector('.js-row-change-1m'), change1mRef, nextPrice);\n");
-        writer.write("  return true;\n");
-        writer.write("}\n");
-        writer.write("function applyOverviewRowPrice(row, nextPrice) {\n");
-        writer.write("  if (!row || !Number.isFinite(nextPrice) || nextPrice <= 0) return false;\n");
-        writer.write("  var securityKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
-        writer.write("  var linkedRows = securityKey ? findOverviewRowsBySecurityKey(securityKey) : [];\n");
-        writer.write("  if (!linkedRows.length) linkedRows = [row];\n");
-        writer.write("  return linkedRows.some(function(targetRow) {\n");
-        writer.write("    return applyComputedOverviewRowValues(targetRow, nextPrice);\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function recalculateOverviewAndHeaderTotalsAfterPriceRefresh() {\n");
-        writer.write("  var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-row=\"1\"]'));\n");
-        writer.write("  var totalMarketBuckets = {};\n");
-        writer.write("  var totalCostBasisBuckets = {};\n");
-        writer.write("  var totalUnrealizedBuckets = {};\n");
-        writer.write("  var totalRealizedBuckets = {};\n");
-        writer.write("  var totalDividendsBuckets = {};\n");
-        writer.write("  var totalHistoricalBuckets = {};\n");
-        writer.write("  var activeTotalReturnBuckets = {};\n");
-        writer.write("  var dayChangeBuckets = {};\n");
-        writer.write("  var previousDayValueBuckets = {};\n");
-        writer.write("  var groupBuckets = { STOCK: makeGroupBuckets(), FUND: makeGroupBuckets() };\n");
-        writer.write("  rows.forEach(function(row) {\n");
-        writer.write("    var currency = normalizeCurrencyCodeInput(row.getAttribute('data-currency') || 'NOK');\n");
-        writer.write("    var latestPrice = Number(row.getAttribute('data-latest-price') || 0);\n");
-        writer.write("    var previousClose = Number(row.getAttribute('data-previous-close') || 0);\n");
-        writer.write("    var units = Number(row.getAttribute('data-units') || 0);\n");
-        writer.write("    var positionCostBasis = Number(row.getAttribute('data-position-cost-basis') || 0);\n");
-        writer.write("    var realized = Number(row.getAttribute('data-realized') || 0);\n");
-        writer.write("    var dividends = Number(row.getAttribute('data-dividends') || 0);\n");
-        writer.write("    var historicalCostBasis = Number(row.getAttribute('data-historical-cost-basis') || 0);\n");
-        writer.write("    var hasPrice = Number.isFinite(latestPrice) && latestPrice > 0;\n");
-        writer.write("    var marketValue = hasPrice ? (units * latestPrice) : 0;\n");
-        writer.write("    var unrealized = hasPrice ? (marketValue - positionCostBasis) : 0;\n");
-        writer.write("    var totalReturn = unrealized + realized + dividends;\n");
-        writer.write("    addBucketValue(totalMarketBuckets, currency, marketValue);\n");
-        writer.write("    addBucketValue(totalCostBasisBuckets, currency, positionCostBasis);\n");
-        writer.write("    addBucketValue(totalUnrealizedBuckets, currency, unrealized);\n");
-        writer.write("    addBucketValue(totalRealizedBuckets, currency, realized);\n");
-        writer.write("    addBucketValue(totalDividendsBuckets, currency, dividends);\n");
-        writer.write("    addBucketValue(totalHistoricalBuckets, currency, historicalCostBasis);\n");
-        writer.write("    addBucketValue(activeTotalReturnBuckets, currency, totalReturn);\n");
-        writer.write("    if (hasPrice && Number.isFinite(previousClose) && previousClose > 0) {\n");
-        writer.write("      addBucketValue(dayChangeBuckets, currency, units * (latestPrice - previousClose));\n");
-        writer.write("      addBucketValue(previousDayValueBuckets, currency, units * previousClose);\n");
-        writer.write("    }\n");
-        writer.write("    var gk = String(row.getAttribute('data-asset-group') || 'STOCK').toUpperCase() === 'FUND' ? 'FUND' : 'STOCK';\n");
-        writer.write("    var gb = groupBuckets[gk];\n");
-        writer.write("    addBucketValue(gb.market, currency, marketValue);\n");
-        writer.write("    addBucketValue(gb.cost, currency, positionCostBasis);\n");
-        writer.write("    addBucketValue(gb.unrealized, currency, unrealized);\n");
-        writer.write("    addBucketValue(gb.realized, currency, realized);\n");
-        writer.write("    addBucketValue(gb.dividends, currency, dividends);\n");
-        writer.write("    addBucketValue(gb.historical, currency, historicalCostBasis);\n");
-        writer.write("    if (hasPrice && Number.isFinite(previousClose) && previousClose > 0) {\n");
-        writer.write("      addBucketValue(gb.dayChange, currency, units * (latestPrice - previousClose));\n");
-        writer.write("      addBucketValue(gb.prevClose, currency, units * previousClose);\n");
-        writer.write("    }\n");
-        writer.write("  });\n");
-        writer.write("  updateSubtotalGroup('overview-stock', groupBuckets.STOCK);\n");
-        writer.write("  updateSubtotalGroup('overview-fund', groupBuckets.FUND);\n");
-        writer.write("  updateSubtotalGroup('holdings-stock', groupBuckets.STOCK);\n");
-        writer.write("  updateSubtotalGroup('holdings-fund', groupBuckets.FUND);\n");
-        writer.write("  var totalReturnBuckets = mergeBuckets(totalUnrealizedBuckets, mergeBuckets(totalRealizedBuckets, totalDividendsBuckets));\n");
-        writer.write("  var totalCostBasisNok = Number(convertBucketsToCurrency(totalCostBasisBuckets, 'NOK') || 0);\n");
-        writer.write("  var totalUnrealizedNok = Number(convertBucketsToCurrency(totalUnrealizedBuckets, 'NOK') || 0);\n");
-        writer.write("  var totalRealizedNok = Number(convertBucketsToCurrency(totalRealizedBuckets, 'NOK') || 0);\n");
-        writer.write("  var totalReturnNok = Number(convertBucketsToCurrency(totalReturnBuckets, 'NOK') || 0);\n");
-        writer.write("  var totalHistoricalNok = Number(convertBucketsToCurrency(totalHistoricalBuckets, 'NOK') || 0);\n");
-        writer.write("  var dayChangeNok = Number(convertBucketsToCurrency(dayChangeBuckets, 'NOK') || 0);\n");
-        writer.write("  var previousDayValueNok = Number(convertBucketsToCurrency(previousDayValueBuckets, 'NOK') || 0);\n");
-        writer.write("  var unrealizedPct = totalCostBasisNok > 0 ? (totalUnrealizedNok / totalCostBasisNok) * 100 : 0;\n");
-        writer.write("  var realizedPct = totalCostBasisNok > 0 ? (totalRealizedNok / totalCostBasisNok) * 100 : 0;\n");
-        writer.write("  var totalReturnPct = totalHistoricalNok > 0 ? (totalReturnNok / totalHistoricalNok) * 100 : 0;\n");
-        writer.write("  var dayChangePct = previousDayValueNok > 0 ? (dayChangeNok / previousDayValueNok) * 100 : 0;\n");
-        writer.write("  var mapping = [\n");
-        writer.write("    ['overview-total-cost-basis', totalCostBasisBuckets],\n");
-        writer.write("    ['overview-total-market-value', totalMarketBuckets],\n");
-        writer.write("    ['overview-total-unrealized', totalUnrealizedBuckets],\n");
-        writer.write("    ['overview-total-realized', totalRealizedBuckets],\n");
-        writer.write("    ['overview-total-dividends', totalDividendsBuckets],\n");
-        writer.write("    ['overview-total-return', totalReturnBuckets],\n");
-        writer.write("    ['holdings-total-cost-basis', totalCostBasisBuckets],\n");
-        writer.write("    ['holdings-total-market-value', totalMarketBuckets],\n");
-        writer.write("    ['holdings-total-unrealized-value', totalUnrealizedBuckets],\n");
-        writer.write("    ['holdings-total-realized-value', totalRealizedBuckets],\n");
-        writer.write("    ['holdings-total-dividends-value', totalDividendsBuckets],\n");
-        writer.write("    ['holdings-total-total-return-value', totalReturnBuckets],\n");
-        writer.write("    ['holdings-total-day-change-value', dayChangeBuckets],\n");
-        writer.write("    ['hero-total-market-value', totalMarketBuckets],\n");
-        writer.write("    ['hero-unrealized-value', totalUnrealizedBuckets],\n");
-        writer.write("    ['hero-realized-value', totalRealizedBuckets],\n");
-        writer.write("    ['hero-day-change-value', dayChangeBuckets]\n");
-        writer.write("  ];\n");
-        writer.write("  mapping.forEach(function(entry) {\n");
-        writer.write("    var node = document.getElementById(entry[0]);\n");
-        writer.write("    if (!node) return;\n");
-        writer.write("    node.setAttribute('data-buckets', JSON.stringify(entry[1]));\n");
-        writer.write("  });\n");
-        writer.write("  var overviewUnrealizedPct = document.getElementById('overview-total-unrealized-pct');\n");
-        writer.write("  var overviewRealizedPct = document.getElementById('overview-total-realized-pct');\n");
-        writer.write("  var overviewTotalPct = document.getElementById('overview-total-return-pct');\n");
-        writer.write("  if (overviewUnrealizedPct) overviewUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n");
-        writer.write("  if (overviewRealizedPct) overviewRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
-        writer.write("  if (overviewTotalPct) overviewTotalPct.textContent = formatPercentValue(totalReturnPct, 2);\n");
-        writer.write("  var holdingsDayChangePct = document.getElementById('holdings-total-day-change-pct');\n");
-        writer.write("  var holdingsDayChangeValue = document.getElementById('holdings-total-day-change-value');\n");
-        writer.write("  if (holdingsDayChangePct) {\n");
-        writer.write("    holdingsDayChangePct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (previousDayValueNok > 0 && Number.isFinite(dayChangePct)) {\n");
-        writer.write("      holdingsDayChangePct.textContent = formatPercentValue(dayChangePct, 2);\n");
-        writer.write("      if (dayChangePct > 0) holdingsDayChangePct.classList.add('positive');\n");
-        writer.write("      else if (dayChangePct < 0) holdingsDayChangePct.classList.add('negative');\n");
-        writer.write("    } else {\n");
-        writer.write("      holdingsDayChangePct.textContent = '-';\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsDayChangeValue) {\n");
-        writer.write("    holdingsDayChangeValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (dayChangeNok > 0) holdingsDayChangeValue.classList.add('positive');\n");
-        writer.write("    else if (dayChangeNok < 0) holdingsDayChangeValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var holdingsUnrealizedPct = document.getElementById('holdings-total-unrealized-pct');\n");
-        writer.write("  var holdingsUnrealizedPctWrap = document.getElementById('holdings-total-unrealized-pct-wrap');\n");
-        writer.write("  var holdingsUnrealizedValue = document.getElementById('holdings-total-unrealized-value');\n");
-        writer.write("  if (holdingsUnrealizedPct) {\n");
-        writer.write("    holdingsUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n");
-        writer.write("    holdingsUnrealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedPct.classList.add('positive');\n");
-        writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedPct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsUnrealizedPctWrap) {\n");
-        writer.write("    holdingsUnrealizedPctWrap.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedPctWrap.classList.add('positive');\n");
-        writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedPctWrap.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsUnrealizedValue) {\n");
-        writer.write("    holdingsUnrealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalUnrealizedNok > 0) holdingsUnrealizedValue.classList.add('positive');\n");
-        writer.write("    else if (totalUnrealizedNok < 0) holdingsUnrealizedValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var holdingsRealizedPct = document.getElementById('holdings-total-realized-pct');\n");
-        writer.write("  var holdingsRealizedPctWrap = document.getElementById('holdings-total-realized-pct-wrap');\n");
-        writer.write("  var holdingsRealizedValue = document.getElementById('holdings-total-realized-value');\n");
-        writer.write("  if (holdingsRealizedPct) {\n");
-        writer.write("    holdingsRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
-        writer.write("    holdingsRealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalRealizedNok > 0) holdingsRealizedPct.classList.add('positive');\n");
-        writer.write("    else if (totalRealizedNok < 0) holdingsRealizedPct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsRealizedPctWrap) {\n");
-        writer.write("    holdingsRealizedPctWrap.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalRealizedNok > 0) holdingsRealizedPctWrap.classList.add('positive');\n");
-        writer.write("    else if (totalRealizedNok < 0) holdingsRealizedPctWrap.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsRealizedValue) {\n");
-        writer.write("    holdingsRealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalRealizedNok > 0) holdingsRealizedValue.classList.add('positive');\n");
-        writer.write("    else if (totalRealizedNok < 0) holdingsRealizedValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var holdingsTotalReturnPct = document.getElementById('holdings-total-total-return-pct');\n");
-        writer.write("  var holdingsTotalReturnPctWrap = document.getElementById('holdings-total-total-return-pct-wrap');\n");
-        writer.write("  var holdingsTotalReturnValue = document.getElementById('holdings-total-total-return-value');\n");
-        writer.write("  if (holdingsTotalReturnPct) {\n");
-        writer.write("    holdingsTotalReturnPct.textContent = formatPercentValue(totalReturnPct, 2);\n");
-        writer.write("    holdingsTotalReturnPct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalReturnNok > 0) holdingsTotalReturnPct.classList.add('positive');\n");
-        writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnPct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsTotalReturnPctWrap) {\n");
-        writer.write("    holdingsTotalReturnPctWrap.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalReturnNok > 0) holdingsTotalReturnPctWrap.classList.add('positive');\n");
-        writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnPctWrap.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (holdingsTotalReturnValue) {\n");
-        writer.write("    holdingsTotalReturnValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalReturnNok > 0) holdingsTotalReturnValue.classList.add('positive');\n");
-        writer.write("    else if (totalReturnNok < 0) holdingsTotalReturnValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var heroTotalReturn = document.getElementById('hero-total-return-value');\n");
-        writer.write("  var heroTotalReturnPct = document.getElementById('hero-total-return-pct');\n");
-        writer.write("  if (heroTotalReturn) {\n");
-        writer.write("    var soldOnlyReturnBuckets = parseBucketsJson(heroTotalReturn.getAttribute('data-sold-only-return-buckets'));\n");
-        writer.write("    var soldOnlyHistoricalBuckets = parseBucketsJson(heroTotalReturn.getAttribute('data-sold-only-historical-buckets'));\n");
-        writer.write("    var fullReturnBuckets = mergeBuckets(soldOnlyReturnBuckets, activeTotalReturnBuckets);\n");
-        writer.write("    var fullHistoricalBuckets = mergeBuckets(soldOnlyHistoricalBuckets, totalHistoricalBuckets);\n");
-        writer.write("    heroTotalReturn.setAttribute('data-buckets', JSON.stringify(fullReturnBuckets));\n");
-        writer.write("    var fullReturnNok = Number(convertBucketsToCurrency(fullReturnBuckets, 'NOK') || 0);\n");
-        writer.write("    var fullHistoricalNok = Number(convertBucketsToCurrency(fullHistoricalBuckets, 'NOK') || 0);\n");
-        writer.write("    var fullReturnPct = fullHistoricalNok > 0 ? (fullReturnNok / fullHistoricalNok) * 100 : 0;\n");
-        writer.write("    heroTotalReturn.classList.remove('positive', 'negative');\n");
-        writer.write("    if (fullReturnNok > 0) heroTotalReturn.classList.add('positive');\n");
-        writer.write("    else if (fullReturnNok < 0) heroTotalReturn.classList.add('negative');\n");
-        writer.write("    if (heroTotalReturnPct) {\n");
-        writer.write("      heroTotalReturnPct.textContent = formatPercentValue(fullReturnPct, 2);\n");
-        writer.write("      heroTotalReturnPct.classList.remove('positive', 'negative');\n");
-        writer.write("      if (fullReturnNok > 0) heroTotalReturnPct.classList.add('positive');\n");
-        writer.write("      else if (fullReturnNok < 0) heroTotalReturnPct.classList.add('negative');\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  var heroDividends = document.getElementById('hero-dividends-value');\n");
-        writer.write("  if (heroDividends) {\n");
-        writer.write("    var soldOnlyDividendsBuckets = parseBucketsJson(heroDividends.getAttribute('data-sold-only-dividends-buckets'));\n");
-        writer.write("    var fullDividendsBuckets = mergeBuckets(soldOnlyDividendsBuckets, totalDividendsBuckets);\n");
-        writer.write("    heroDividends.setAttribute('data-buckets', JSON.stringify(fullDividendsBuckets));\n");
-        writer.write("  }\n");
-        writer.write("  var heroDayChangeValue = document.getElementById('hero-day-change-value');\n");
-        writer.write("  var heroDayChangePct = document.getElementById('hero-day-change-pct');\n");
-        writer.write("  if (heroDayChangeValue) {\n");
-        writer.write("    heroDayChangeValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (dayChangeNok > 0) heroDayChangeValue.classList.add('positive');\n");
-        writer.write("    else if (dayChangeNok < 0) heroDayChangeValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (heroDayChangePct) {\n");
-        writer.write("    heroDayChangePct.textContent = formatPercentValue(dayChangePct, 2);\n");
-        writer.write("    heroDayChangePct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (dayChangeNok > 0) heroDayChangePct.classList.add('positive');\n");
-        writer.write("    else if (dayChangeNok < 0) heroDayChangePct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var heroUnrealizedValue = document.getElementById('hero-unrealized-value');\n");
-        writer.write("  var heroUnrealizedPct = document.getElementById('hero-unrealized-pct');\n");
-        writer.write("  if (heroUnrealizedValue) {\n");
-        writer.write("    heroUnrealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalUnrealizedNok > 0) heroUnrealizedValue.classList.add('positive');\n");
-        writer.write("    else if (totalUnrealizedNok < 0) heroUnrealizedValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (heroUnrealizedPct) {\n");
-        writer.write("    heroUnrealizedPct.textContent = formatPercentValue(unrealizedPct, 2);\n");
-        writer.write("    heroUnrealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalUnrealizedNok > 0) heroUnrealizedPct.classList.add('positive');\n");
-        writer.write("    else if (totalUnrealizedNok < 0) heroUnrealizedPct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  var heroRealizedValue = document.getElementById('hero-realized-value');\n");
-        writer.write("  var heroRealizedPct = document.getElementById('hero-realized-pct');\n");
-        writer.write("  if (heroRealizedValue) {\n");
-        writer.write("    heroRealizedValue.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalRealizedNok > 0) heroRealizedValue.classList.add('positive');\n");
-        writer.write("    else if (totalRealizedNok < 0) heroRealizedValue.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  if (heroRealizedPct) {\n");
-        writer.write("    heroRealizedPct.textContent = formatPercentValue(realizedPct, 2);\n");
-        writer.write("    heroRealizedPct.classList.remove('positive', 'negative');\n");
-        writer.write("    if (totalRealizedNok > 0) heroRealizedPct.classList.add('positive');\n");
-        writer.write("    else if (totalRealizedNok < 0) heroRealizedPct.classList.add('negative');\n");
-        writer.write("  }\n");
-        writer.write("  refreshPortfolioValueBuckets();\n");
-        writer.write("  var activeCurrency = getActiveReportCurrency();\n");
-        writer.write("  refreshReportTotalsCurrency(activeCurrency);\n");
-        writer.write("  refreshReportChartsCurrency(activeCurrency);\n");
-        writer.write("}\n");
-        writer.write("function formatReportRefreshTimestamp(dateValue) {\n");
-        writer.write("  var date = dateValue instanceof Date ? dateValue : new Date();\n");
-        writer.write("  if (!date || Number.isNaN(date.getTime())) return '-';\n");
-        writer.write("  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();\n");
-        writer.write("}\n");
-        writer.write("function updateReportDateChip(dateValue) {\n");
-        writer.write("  var node = document.getElementById('report-date-value');\n");
-        writer.write("  if (!node) return;\n");
-        writer.write("  node.textContent = formatReportRefreshTimestamp(dateValue);\n");
-        writer.write("}\n");
+        writer.write(SCRIPT_PART_1);
         // Refresh per-lot unrealized values in any open detail panels after a price update.
         // Lot rows carry data-lot-units, data-lot-cost-basis, data-overview-security-key,
         // and data-currency so the calculation can be done without server contact.
-        writer.write("function refreshOpenDetailPanels(priceBySecurityKey) {\n");
-        writer.write("  var lotRows = Array.prototype.slice.call(\n");
-        writer.write("    document.querySelectorAll('tr[data-lot-units][data-lot-cost-basis][data-overview-security-key]')\n");
-        writer.write("  );\n");
-        writer.write("  lotRows.forEach(function(row) {\n");
-        writer.write("    var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
-        writer.write("    var nextPrice = Number(priceBySecurityKey[secKey] || 0);\n");
-        writer.write("    if (!nextPrice || !Number.isFinite(nextPrice)) return;\n");
-        writer.write("    var units = Number(row.getAttribute('data-lot-units') || 0);\n");
-        writer.write("    var costBasis = Number(row.getAttribute('data-lot-cost-basis') || 0);\n");
-        writer.write("    var currency = String(row.getAttribute('data-currency') || 'NOK');\n");
-        writer.write("    if (units <= 0 || costBasis <= 0) return;\n");
-        writer.write("    var unrealized = units * nextPrice - costBasis;\n");
-        writer.write("    var unrealizedPct = (unrealized / costBasis) * 100;\n");
-        writer.write("    var unrealizedCell = row.querySelector('.js-lot-unrealized');\n");
-        writer.write("    var unrealizedPctCell = row.querySelector('.js-lot-unrealized-pct');\n");
-        writer.write("    if (unrealizedCell) {\n");
-        writer.write("      unrealizedCell.textContent = formatMoneyValue(unrealized, currency, 2);\n");
-        writer.write("      unrealizedCell.classList.remove('positive', 'negative');\n");
-        writer.write("      if (unrealized > 0) unrealizedCell.classList.add('positive');\n");
-        writer.write("      else if (unrealized < 0) unrealizedCell.classList.add('negative');\n");
-        writer.write("    }\n");
-        writer.write("    if (unrealizedPctCell) {\n");
-        writer.write("      unrealizedPctCell.textContent = formatPercentValue(unrealizedPct, 2);\n");
-        writer.write("      unrealizedPctCell.classList.remove('positive', 'negative');\n");
-        writer.write("      if (unrealizedPct > 0) unrealizedPctCell.classList.add('positive');\n");
-        writer.write("      else if (unrealizedPct < 0) unrealizedPctCell.classList.add('negative');\n");
-        writer.write("    }\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function initPriceRefreshButton() {\n");
-        writer.write("  var button = document.getElementById('refresh-prices-btn');\n");
-        writer.write("  var status = document.getElementById('refresh-prices-status');\n");
-        writer.write("  if (!button) return;\n");
-        writer.write("  button.addEventListener('click', async function() {\n");
-        writer.write("    var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-row=\"1\"]'));\n");
-        writer.write("    var tickers = Array.from(new Set(rows.map(function(row) {\n");
-        writer.write("      return String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
-        writer.write("    }).filter(function(value) { return value.length > 0; })));\n");
-        writer.write("    if (!tickers.length) {\n");
-        writer.write("      if (status) status.textContent = 'No holdings available for update.';\n");
-        writer.write("      return;\n");
-        writer.write("    }\n");
-        writer.write("    button.disabled = true;\n");
-        writer.write("    if (status) status.textContent = 'Updating portfolio data...';\n");
-        writer.write("    try {\n");
-        writer.write("      var priceData = await fetchLatestPrices(tickers);\n");
-        writer.write("      var prices = priceData.prices || {};\n");
-        writer.write("      var previousCloses = priceData.previousCloses || {};\n");
-        writer.write("      // Update data-previous-close on every linked row BEFORE computing day change\n");
-        writer.write("      rows.forEach(function(row) {\n");
-        writer.write("        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
-        writer.write("        var newPrevClose = Number(previousCloses[ticker] || 0);\n");
-        writer.write("        if (newPrevClose > 0) {\n");
-        writer.write("          var securityKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
-        writer.write("          var linkedRows = securityKey ? findOverviewRowsBySecurityKey(securityKey) : [];\n");
-        writer.write("          if (!linkedRows.length) linkedRows = [row];\n");
-        writer.write("          linkedRows.forEach(function(lr) {\n");
-        writer.write("            lr.setAttribute('data-previous-close', String(newPrevClose));\n");
-        writer.write("          });\n");
-        writer.write("        }\n");
-        writer.write("      });\n");
-        writer.write("      // Build securityKey→price map for detail panel refresh\n");
-        writer.write("      var securityKeyToPrice = {};\n");
-        writer.write("      var updatedRows = 0;\n");
-        writer.write("      rows.forEach(function(row) {\n");
-        writer.write("        var ticker = String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n");
-        writer.write("        var nextPrice = Number(prices[ticker] || 0);\n");
-        writer.write("        var secKey = String(row.getAttribute('data-overview-security-key') || '').trim();\n");
-        writer.write("        if (nextPrice > 0 && secKey) securityKeyToPrice[secKey] = nextPrice;\n");
-        writer.write("        if (applyOverviewRowPrice(row, nextPrice)) {\n");
-        writer.write("          updatedRows += 1;\n");
-        writer.write("        }\n");
-        writer.write("      });\n");
-        writer.write("      recalculateOverviewAndHeaderTotalsAfterPriceRefresh();\n");
-        writer.write("      initOverviewDayCharts();\n");
-        writer.write("      refreshOpenDetailPanels(securityKeyToPrice);\n");
-        writer.write("      var refreshedAt = new Date();\n");
-        writer.write("      updateReportDateChip(refreshedAt);\n");
-        writer.write("      var staleTickers = tickers.filter(function(t) { return !(Number(prices[t]) > 0); });\n");
-        writer.write("      var staleNote = staleTickers.length ? ' (' + staleTickers.length + ' unavailable, showing last known)' : '';\n");
-        writer.write("      if (status) status.textContent = 'Updated portfolio for ' + updatedRows + ' holdings at ' + formatReportRefreshTimestamp(refreshedAt) + staleNote + '.';\n");
-        writer.write("    } catch (error) {\n");
-        writer.write("      if (status) status.textContent = 'Could not update portfolio: ' + (error && error.message ? error.message : 'Unknown error');\n");
-        writer.write("    } finally {\n");
-        writer.write("      button.disabled = false;\n");
-        writer.write("    }\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function parseSortableNumber(value) {\n");
-        writer.write("  var text = String(value || '').trim();\n");
-        writer.write("  if (!text || text === '-') return Number.NaN;\n");
-        writer.write("  var normalized = text.replace(/\u00A0/g, ' ').replace(/,/g, '.');\n");
-        writer.write("  var match = normalized.match(/-?\\d[\\d\\s]*(?:\\.\\d+)?/);\n");
-        writer.write("  if (!match) return Number.NaN;\n");
-        writer.write("  return Number(match[0].replace(/\s+/g, ''));\n");
-        writer.write("}\n");
-        writer.write("function parseSortableDate(value) {\n");
-        writer.write("  var text = String(value || '').trim();\n");
-        writer.write("  if (!text || text === '-') return Number.NaN;\n");
-        writer.write("  if (/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(text)) {\n");
-        writer.write("    var parts = text.split('.');\n");
-        writer.write("    var day = Number(parts[0]);\n");
-        writer.write("    var month = Number(parts[1]);\n");
-        writer.write("    var year = Number(parts[2]);\n");
-        writer.write("    var date = new Date(year, month - 1, day);\n");
-        writer.write("    var timestamp = date.getTime();\n");
-        writer.write("    return Number.isFinite(timestamp) ? timestamp : Number.NaN;\n");
-        writer.write("  }\n");
-        writer.write("  var parsed = Date.parse(text);\n");
-        writer.write("  return Number.isFinite(parsed) ? parsed : Number.NaN;\n");
-        writer.write("}\n");
-        writer.write("function detectSortMode(headerLabel) {\n");
-        writer.write("  var text = String(headerLabel || '').trim().toLowerCase();\n");
-        writer.write("  if (!text || text.indexOf('details') === 0) return 'none';\n");
-        writer.write("  if (text.indexOf('ticker') >= 0 || text.indexOf('security') >= 0 || text.indexOf('type') >= 0) return 'text';\n");
-        writer.write("  if (text.indexOf('date') >= 0) return 'date';\n");
-        writer.write("  return 'number';\n");
-        writer.write("}\n");
-        writer.write("function compareValues(a, b, direction) {\n");
-        writer.write("  if (typeof a === 'string' || typeof b === 'string') {\n");
-        writer.write("    var left = String(a || '');\n");
-        writer.write("    var right = String(b || '');\n");
-        writer.write("    return direction === 'asc'\n");
-        writer.write("      ? left.localeCompare(right, undefined, { sensitivity: 'base' })\n");
-        writer.write("      : right.localeCompare(left, undefined, { sensitivity: 'base' });\n");
-        writer.write("  }\n");
-        writer.write("  var leftNumber = Number(a);\n");
-        writer.write("  var rightNumber = Number(b);\n");
-        writer.write("  if (!Number.isFinite(leftNumber) && !Number.isFinite(rightNumber)) return 0;\n");
-        writer.write("  if (!Number.isFinite(leftNumber)) return 1;\n");
-        writer.write("  if (!Number.isFinite(rightNumber)) return -1;\n");
-        writer.write("  return direction === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;\n");
-        writer.write("}\n");
-        writer.write("function extractSortableValue(cell, mode) {\n");
-        writer.write("  if (!cell) return mode === 'text' ? '' : Number.NaN;\n");
-        writer.write("  var text = String(cell.textContent || '').trim();\n");
-        writer.write("  if (mode === 'text') return text.toLowerCase();\n");
-        writer.write("  if (mode === 'date') return parseSortableDate(text);\n");
-        writer.write("  return parseSortableNumber(text);\n");
-        writer.write("}\n");
-        writer.write("function applyHeaderSortState(headers, activeHeader, direction) {\n");
-        writer.write("  headers.forEach(function(header) {\n");
-        writer.write("    header.classList.remove('sort-asc', 'sort-desc');\n");
-        writer.write("    if (header !== activeHeader) {\n");
-        writer.write("      header.dataset.sortDirection = '';\n");
-        writer.write("    }\n");
-        writer.write("  });\n");
-        writer.write("  activeHeader.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');\n");
-        writer.write("  activeHeader.dataset.sortDirection = direction;\n");
-        writer.write("}\n");
-        writer.write("function getDirectTableRows(table) {\n");
-        writer.write("  if (!table) return [];\n");
-        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
-        writer.write("  if (table.tBodies && table.tBodies.length > 1) {\n");
-        writer.write("    for (var i = 1; i < table.tBodies.length; i += 1) {\n");
-        writer.write("      var extraBody = table.tBodies[i];\n");
-        writer.write("      while (extraBody && extraBody.firstElementChild) {\n");
-        writer.write("        body.appendChild(extraBody.firstElementChild);\n");
-        writer.write("      }\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  return Array.prototype.slice.call(body.children).filter(function(node) {\n");
-        writer.write("    return node && node.tagName === 'TR';\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function sortPrimaryTable(table, columnIndex, mode, direction) {\n");
-        writer.write("  if (!table || mode === 'none') return;\n");
-        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
-        writer.write("  var allRows = getDirectTableRows(table);\n");
-        writer.write("  if (allRows.length <= 2) return;\n");
-        writer.write("  var groups = [];\n");
-        writer.write("  for (var i = 1; i < allRows.length; i += 1) {\n");
-        writer.write("    var row = allRows[i];\n");
-        writer.write("    if (row.classList.contains('details-row') || row.classList.contains('total-row') || row.classList.contains('asset-subtotal-row') || (row.hasAttribute && row.hasAttribute('data-asset-divider'))) continue;\n");
-        writer.write("    var assetGroup = String(row.getAttribute('data-asset-group') || 'STOCK').toUpperCase() === 'FUND' ? 'FUND' : 'STOCK';\n");
-        writer.write("    var details = row.nextElementSibling;\n");
-        writer.write("    if (details && details.classList && details.classList.contains('details-row')) {\n");
-        writer.write("      groups.push({ row: row, details: details, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n");
-        writer.write("    } else {\n");
-        writer.write("      groups.push({ row: row, details: null, value: extractSortableValue(row.cells[columnIndex], mode), assetGroup: assetGroup });\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  var byAssetGroup = { STOCK: [], FUND: [] };\n");
-        writer.write("  groups.forEach(function(group) {\n");
-        writer.write("    byAssetGroup[group.assetGroup].push(group);\n");
-        writer.write("  });\n");
-        writer.write("  byAssetGroup.STOCK.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n");
-        writer.write("  byAssetGroup.FUND.sort(function(a, b) { return compareValues(a.value, b.value, direction); });\n");
-        writer.write("  var orderedGroups = byAssetGroup.STOCK.concat(byAssetGroup.FUND);\n");
-        writer.write("  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n");
-        writer.write("  var stockSubtotalRow = null, fundSubtotalRow = null;\n");
-        writer.write("  allRows.forEach(function(row) {\n");
-        writer.write("    if (!row.classList || !row.classList.contains('asset-subtotal-row')) return;\n");
-        writer.write("    if (String(row.getAttribute('data-subtotal-group') || '').toUpperCase() === 'FUND') { fundSubtotalRow = row; } else { stockSubtotalRow = row; }\n");
-        writer.write("  });\n");
-        writer.write("  var previousGroup = '';\n");
-        writer.write("  orderedGroups.forEach(function(group, index) {\n");
-        writer.write("    group.row.classList.remove('asset-split');\n");
-        writer.write("    if (index > 0 && group.assetGroup !== previousGroup) {\n");
-        writer.write("      group.row.classList.add('asset-split');\n");
-        writer.write("    }\n");
-        writer.write("    previousGroup = group.assetGroup;\n");
-        writer.write("    body.appendChild(group.row);\n");
-        writer.write("    if (group.details) body.appendChild(group.details);\n");
-        writer.write("  });\n");
-        writer.write("  if (stockSubtotalRow) body.appendChild(stockSubtotalRow);\n");
-        writer.write("  if (fundSubtotalRow) body.appendChild(fundSubtotalRow);\n");
-        writer.write("  if (totalRow) body.appendChild(totalRow);\n");
-        writer.write("}\n");
-        writer.write("function sortSimpleTable(table, columnIndex, mode, direction) {\n");
-        writer.write("  if (!table || mode === 'none') return;\n");
-        writer.write("  var body = table.tBodies && table.tBodies.length ? table.tBodies[0] : table;\n");
-        writer.write("  var allRows = getDirectTableRows(table);\n");
-        writer.write("  if (allRows.length <= 2) return;\n");
-        writer.write("  var dataRows = allRows.slice(1).filter(function(row) { return !row.classList.contains('total-row'); });\n");
-        writer.write("  dataRows.sort(function(a, b) {\n");
-        writer.write("    var aValue = extractSortableValue(a.cells[columnIndex], mode);\n");
-        writer.write("    var bValue = extractSortableValue(b.cells[columnIndex], mode);\n");
-        writer.write("    return compareValues(aValue, bValue, direction);\n");
-        writer.write("  });\n");
-        writer.write("  var totalRow = allRows.find(function(row) { return row.classList && row.classList.contains('total-row'); }) || null;\n");
-        writer.write("  dataRows.forEach(function(row) { body.appendChild(row); });\n");
-        writer.write("  if (totalRow) body.appendChild(totalRow);\n");
-        writer.write("}\n");
-        writer.write("function initSortableTables() {\n");
-        writer.write("  function wireTable(table, sorter) {\n");
-        writer.write("    if (!table || table.dataset.sortableReady === '1') return;\n");
-        writer.write("    var headerRow = getDirectTableRows(table)[0];\n");
-        writer.write("    if (!headerRow) return;\n");
-        writer.write("    var headers = Array.prototype.slice.call(headerRow.querySelectorAll('th'));\n");
-        writer.write("    headers.forEach(function(header, index) {\n");
-        writer.write("      var mode = detectSortMode(header.textContent);\n");
-        writer.write("      if (mode === 'none') return;\n");
-        writer.write("      header.classList.add('sortable-header');\n");
-        writer.write("      header.addEventListener('click', function() {\n");
-        writer.write("        var nextDirection = header.dataset.sortDirection === 'asc' ? 'desc' : 'asc';\n");
-        writer.write("        applyHeaderSortState(headers, header, nextDirection);\n");
-        writer.write("        sorter(table, index, mode, nextDirection);\n");
-        writer.write("      });\n");
-        writer.write("    });\n");
-        writer.write("    table.dataset.sortableReady = '1';\n");
-        writer.write("  }\n");
-        writer.write("  document.querySelectorAll('.overview-table, .realized-table').forEach(function(table) {\n");
-        writer.write("    wireTable(table, sortPrimaryTable);\n");
-        writer.write("  });\n");
-        writer.write("  document.querySelectorAll('.details-table').forEach(function(table) {\n");
-        writer.write("    wireTable(table, sortSimpleTable);\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function initOverviewModeSwitcher() {\n");
-        writer.write("  var buttons = Array.prototype.slice.call(document.querySelectorAll('.overview-mode-btn[data-overview-mode]'));\n");
-        writer.write("  var panels = Array.prototype.slice.call(document.querySelectorAll('.js-overview-mode-panel[data-overview-mode-panel]'));\n");
-        writer.write("  var detailsToggleBtn = document.getElementById('overview-details-toggle');\n");
-        writer.write("  if (!buttons.length || !panels.length) return;\n");
-        writer.write("  function syncOverviewState(sourceMode, targetMode) {\n");
-        writer.write("    var prefixes = { summary: 'overview-details-', holdings: 'holdings-details-' };\n");
-        writer.write("    var srcPrefix = prefixes[sourceMode], tgtPrefix = prefixes[targetMode];\n");
-        writer.write("    if (!srcPrefix || !tgtPrefix) return;\n");
-        writer.write("    document.querySelectorAll('tr[id^=\"' + srcPrefix + '\"]').forEach(function(srcRow) {\n");
-        writer.write("      var tgtRow = document.getElementById(tgtPrefix + srcRow.id.slice(srcPrefix.length));\n");
-        writer.write("      if (tgtRow) tgtRow.style.display = srcRow.style.display;\n");
-        writer.write("    });\n");
-        writer.write("    var srcTable = document.querySelector('.overview-' + sourceMode + '-table');\n");
-        writer.write("    var tgtTable = document.querySelector('.overview-' + targetMode + '-table');\n");
-        writer.write("    if (!srcTable || !tgtTable) return;\n");
-        writer.write("    var srcSub = srcTable.querySelector('.asset-subtotal-row');\n");
-        writer.write("    var open = !!srcSub && !srcSub.hasAttribute('hidden');\n");
-        writer.write("    tgtTable.querySelectorAll('.asset-subtotal-row').forEach(function(r) { if (open) { r.removeAttribute('hidden'); } else { r.setAttribute('hidden', ''); } });\n");
-        writer.write("    tgtTable.querySelectorAll('.total-row .subtotal-toggle-btn').forEach(function(b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); var tr = b.closest('.total-row'); if (tr) tr.classList.toggle('is-open', open); });\n");
-        writer.write("  }\n");
-        writer.write("  function activate(mode) {\n");
-        writer.write("    if (mode === 'summary') { syncOverviewState('holdings', 'summary'); }\n");
-        writer.write("    else if (mode === 'holdings') { syncOverviewState('summary', 'holdings'); }\n");
-        writer.write("    buttons.forEach(function(btn) {\n");
-        writer.write("      var active = btn.getAttribute('data-overview-mode') === mode;\n");
-        writer.write("      btn.classList.toggle('is-active', active);\n");
-        writer.write("      btn.setAttribute('aria-selected', active ? 'true' : 'false');\n");
-        writer.write("    });\n");
-        writer.write("    panels.forEach(function(panel) {\n");
-        writer.write("      var visible = panel.getAttribute('data-overview-mode-panel') === mode;\n");
-        writer.write("      panel.hidden = !visible;\n");
-        writer.write("    });\n");
-        writer.write("    if (detailsToggleBtn) {\n");
-        writer.write("      var groupName = mode === 'summary' ? 'overview-details' : (mode === 'holdings' ? 'holdings-details' : '');\n");
-        writer.write("      var baseLabel = detailsToggleBtn.getAttribute('data-detail-label') || 'Open all details';\n");
-        writer.write("      detailsToggleBtn.textContent = baseLabel + ' ▸';\n");
-        writer.write("      detailsToggleBtn.setAttribute('data-detail-group', groupName);\n");
-        writer.write("      detailsToggleBtn.disabled = !groupName;\n");
-        writer.write("      detailsToggleBtn.setAttribute('aria-disabled', groupName ? 'false' : 'true');\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  if (detailsToggleBtn && detailsToggleBtn.dataset.bound !== '1') {\n");
-        writer.write("    detailsToggleBtn.dataset.bound = '1';\n");
-        writer.write("    detailsToggleBtn.addEventListener('click', function() {\n");
-        writer.write("      var groupName = detailsToggleBtn.getAttribute('data-detail-group') || '';\n");
-        writer.write("      if (!groupName) return;\n");
-        writer.write("      toggleDetailGroup(groupName, detailsToggleBtn);\n");
-        writer.write("    });\n");
-        writer.write("  }\n");
-        writer.write("  buttons.forEach(function(btn) {\n");
-        writer.write("    btn.addEventListener('click', function() {\n");
-        writer.write("      activate(btn.getAttribute('data-overview-mode') || 'summary');\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("  activate('summary');\n");
-        writer.write("}\n");
-        writer.write("function resolveCashHoldingsBridge() {\n");
-        writer.write("  try {\n");
-        writer.write("    if (window.parent && window.parent !== window && window.parent.__portfolioCashHoldingsBridge) {\n");
-        writer.write("      return window.parent.__portfolioCashHoldingsBridge;\n");
-        writer.write("    }\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    // Parent bridge is optional.\n");
-        writer.write("  }\n");
-        writer.write("  return null;\n");
-        writer.write("}\n");
-        writer.write("function detectLoggedInFromParentContext() {\n");
-        writer.write("  try {\n");
-        writer.write("    if (!window.parent || window.parent === window || !window.parent.document) return false;\n");
-        writer.write("    var logoutButton = window.parent.document.getElementById('logout-btn');\n");
-        writer.write("    return !!(logoutButton && logoutButton.hidden === false);\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    return false;\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function resolveCashHoldingsStorageKey() {\n");
-        writer.write("  var identity = 'anonymous';\n");
-        writer.write("  try {\n");
-        writer.write("    if (window.parent && window.parent !== window && window.parent.document) {\n");
-        writer.write("      var accountLabel = window.parent.document.getElementById('account-email');\n");
-        writer.write("      if (accountLabel && accountLabel.textContent) {\n");
-        writer.write("        identity = String(accountLabel.textContent).replace(/^\\s*User:\\s*/i, '').trim() || identity;\n");
-        writer.write("      }\n");
-        writer.write("    }\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    // Keep anonymous identity.\n");
-        writer.write("  }\n");
-        writer.write("  return 'portfolio-manual-cash-holdings::' + identity;\n");
-        writer.write("}\n");
-        writer.write("function sanitizeManualCashState(raw) {\n");
-        writer.write("  var state = raw && typeof raw === 'object' ? raw : {};\n");
-        writer.write("  var accounts = Array.isArray(state.accounts) ? state.accounts : [];\n");
-        writer.write("  return {\n");
-        writer.write("    accounts: accounts.map(function(account) {\n");
-        writer.write("      var transactions = Array.isArray(account && account.transactions) ? account.transactions : [];\n");
-        writer.write("      return {\n");
-        writer.write("        id: String(account && account.id || 'acc-' + Math.random().toString(36).slice(2, 10)),\n");
-        writer.write("        name: String(account && account.name || '').trim(),\n");
-        writer.write("        hidden: !!(account && account.hidden),\n");
-        writer.write("        transactions: transactions.map(function(tx) {\n");
-        writer.write("          return {\n");
-        writer.write("            id: String(tx && tx.id || 'tx-' + Math.random().toString(36).slice(2, 10)),\n");
-        writer.write("            amount: Number(tx && tx.amount || 0),\n");
-        writer.write("            currency: normalizeCurrencyCodeInput(tx && tx.currency || 'NOK') || 'NOK'\n");
-        writer.write("          };\n");
-        writer.write("        }).filter(function(tx) { return Number.isFinite(tx.amount); })\n");
-        writer.write("      };\n");
-        writer.write("    }).filter(function(account) { return account.name.length > 0; })\n");
-        writer.write("  };\n");
-        writer.write("}\n");
-        writer.write("async function loadManualCashState() {\n");
-        writer.write("  var bridge = resolveCashHoldingsBridge();\n");
-        writer.write("  if (bridge && typeof bridge.loadManualCashHoldings === 'function') {\n");
-        writer.write("    try {\n");
-        writer.write("      return sanitizeManualCashState(await bridge.loadManualCashHoldings());\n");
-        writer.write("    } catch (_) {\n");
-        writer.write("      // Fall back to local storage below.\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  try {\n");
-        writer.write("    var raw = window.localStorage.getItem(resolveCashHoldingsStorageKey());\n");
-        writer.write("    return sanitizeManualCashState(raw ? JSON.parse(raw) : {});\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    return sanitizeManualCashState({});\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("async function saveManualCashState(state) {\n");
-        writer.write("  var safeState = sanitizeManualCashState(state);\n");
-        writer.write("  var bridge = resolveCashHoldingsBridge();\n");
-        writer.write("  var bridgeError = null;\n");
-        writer.write("  if (bridge && typeof bridge.saveManualCashHoldings === 'function') {\n");
-        writer.write("    try {\n");
-        writer.write("      await bridge.saveManualCashHoldings(safeState);\n");
-        writer.write("      return safeState;\n");
-        writer.write("    } catch (e) {\n");
-        writer.write("      bridgeError = e;\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  // Bridge save failed — write localStorage backup so data is not lost.\n");
-        writer.write("  try {\n");
-        writer.write("    window.localStorage.setItem(resolveCashHoldingsStorageKey(), JSON.stringify(safeState));\n");
-        writer.write("  } catch (_) {}\n");
-        writer.write("  if (bridgeError) throw bridgeError;\n");
-        writer.write("  return safeState;\n");
-        writer.write("}\n");
-        writer.write("function summarizeManualCashAccount(account) {\n");
-        writer.write("  var totals = {};\n");
-        writer.write("  (account.transactions || []).forEach(function(tx) {\n");
-        writer.write("    var currency = normalizeCurrencyCodeInput(tx.currency || 'NOK') || 'NOK';\n");
-        writer.write("    totals[currency] = Number(totals[currency] || 0) + Number(tx.amount || 0);\n");
-        writer.write("  });\n");
-        writer.write("  var parts = Object.keys(totals).sort().map(function(currency) {\n");
-        writer.write("    return formatMoneyValue(totals[currency], currency, 0);\n");
-        writer.write("  });\n");
-        writer.write("  var accountName = String(account && account.name || '').trim() || 'Unnamed account';\n");
-        writer.write("  return accountName + ': ' + (parts.length ? parts.join(' + ') : '0 NOK');\n");
-        writer.write("}\n");
-        writer.write("function formatCashBucketsSummary(buckets) {\n");
-        writer.write("  var parts = Object.keys(buckets || {}).sort().map(function(currency) {\n");
-        writer.write("    return formatMoneyValue(Number(buckets[currency] || 0), currency, 0);\n");
-        writer.write("  });\n");
-        writer.write("  return parts.length ? parts.join(' + ') : '0 NOK';\n");
-        writer.write("}\n");
-        writer.write("function resolvePortfolioBaseCashBuckets() {\n");
-        writer.write("  var totalNode = document.getElementById('cash-holdings-total');\n");
-        writer.write("  if (!totalNode) return {};\n");
-        writer.write("  var raw = totalNode.getAttribute('data-base-buckets') || totalNode.getAttribute('data-buckets') || '{}';\n");
-        writer.write("  return parseBucketsJson(raw);\n");
-        writer.write("}\n");
-        writer.write("function renderManualCashSummaryLines(state) {\n");
-        writer.write("  var list = document.getElementById('manual-cash-holdings-list');\n");
-        writer.write("  if (!list) return;\n");
-        writer.write("  list.innerHTML = '';\n");
-        writer.write("  var portfolioLine = document.createElement('div');\n");
-        writer.write("  portfolioLine.className = 'manual-cash-holding-line is-portfolio';\n");
-        writer.write("  portfolioLine.textContent = 'Portfolio: ' + formatCashBucketsSummary(resolvePortfolioBaseCashBuckets());\n");
-        writer.write("  list.appendChild(portfolioLine);\n");
-        writer.write("  var accounts = state.accounts || [];\n");
-        writer.write("  if (!accounts.length) {\n");
-        writer.write("    return;\n");
-        writer.write("  }\n");
-        writer.write("  accounts.forEach(function(account) {\n");
-        writer.write("    if (account.hidden) return;\n");
-        writer.write("    var line = document.createElement('div');\n");
-        writer.write("    line.className = 'manual-cash-holding-line';\n");
-        writer.write("    line.textContent = summarizeManualCashAccount(account);\n");
-        writer.write("    list.appendChild(line);\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function buildManualCashBuckets(state) {\n");
-        writer.write("  var buckets = {};\n");
-        writer.write("  (state.accounts || []).forEach(function(account) {\n");
-        writer.write("    if (account.hidden) return;\n");
-        writer.write("    (account.transactions || []).forEach(function(tx) {\n");
-        writer.write("      addBucketValue(buckets, tx.currency || 'NOK', Number(tx.amount || 0));\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("  return buckets;\n");
-        writer.write("}\n");
-        writer.write("function refreshCashHoldingsTotalFromState(state) {\n");
-        writer.write("  var totalNode = document.getElementById('cash-holdings-total');\n");
-        writer.write("  if (!totalNode) return;\n");
-        writer.write("  var baseRaw = totalNode.getAttribute('data-base-buckets');\n");
-        writer.write("  if (!baseRaw) {\n");
-        writer.write("    baseRaw = totalNode.getAttribute('data-buckets') || '{}';\n");
-        writer.write("    totalNode.setAttribute('data-base-buckets', baseRaw);\n");
-        writer.write("  }\n");
-        writer.write("  var baseBuckets = parseBucketsJson(baseRaw);\n");
-        writer.write("  var manualBuckets = buildManualCashBuckets(state);\n");
-        writer.write("  totalNode.setAttribute('data-buckets', JSON.stringify(mergeBuckets(baseBuckets, manualBuckets)));\n");
-        writer.write("  refreshPortfolioValueBuckets();\n");
-        writer.write("  refreshReportTotalsCurrency(getActiveReportCurrency());\n");
-        writer.write("}\n");
-        writer.write("function parseManualCashAmountInput(value) {\n");
-        writer.write("  var normalized = String(value == null ? '' : value).replace(/\\s+/g, '').replace(',', '.');\n");
-        writer.write("  if (!normalized) return Number.NaN;\n");
-        writer.write("  var amount = Number(normalized);\n");
-        writer.write("  return Number.isFinite(amount) ? amount : Number.NaN;\n");
-        writer.write("}\n");
-        writer.write("function setManualCashManagerMessage(ui, text, isError) {\n");
-        writer.write("  if (!ui || !ui.message) return;\n");
-        writer.write("  ui.message.textContent = String(text || '');\n");
-        writer.write("  ui.message.classList.toggle('is-error', !!isError);\n");
-        writer.write("}\n");
-        writer.write("function ensureManualCashManagerUi() {\n");
-        writer.write("  if (window.__manualCashManagerUi) return window.__manualCashManagerUi;\n");
-        writer.write("  var overlay = document.createElement('div');\n");
-        writer.write("  overlay.className = 'cash-manager-overlay';\n");
-        writer.write("  overlay.hidden = true;\n");
-        writer.write("  overlay.innerHTML = '<div class=\"cash-manager-dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Manage cash holdings\"><div class=\"cash-manager-header\"><h4>Manage Cash Holdings</h4><button type=\"button\" class=\"cash-manager-close\" aria-label=\"Close\">×</button></div><div class=\"cash-manager-form-row\"><input type=\"text\" class=\"cash-manager-account-name\" placeholder=\"New account name\"><button type=\"button\" class=\"cash-manager-btn cash-manager-create-account\">Create account</button></div><div class=\"cash-manager-form-row\"><select class=\"cash-manager-account-select\" aria-label=\"Select account\"></select><input type=\"text\" class=\"cash-manager-amount-input\" placeholder=\"Amount (+/-)\" inputmode=\"decimal\"><input type=\"text\" class=\"cash-manager-currency-input\" value=\"NOK\" maxlength=\"5\" aria-label=\"Currency\"><button type=\"button\" class=\"cash-manager-btn cash-manager-add-transaction\">Add transaction</button></div><div class=\"cash-manager-message\"></div><div class=\"cash-manager-accounts\"></div></div>';\n");
-        writer.write("  document.body.appendChild(overlay);\n");
-        writer.write("  var closeButton = overlay.querySelector('.cash-manager-close');\n");
-        writer.write("  var accountNameInput = overlay.querySelector('.cash-manager-account-name');\n");
-        writer.write("  var accountSelect = overlay.querySelector('.cash-manager-account-select');\n");
-        writer.write("  var amountInput = overlay.querySelector('.cash-manager-amount-input');\n");
-        writer.write("  var currencyInput = overlay.querySelector('.cash-manager-currency-input');\n");
-        writer.write("  var createAccountButton = overlay.querySelector('.cash-manager-create-account');\n");
-        writer.write("  var addTransactionButton = overlay.querySelector('.cash-manager-add-transaction');\n");
-        writer.write("  var accountsContainer = overlay.querySelector('.cash-manager-accounts');\n");
-        writer.write("  var message = overlay.querySelector('.cash-manager-message');\n");
-        writer.write("  function close() { overlay.hidden = true; }\n");
-        writer.write("  function open() { overlay.hidden = false; }\n");
-        writer.write("  closeButton.addEventListener('click', close);\n");
-        writer.write("  overlay.addEventListener('click', function(event) { if (event.target === overlay) close(); });\n");
-        writer.write("  document.addEventListener('keydown', function(event) { if (event.key === 'Escape' && !overlay.hidden) close(); });\n");
-        writer.write("  window.__manualCashManagerUi = {\n");
-        writer.write("    overlay: overlay,\n");
-        writer.write("    open: open,\n");
-        writer.write("    message: message,\n");
-        writer.write("    accountNameInput: accountNameInput,\n");
-        writer.write("    accountSelect: accountSelect,\n");
-        writer.write("    amountInput: amountInput,\n");
-        writer.write("    currencyInput: currencyInput,\n");
-        writer.write("    createAccountButton: createAccountButton,\n");
-        writer.write("    addTransactionButton: addTransactionButton,\n");
-        writer.write("    accountsContainer: accountsContainer\n");
-        writer.write("  };\n");
-        writer.write("  return window.__manualCashManagerUi;\n");
-        writer.write("}\n");
-        writer.write("var __cashCollapsedAccounts = {};\n");
-        writer.write("function renderManualCashManager(state, ui, commitStateChange) {\n");
-        writer.write("  if (!ui) return;\n");
-        writer.write("  var accounts = state.accounts || [];\n");
-        writer.write("  var previousSelection = ui.accountSelect.value;\n");
-        writer.write("  ui.accountSelect.innerHTML = '';\n");
-        writer.write("  if (accounts.length) {\n");
-        writer.write("    accounts.forEach(function(account) {\n");
-        writer.write("      var option = document.createElement('option');\n");
-        writer.write("      option.value = account.id;\n");
-        writer.write("      option.textContent = account.name;\n");
-        writer.write("      ui.accountSelect.appendChild(option);\n");
-        writer.write("    });\n");
-        writer.write("    ui.accountSelect.disabled = false;\n");
-        writer.write("    if (previousSelection && accounts.some(function(account) { return account.id === previousSelection; })) ui.accountSelect.value = previousSelection;\n");
-        writer.write("  } else {\n");
-        writer.write("    var emptyOption = document.createElement('option');\n");
-        writer.write("    emptyOption.value = '';\n");
-        writer.write("    emptyOption.textContent = 'No account available';\n");
-        writer.write("    ui.accountSelect.appendChild(emptyOption);\n");
-        writer.write("    ui.accountSelect.disabled = true;\n");
-        writer.write("  }\n");
-        writer.write("  ui.accountsContainer.innerHTML = '';\n");
-        writer.write("  if (!accounts.length) {\n");
-        writer.write("    var empty = document.createElement('p');\n");
-        writer.write("    empty.className = 'cash-manager-empty';\n");
-        writer.write("    empty.textContent = 'No manual cash accounts created yet.';\n");
-        writer.write("    ui.accountsContainer.appendChild(empty);\n");
-        writer.write("    return;\n");
-        writer.write("  }\n");
-        writer.write("  accounts.forEach(function(account) {\n");
-        writer.write("    var block = document.createElement('section');\n");
-        writer.write("    block.className = 'cash-account-block';\n");
-        writer.write("    var head = document.createElement('div');\n");
-        writer.write("    head.className = 'cash-account-head';\n");
-        writer.write("    var title = document.createElement('p');\n");
-        writer.write("    title.className = 'cash-account-title' + (account.hidden ? ' is-hidden-label' : '');\n");
-        writer.write("    title.style.cursor = 'pointer';\n");
-        writer.write("    var caret = document.createElement('span');\n");
-        writer.write("    caret.className = 'cash-account-caret';\n");
-        writer.write("    var titleLabel = document.createElement('span');\n");
-        writer.write("    titleLabel.textContent = summarizeManualCashAccount(account);\n");
-        writer.write("    title.appendChild(caret);\n");
-        writer.write("    title.appendChild(titleLabel);\n");
-        writer.write("    if (account.hidden) block.classList.add('is-hidden');\n");
-        writer.write("    var headButtons = document.createElement('div');\n");
-        writer.write("    headButtons.className = 'cash-account-head-buttons';\n");
-        writer.write("    var toggleHideButton = document.createElement('button');\n");
-        writer.write("    toggleHideButton.type = 'button';\n");
-        writer.write("    toggleHideButton.className = 'cash-manager-btn';\n");
-        writer.write("    toggleHideButton.textContent = account.hidden ? 'Show' : 'Hide';\n");
-        writer.write("    toggleHideButton.addEventListener('click', function() {\n");
-        writer.write("      var wasHidden = account.hidden;\n");
-        writer.write("      commitStateChange(function(nextState) {\n");
-        writer.write("        var target = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n");
-        writer.write("        if (target) target.hidden = !target.hidden;\n");
-        writer.write("      }, wasHidden ? 'Account shown.' : 'Account hidden.');\n");
-        writer.write("    });\n");
-        writer.write("    var deleteAccountButton = document.createElement('button');\n");
-        writer.write("    deleteAccountButton.type = 'button';\n");
-        writer.write("    deleteAccountButton.className = 'cash-manager-btn danger';\n");
-        writer.write("    deleteAccountButton.textContent = 'Delete account';\n");
-        writer.write("    deleteAccountButton.addEventListener('click', function() {\n");
-        writer.write("      commitStateChange(function(nextState) {\n");
-        writer.write("        nextState.accounts = (nextState.accounts || []).filter(function(candidate) { return candidate.id !== account.id; });\n");
-        writer.write("      }, 'Account deleted.');\n");
-        writer.write("    });\n");
-        writer.write("    var renameAccountButton = document.createElement('button');\n");
-        writer.write("    renameAccountButton.type = 'button';\n");
-        writer.write("    renameAccountButton.className = 'cash-manager-btn';\n");
-        writer.write("    renameAccountButton.textContent = 'Edit';\n");
-        writer.write("    renameAccountButton.setAttribute('aria-label', 'Rename account');\n");
-        writer.write("    renameAccountButton.addEventListener('click', function() {\n");
-        writer.write("      var editRow = document.createElement('div');\n");
-        writer.write("      editRow.className = 'cash-tx-edit-row';\n");
-        writer.write("      var nameInput = document.createElement('input');\n");
-        writer.write("      nameInput.type = 'text';\n");
-        writer.write("      nameInput.className = 'cash-account-name-edit';\n");
-        writer.write("      nameInput.value = account.name;\n");
-        writer.write("      nameInput.maxLength = 60;\n");
-        writer.write("      var saveNameButton = document.createElement('button');\n");
-        writer.write("      saveNameButton.type = 'button';\n");
-        writer.write("      saveNameButton.className = 'cash-manager-btn';\n");
-        writer.write("      saveNameButton.textContent = 'Save';\n");
-        writer.write("      function saveName() {\n");
-        writer.write("        var newName = String(nameInput.value || '').trim();\n");
-        writer.write("        if (!newName) { setManualCashManagerMessage(managerUi, 'Account name is required.', true); nameInput.focus(); return; }\n");
-        writer.write("        commitStateChange(function(nextState) {\n");
-        writer.write("          var target = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n");
-        writer.write("          if (target) target.name = newName;\n");
-        writer.write("        }, 'Account renamed.');\n");
-        writer.write("      }\n");
-        writer.write("      saveNameButton.addEventListener('click', saveName);\n");
-        writer.write("      nameInput.addEventListener('keydown', function(event) { if (event.key === 'Enter') { event.preventDefault(); saveName(); } });\n");
-        writer.write("      var cancelNameButton = document.createElement('button');\n");
-        writer.write("      cancelNameButton.type = 'button';\n");
-        writer.write("      cancelNameButton.className = 'cash-manager-btn';\n");
-        writer.write("      cancelNameButton.textContent = 'Cancel';\n");
-        writer.write("      cancelNameButton.addEventListener('click', function() { head.removeChild(editRow); title.style.display = ''; headButtons.style.display = ''; });\n");
-        writer.write("      editRow.appendChild(nameInput);\n");
-        writer.write("      editRow.appendChild(saveNameButton);\n");
-        writer.write("      editRow.appendChild(cancelNameButton);\n");
-        writer.write("      title.style.display = 'none';\n");
-        writer.write("      headButtons.style.display = 'none';\n");
-        writer.write("      head.appendChild(editRow);\n");
-        writer.write("      nameInput.focus();\n");
-        writer.write("      nameInput.select();\n");
-        writer.write("    });\n");
-        writer.write("    headButtons.appendChild(renameAccountButton);\n");
-        writer.write("    headButtons.appendChild(toggleHideButton);\n");
-        writer.write("    headButtons.appendChild(deleteAccountButton);\n");
-        writer.write("    head.appendChild(title);\n");
-        writer.write("    head.appendChild(headButtons);\n");
-        writer.write("    block.appendChild(head);\n");
-        writer.write("    var summary = document.createElement('p');\n");
-        writer.write("    summary.className = 'cash-account-summary';\n");
-        writer.write("    summary.textContent = 'Transactions';\n");
-        writer.write("    block.appendChild(summary);\n");
-        writer.write("    var txList = document.createElement('div');\n");
-        writer.write("    txList.className = 'cash-transaction-list';\n");
-        writer.write("    function applyCashCollapse() {\n");
-        writer.write("      var collapsed = !!__cashCollapsedAccounts[account.id];\n");
-        writer.write("      caret.textContent = collapsed ? '\\u25B8 ' : '\\u25BE ';\n");
-        writer.write("      summary.style.display = collapsed ? 'none' : '';\n");
-        writer.write("      txList.style.display = collapsed ? 'none' : '';\n");
-        writer.write("    }\n");
-        writer.write("    title.addEventListener('click', function() {\n");
-        writer.write("      __cashCollapsedAccounts[account.id] = !__cashCollapsedAccounts[account.id];\n");
-        writer.write("      applyCashCollapse();\n");
-        writer.write("    });\n");
-        writer.write("    if (!account.transactions.length) {\n");
-        writer.write("      var noTx = document.createElement('div');\n");
-        writer.write("      noTx.className = 'cash-manager-empty';\n");
-        writer.write("      noTx.textContent = 'No transactions yet.';\n");
-        writer.write("      txList.appendChild(noTx);\n");
-        writer.write("    } else {\n");
-        writer.write("      account.transactions.slice().reverse().forEach(function(tx) {\n");
-        writer.write("        var txItem = document.createElement('div');\n");
-        writer.write("        txItem.className = 'cash-transaction-item';\n");
-        writer.write("        function renderTxView() {\n");
-        writer.write("          txItem.innerHTML = '';\n");
-        writer.write("          var txText = document.createElement('span');\n");
-        writer.write("          txText.textContent = formatMoneyValue(tx.amount, tx.currency, 0);\n");
-        writer.write("          var editTxButton = document.createElement('button');\n");
-        writer.write("          editTxButton.type = 'button';\n");
-        writer.write("          editTxButton.className = 'cash-manager-btn';\n");
-        writer.write("          editTxButton.textContent = 'Edit';\n");
-        writer.write("          editTxButton.addEventListener('click', renderTxEditForm);\n");
-        writer.write("          var deleteTxButton = document.createElement('button');\n");
-        writer.write("          deleteTxButton.type = 'button';\n");
-        writer.write("          deleteTxButton.className = 'cash-manager-btn danger';\n");
-        writer.write("          deleteTxButton.textContent = 'Delete';\n");
-        writer.write("          deleteTxButton.addEventListener('click', function() {\n");
-        writer.write("            commitStateChange(function(nextState) {\n");
-        writer.write("              var targetAccount = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n");
-        writer.write("              if (!targetAccount || !Array.isArray(targetAccount.transactions)) return;\n");
-        writer.write("              targetAccount.transactions = targetAccount.transactions.filter(function(c) { return c.id !== tx.id; });\n");
-        writer.write("            }, 'Transaction deleted.');\n");
-        writer.write("          });\n");
-        writer.write("          var txBtnGroup = document.createElement('div');\n");
-        writer.write("          txBtnGroup.style.display = 'flex';\n");
-        writer.write("          txBtnGroup.style.gap = '4px';\n");
-        writer.write("          txBtnGroup.style.flexShrink = '0';\n");
-        writer.write("          txBtnGroup.appendChild(editTxButton);\n");
-        writer.write("          txBtnGroup.appendChild(deleteTxButton);\n");
-        writer.write("          txItem.appendChild(txText);\n");
-        writer.write("          txItem.appendChild(txBtnGroup);\n");
-        writer.write("        }\n");
-        writer.write("        function renderTxEditForm() {\n");
-        writer.write("          txItem.innerHTML = '';\n");
-        writer.write("          var editRow = document.createElement('div');\n");
-        writer.write("          editRow.className = 'cash-tx-edit-row';\n");
-        writer.write("          var editAmount = document.createElement('input');\n");
-        writer.write("          editAmount.type = 'text';\n");
-        writer.write("          editAmount.className = 'cash-tx-edit-amount';\n");
-        writer.write("          editAmount.value = String(tx.amount);\n");
-        writer.write("          editAmount.inputMode = 'decimal';\n");
-        writer.write("          var editCurrency = document.createElement('input');\n");
-        writer.write("          editCurrency.type = 'text';\n");
-        writer.write("          editCurrency.className = 'cash-tx-edit-currency';\n");
-        writer.write("          editCurrency.value = tx.currency || 'NOK';\n");
-        writer.write("          editCurrency.maxLength = 5;\n");
-        writer.write("          var saveBtn = document.createElement('button');\n");
-        writer.write("          saveBtn.type = 'button';\n");
-        writer.write("          saveBtn.className = 'cash-manager-btn';\n");
-        writer.write("          saveBtn.textContent = 'Save';\n");
-        writer.write("          function saveTx() {\n");
-        writer.write("            var newAmount = parseManualCashAmountInput(editAmount.value);\n");
-        writer.write("            if (!Number.isFinite(newAmount)) { setManualCashManagerMessage(managerUi, 'Invalid amount.', true); return; }\n");
-        writer.write("            var newCurrency = normalizeCurrencyCodeInput(editCurrency.value) || 'NOK';\n");
-        writer.write("            commitStateChange(function(nextState) {\n");
-        writer.write("              var targetAccount = (nextState.accounts || []).find(function(c) { return c.id === account.id; });\n");
-        writer.write("              if (!targetAccount) return;\n");
-        writer.write("              var targetTx = (targetAccount.transactions || []).find(function(c) { return c.id === tx.id; });\n");
-        writer.write("              if (!targetTx) return;\n");
-        writer.write("              targetTx.amount = newAmount;\n");
-        writer.write("              targetTx.currency = newCurrency;\n");
-        writer.write("            }, 'Transaction updated.');\n");
-        writer.write("          }\n");
-        writer.write("          saveBtn.addEventListener('click', saveTx);\n");
-        writer.write("          function saveTxOnEnter(event) { if (event.key === 'Enter') { event.preventDefault(); saveTx(); } }\n");
-        writer.write("          editAmount.addEventListener('keydown', saveTxOnEnter);\n");
-        writer.write("          editCurrency.addEventListener('keydown', saveTxOnEnter);\n");
-        writer.write("          var cancelBtn = document.createElement('button');\n");
-        writer.write("          cancelBtn.type = 'button';\n");
-        writer.write("          cancelBtn.className = 'cash-manager-btn';\n");
-        writer.write("          cancelBtn.textContent = 'Cancel';\n");
-        writer.write("          cancelBtn.addEventListener('click', renderTxView);\n");
-        writer.write("          editRow.appendChild(editAmount);\n");
-        writer.write("          editRow.appendChild(editCurrency);\n");
-        writer.write("          editRow.appendChild(saveBtn);\n");
-        writer.write("          editRow.appendChild(cancelBtn);\n");
-        writer.write("          txItem.appendChild(editRow);\n");
-        writer.write("          editAmount.focus();\n");
-        writer.write("          editAmount.select();\n");
-        writer.write("        }\n");
-        writer.write("        renderTxView();\n");
-        writer.write("        txList.appendChild(txItem);\n");
-        writer.write("      });\n");
-        writer.write("    }\n");
-        writer.write("    block.appendChild(txList);\n");
-        writer.write("    applyCashCollapse();\n");
-        writer.write("    ui.accountsContainer.appendChild(block);\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("async function initManualCashHoldings() {\n");
-        writer.write("  var addButton = document.getElementById('cash-holdings-add-btn');\n");
-        writer.write("  if (!addButton) return;\n");
-        writer.write("  var isLoggedIn = detectLoggedInFromParentContext();\n");
-        writer.write("  if (!isLoggedIn) {\n");
-        writer.write("    addButton.style.display = 'none';\n");
-        writer.write("    return;\n");
-        writer.write("  }\n");
-        writer.write("  addButton.style.display = 'inline-flex';\n");
-        writer.write("  addButton.textContent = 'Manage';\n");
-        writer.write("  var managerUi = ensureManualCashManagerUi();\n");
-        writer.write("  var state = await loadManualCashState();\n");
-        writer.write("  renderManualCashSummaryLines(state);\n");
-        writer.write("  refreshCashHoldingsTotalFromState(state);\n");
-        writer.write("  async function commitStateChange(mutator, successMessage) {\n");
-        writer.write("    var nextState = sanitizeManualCashState(state);\n");
-        writer.write("    if (typeof mutator === 'function') mutator(nextState);\n");
-        writer.write("    var saveOk = true;\n");
-        writer.write("    var saveErrMsg = '';\n");
-        writer.write("    try {\n");
-        writer.write("      state = sanitizeManualCashState(await saveManualCashState(nextState));\n");
-        writer.write("    } catch (saveErr) {\n");
-        writer.write("      state = sanitizeManualCashState(nextState);\n");
-        writer.write("      saveOk = false;\n");
-        writer.write("      saveErrMsg = saveErr && saveErr.message ? saveErr.message : String(saveErr || '');\n");
-        writer.write("    }\n");
-        writer.write("    renderManualCashSummaryLines(state);\n");
-        writer.write("    refreshCashHoldingsTotalFromState(state);\n");
-        writer.write("    renderManualCashManager(state, managerUi, commitStateChange);\n");
-        writer.write("    if (!saveOk) {\n");
-        writer.write("      setManualCashManagerMessage(managerUi, 'Saved locally — sync failed' + (saveErrMsg ? ': ' + saveErrMsg : '.'), true);\n");
-        writer.write("    } else if (successMessage) {\n");
-        writer.write("      setManualCashManagerMessage(managerUi, successMessage, false);\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  renderManualCashManager(state, managerUi, commitStateChange);\n");
-        writer.write("  if (!managerUi.overlay.dataset.boundEvents) {\n");
-        writer.write("    managerUi.overlay.dataset.boundEvents = '1';\n");
-        writer.write("    managerUi.createAccountButton.addEventListener('click', function() {\n");
-        writer.write("      var name = String(managerUi.accountNameInput.value || '').trim();\n");
-        writer.write("      if (!name) {\n");
-        writer.write("        setManualCashManagerMessage(managerUi, 'Account name is required.', true);\n");
-        writer.write("        managerUi.accountNameInput.focus();\n");
-        writer.write("        return;\n");
-        writer.write("      }\n");
-        writer.write("      managerUi.accountNameInput.value = '';\n");
-        writer.write("      commitStateChange(function(nextState) {\n");
-        writer.write("        nextState.accounts.push({ id: 'acc-' + Math.random().toString(36).slice(2, 10), name: name, transactions: [] });\n");
-        writer.write("      }, 'Account created.');\n");
-        writer.write("    });\n");
-        writer.write("    managerUi.addTransactionButton.addEventListener('click', function() {\n");
-        writer.write("      var accountId = String(managerUi.accountSelect.value || '').trim();\n");
-        writer.write("      if (!accountId) {\n");
-        writer.write("        setManualCashManagerMessage(managerUi, 'Create an account before adding transactions.', true);\n");
-        writer.write("        return;\n");
-        writer.write("      }\n");
-        writer.write("      var amount = parseManualCashAmountInput(managerUi.amountInput.value);\n");
-        writer.write("      if (!Number.isFinite(amount) || amount === 0) {\n");
-        writer.write("        setManualCashManagerMessage(managerUi, 'Amount must be a non-zero number.', true);\n");
-        writer.write("        managerUi.amountInput.focus();\n");
-        writer.write("        return;\n");
-        writer.write("      }\n");
-        writer.write("      var currency = normalizeCurrencyCodeInput(managerUi.currencyInput.value || 'NOK') || 'NOK';\n");
-        writer.write("      managerUi.amountInput.value = '';\n");
-        writer.write("      managerUi.currencyInput.value = currency;\n");
-        writer.write("      commitStateChange(function(nextState) {\n");
-        writer.write("        var account = (nextState.accounts || []).find(function(candidate) { return candidate.id === accountId; });\n");
-        writer.write("        if (!account) return;\n");
-        writer.write("        if (!Array.isArray(account.transactions)) account.transactions = [];\n");
-        writer.write("        account.transactions.push({ id: 'tx-' + Math.random().toString(36).slice(2, 10), amount: amount, currency: currency });\n");
-        writer.write("      }, 'Transaction added.');\n");
-        writer.write("    });\n");
-        writer.write("    managerUi.accountNameInput.addEventListener('keydown', function(event) {\n");
-        writer.write("      if (event.key !== 'Enter') return;\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("      managerUi.createAccountButton.click();\n");
-        writer.write("    });\n");
-        writer.write("    managerUi.amountInput.addEventListener('keydown', function(event) {\n");
-        writer.write("      if (event.key !== 'Enter') return;\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("      managerUi.addTransactionButton.click();\n");
-        writer.write("    });\n");
-        writer.write("    managerUi.currencyInput.addEventListener('keydown', function(event) {\n");
-        writer.write("      if (event.key !== 'Enter') return;\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("      managerUi.addTransactionButton.click();\n");
-        writer.write("    });\n");
-        writer.write("  }\n");
-        writer.write("  addButton.addEventListener('click', function() {\n");
-        writer.write("    state = sanitizeManualCashState(state);\n");
-        writer.write("    renderManualCashManager(state, managerUi, commitStateChange);\n");
-        writer.write("    setManualCashManagerMessage(managerUi, '', false);\n");
-        writer.write("    managerUi.open();\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function initChartHoverEffects() {\n");
-        writer.write("  var tooltip = document.createElement('div');\n");
-        writer.write("  tooltip.className = 'chart-tooltip';\n");
-        writer.write("  document.body.appendChild(tooltip);\n");
-        writer.write("  var activeTarget = null;\n");
-        writer.write("  function getActiveCurrencyCode() {\n");
-        writer.write("    var input = document.getElementById('portfolio-currency-input');\n");
-        writer.write("    var fallback = 'NOK';\n");
-        writer.write("    var code = normalizeCurrencyCodeInput(input && input.value ? input.value : fallback);\n");
-        writer.write("    return REPORT_RATES_TO_NOK[code] ? code : fallback;\n");
-        writer.write("  }\n");
-        writer.write("  function formatMoneyTooltip(target) {\n");
-        writer.write("    var currency = getActiveCurrencyCode();\n");
-        writer.write("    var targetRate = REPORT_RATES_TO_NOK[currency];\n");
-        writer.write("    if (!targetRate || targetRate <= 0) return '';\n");
-        writer.write("    var valueNok = Number(target.getAttribute('data-tooltip-value-nok') || '0');\n");
-        writer.write("    var decimals = Number(target.getAttribute('data-tooltip-decimals') || '0');\n");
-        writer.write("    var prefix = target.getAttribute('data-tooltip-prefix') || '';\n");
-        writer.write("    var suffix = target.getAttribute('data-tooltip-suffix') || '';\n");
-        writer.write("    var mode = target.getAttribute('data-tooltip-format') || 'money';\n");
-        writer.write("    var converted = valueNok / targetRate;\n");
-        writer.write("    var text = mode === 'compact'\n");
-        writer.write("      ? prefix + formatCompactMoney(converted, currency)\n");
-        writer.write("      : prefix + formatMoneyValue(converted, currency, decimals);\n");
-        writer.write("    return text + suffix;\n");
-        writer.write("  }\n");
-        writer.write("  function readTooltipText(target) {\n");
-        writer.write("    if (!target) return '';\n");
-        writer.write("    if (target.getAttribute('data-tooltip-kind') === 'money') {\n");
-        writer.write("      var moneyText = formatMoneyTooltip(target);\n");
-        writer.write("      if (moneyText) return moneyText;\n");
-        writer.write("      return String(target.getAttribute('data-tooltip-fallback') || '').trim();\n");
-        writer.write("    }\n");
-        writer.write("    return String(target.getAttribute('data-tooltip') || '').trim();\n");
-        writer.write("  }\n");
-        writer.write("  function placeTooltip(event) {\n");
-        writer.write("    var offsetX = 14;\n");
-        writer.write("    var offsetY = 14;\n");
-        writer.write("    var x = event.clientX + offsetX;\n");
-        writer.write("    var y = event.clientY + offsetY;\n");
-        writer.write("    var rect = tooltip.getBoundingClientRect();\n");
-        writer.write("    if (x + rect.width + 10 > window.innerWidth) x = event.clientX - rect.width - 12;\n");
-        writer.write("    if (y + rect.height + 10 > window.innerHeight) y = event.clientY - rect.height - 12;\n");
-        writer.write("    tooltip.style.left = Math.max(8, x) + 'px';\n");
-        writer.write("    tooltip.style.top = Math.max(8, y) + 'px';\n");
-        writer.write("  }\n");
-        writer.write("  function hideTooltip() {\n");
-        writer.write("    tooltip.classList.remove('visible');\n");
-        writer.write("    activeTarget = null;\n");
-        writer.write("  }\n");
-        writer.write("  document.querySelectorAll('.chart-hover-target').forEach(function (target) {\n");
-        writer.write("    var nativeTitle = target.querySelector('title');\n");
-        writer.write("    if (nativeTitle) {\n");
-        writer.write("      var isMoneyTitle = (nativeTitle.classList && nativeTitle.classList.contains('js-chart-money')) || nativeTitle.hasAttribute('data-value-nok');\n");
-        writer.write("      if (isMoneyTitle) {\n");
-        writer.write("        target.setAttribute('data-tooltip-kind', 'money');\n");
-        writer.write("        target.setAttribute('data-tooltip-value-nok', nativeTitle.getAttribute('data-value-nok') || '0');\n");
-        writer.write("        target.setAttribute('data-tooltip-decimals', nativeTitle.getAttribute('data-decimals') || '0');\n");
-        writer.write("        target.setAttribute('data-tooltip-prefix', nativeTitle.getAttribute('data-prefix') || '');\n");
-        writer.write("        target.setAttribute('data-tooltip-suffix', nativeTitle.getAttribute('data-suffix') || '');\n");
-        writer.write("        target.setAttribute('data-tooltip-format', nativeTitle.getAttribute('data-format') || 'money');\n");
-        writer.write("        target.setAttribute('data-tooltip-fallback', String(nativeTitle.textContent || '').trim());\n");
-        writer.write("      } else {\n");
-        writer.write("        target.setAttribute('data-tooltip-kind', 'text');\n");
-        writer.write("        target.setAttribute('data-tooltip', String(nativeTitle.textContent || '').trim());\n");
-        writer.write("      }\n");
-        writer.write("      var key = String(nativeTitle.textContent || '').toLowerCase();\n");
-        writer.write("      if (key) target.setAttribute('data-filter-key', key);\n");
-        writer.write("      nativeTitle.remove();\n");
-        writer.write("    }\n");
-        writer.write("    target.addEventListener('mouseenter', function (event) {\n");
-        writer.write("      var text = readTooltipText(target);\n");
-        writer.write("      if (!text) return;\n");
-        writer.write("      activeTarget = target;\n");
-        writer.write("      target.classList.add('is-hovered');\n");
-        writer.write("      tooltip.textContent = text;\n");
-        writer.write("      tooltip.classList.add('visible');\n");
-        writer.write("      placeTooltip(event);\n");
-        writer.write("    });\n");
-        writer.write("    target.addEventListener('mousemove', function (event) {\n");
-        writer.write("      if (activeTarget !== target) return;\n");
-        writer.write("      var text = readTooltipText(target);\n");
-        writer.write("      if (text) tooltip.textContent = text;\n");
-        writer.write("      placeTooltip(event);\n");
-        writer.write("    });\n");
-        writer.write("    target.addEventListener('mouseleave', function () {\n");
-        writer.write("      target.classList.remove('is-hovered');\n");
-        writer.write("      hideTooltip();\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("  window.addEventListener('scroll', hideTooltip, true);\n");
-        writer.write("}\n");
-        writer.write("function initAllocationDrilldown() {\n");
-        writer.write("  function ensureListHost(svg) {\n");
-        writer.write("    var panel = svg.closest('.allocation-panel');\n");
-        writer.write("    if (!panel) return null;\n");
-        writer.write("    var host = panel.querySelector('.allocation-drilldown-list');\n");
-        writer.write("    if (host) return host;\n");
-        writer.write("    host = document.createElement('div');\n");
-        writer.write("    host.className = 'allocation-drilldown-list';\n");
-        writer.write("    host.hidden = true;\n");
-        writer.write("    panel.appendChild(host);\n");
-        writer.write("    return host;\n");
-        writer.write("  }\n");
-        writer.write("  function escapeHtml(text) {\n");
-        writer.write("    return String(text || '')\n");
-        writer.write("      .replace(/&/g, '&amp;')\n");
-        writer.write("      .replace(/</g, '&lt;')\n");
-        writer.write("      .replace(/>/g, '&gt;')\n");
-        writer.write("      .replace(/\\\"/g, '&quot;')\n");
-        writer.write("      .replace(/'/g, '&#39;');\n");
-        writer.write("  }\n");
-        writer.write("  function clearDrilldown(svg) {\n");
-        writer.write("    var host = ensureListHost(svg);\n");
-        writer.write("    if (host) { host.hidden = true; host.innerHTML = ''; }\n");
-        writer.write("    svg.querySelectorAll('.allocation-legend-default').forEach(function(node) { node.style.display = ''; });\n");
-        writer.write("    svg.querySelectorAll('.chart-hover-slice.is-selected').forEach(function(node) { node.classList.remove('is-selected'); });\n");
-        writer.write("    delete svg.dataset.activeDrilldown;\n");
-        writer.write("  }\n");
-        writer.write("  function parseItems(slice) {\n");
-        writer.write("    var raw = slice.getAttribute('data-drilldown-items') || '[]';\n");
-        writer.write("    try {\n");
-        writer.write("      var parsed = JSON.parse(raw);\n");
-        writer.write("      return Array.isArray(parsed) ? parsed : [];\n");
-        writer.write("    } catch (_) {\n");
-        writer.write("      return [];\n");
-        writer.write("    }\n");
-        writer.write("  }\n");
-        writer.write("  function renderDrilldown(svg, selectionLabel, items) {\n");
-        writer.write("    var host = ensureListHost(svg);\n");
-        writer.write("    if (!host) return;\n");
-        writer.write("    var selectedText = String(selectionLabel || '').trim();\n");
-        writer.write("    var html = '';\n");
-        writer.write("    if (selectedText) {\n");
-        writer.write("      html += '<div class=\"allocation-drilldown-selected\">Selected: ' + escapeHtml(selectedText) + '</div>';\n");
-        writer.write("    }\n");
-        writer.write("    html += '<div class=\"allocation-drilldown-grid\">';\n");
-        writer.write("    items.forEach(function(item) {\n");
-        writer.write("      var name = String(item && item.label || '-');\n");
-        writer.write("      var pctValue = Number(item && item.pct || 0);\n");
-        writer.write("      var pct = (Number.isFinite(pctValue) ? pctValue : 0).toFixed(1) + '%';\n");
-        writer.write("      html += '<div class=\"allocation-drilldown-name\" title=\"' + escapeHtml(name) + '\"><span class=\"allocation-drilldown-dot\"></span><span>' + escapeHtml(name) + '</span></div>';\n");
-        writer.write("      html += '<div class=\"allocation-drilldown-pct\">' + pct + '</div>';\n");
-        writer.write("    });\n");
-        writer.write("    html += '</div>';\n");
-        writer.write("    host.innerHTML = html;\n");
-        writer.write("    host.hidden = false;\n");
-        writer.write("  }\n");
-        writer.write("  function findSliceByLabel(svg, label) {\n");
-        writer.write("    var target = String(label || '').trim();\n");
-        writer.write("    if (!target) return null;\n");
-        writer.write("    var slices = svg.querySelectorAll('.chart-hover-slice[data-allocation-label]');\n");
-        writer.write("    for (var i = 0; i < slices.length; i++) {\n");
-        writer.write("      if (String(slices[i].getAttribute('data-allocation-label') || '').trim() === target) {\n");
-        writer.write("        return slices[i];\n");
-        writer.write("      }\n");
-        writer.write("    }\n");
-        writer.write("    return null;\n");
-        writer.write("  }\n");
-        writer.write("  function activateSlice(svg, slice) {\n");
-        writer.write("    if (slice.getAttribute('data-drilldown-disabled') === '1') return;\n");
-        writer.write("    var label = String(slice.getAttribute('data-allocation-label') || '').trim();\n");
-        writer.write("    if (!label) return;\n");
-        writer.write("    if (svg.dataset.activeDrilldown === label) { clearDrilldown(svg); return; }\n");
-        writer.write("    var items = parseItems(slice);\n");
-        writer.write("    if (!items.length) return;\n");
-        writer.write("    clearDrilldown(svg);\n");
-        writer.write("    svg.querySelectorAll('.allocation-legend-default').forEach(function(node) { node.style.display = 'none'; });\n");
-        writer.write("    slice.classList.add('is-selected');\n");
-        writer.write("    svg.dataset.activeDrilldown = label;\n");
-        writer.write("    renderDrilldown(svg, label, items);\n");
-        writer.write("  }\n");
-        writer.write("  document.querySelectorAll('.allocation-panel svg.chart-svg[data-allocation-drilldown=\"1\"]').forEach(function(svg) {\n");
-        writer.write("    svg.addEventListener('click', function(event) {\n");
-        writer.write("      var slice = event.target && event.target.closest ? event.target.closest('.chart-hover-slice') : null;\n");
-        writer.write("      if (!slice) {\n");
-        writer.write("        var legendTarget = event.target && event.target.closest ? event.target.closest('.chart-hover-legend[data-allocation-label]') : null;\n");
-        writer.write("        if (legendTarget) {\n");
-        writer.write("          var label = String(legendTarget.getAttribute('data-allocation-label') || '').trim();\n");
-        writer.write("          if (legendTarget.getAttribute('data-drilldown-disabled') !== '1') {\n");
-        writer.write("            var mappedSlice = findSliceByLabel(svg, label);\n");
-        writer.write("            if (mappedSlice) {\n");
-        writer.write("              activateSlice(svg, mappedSlice);\n");
-        writer.write("              event.stopPropagation();\n");
-        writer.write("              return;\n");
-        writer.write("            }\n");
-        writer.write("          }\n");
-        writer.write("          clearDrilldown(svg);\n");
-        writer.write("          event.stopPropagation();\n");
-        writer.write("          return;\n");
-        writer.write("        }\n");
-        writer.write("      }\n");
-        writer.write("      if (!slice) { clearDrilldown(svg); event.stopPropagation(); return; }\n");
-        writer.write("      activateSlice(svg, slice);\n");
-        writer.write("      event.stopPropagation();\n");
-        writer.write("    });\n");
-        writer.write("    document.addEventListener('click', function(event) {\n");
-        writer.write("      if (svg.contains(event.target)) return;\n");
-        writer.write("      var host = ensureListHost(svg);\n");
-        writer.write("      if (host && host.contains(event.target)) return;\n");
-        writer.write("      clearDrilldown(svg);\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function notifyParentThemeChange(theme) {\n");
-        writer.write("  try {\n");
-        writer.write("    if (window.parent && window.parent !== window && window.parent.__portfolioReportThemeBridge\n");
-        writer.write("        && typeof window.parent.__portfolioReportThemeBridge.onThemeChange === 'function') {\n");
-        writer.write("      window.parent.__portfolioReportThemeBridge.onThemeChange(theme);\n");
-        writer.write("    }\n");
-        writer.write("  } catch (_) {\n");
-        writer.write("    // Parent bridge is optional; report works standalone.\n");
-        writer.write("  }\n");
-        writer.write("}\n");
-        writer.write("function initThemeToggle() {\n");
-        writer.write("  var button = document.getElementById('report-theme-toggle');\n");
-        writer.write("  var storageKey = 'portfolioReportTheme';\n");
-        writer.write("  var savedTheme = '';\n");
-        writer.write("  try { savedTheme = window.localStorage.getItem(storageKey) || ''; } catch (_) { savedTheme = ''; }\n");
-        writer.write("  if (savedTheme === 'dark') {\n");
-        writer.write("    document.body.classList.add('theme-dark');\n");
-        writer.write("  }\n");
-        writer.write("  function refreshLabel() {\n");
-        writer.write("    if (!button) return;\n");
-        writer.write("    button.textContent = document.body.classList.contains('theme-dark') ? 'Light mode' : 'Dark mode';\n");
-        writer.write("  }\n");
-        writer.write("  refreshLabel();\n");
-        writer.write("  notifyParentThemeChange(document.body.classList.contains('theme-dark') ? 'dark' : 'light');\n");
-        writer.write("  if (!button) return;\n");
-        writer.write("  button.addEventListener('click', function () {\n");
-        writer.write("    var dark = document.body.classList.toggle('theme-dark');\n");
-        writer.write("    try { window.localStorage.setItem(storageKey, dark ? 'dark' : 'light'); } catch (_) { }\n");
-        writer.write("    refreshLabel();\n");
-        writer.write("    notifyParentThemeChange(dark ? 'dark' : 'light');\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function initInteractiveChartControls() {\n");
-        writer.write("  function ensureToolbar(container, row) {\n");
-        writer.write("    var existing = container.querySelector('.chart-toolbar');\n");
-        writer.write("    if (existing) return existing;\n");
-        writer.write("    var toolbar = document.createElement('div');\n");
-        writer.write("    toolbar.className = 'chart-toolbar';\n");
-        writer.write("    var heading = row.querySelector(':scope > h3, :scope > h4, :scope > .hero-side-title');\n");
-        writer.write("    if (heading) { heading.insertAdjacentElement('afterend', toolbar); } else { row.appendChild(toolbar); }\n");
-        writer.write("    return toolbar;\n");
-        writer.write("  }\n");
-        writer.write("  function attachControls(container) {\n");
-        writer.write("    var svg = container.querySelector('svg.chart-svg');\n");
-        writer.write("    if (!svg || svg.dataset.interactiveReady === '1') return;\n");
-        writer.write("    svg.dataset.interactiveReady = '1';\n");
-        writer.write("    var row = container.querySelector('.chart-title-row');\n");
-        writer.write("    if (!row) return;\n");
-        writer.write("    var toolbar = ensureToolbar(container, row);\n");
-        writer.write("    var viewport = svg.closest('.chart-viewport');\n");
-        writer.write("    if (!viewport) {\n");
-        writer.write("      viewport = document.createElement('div');\n");
-        writer.write("      viewport.className = 'chart-viewport';\n");
-        writer.write("      svg.parentNode.insertBefore(viewport, svg);\n");
-        writer.write("      viewport.appendChild(svg);\n");
-        writer.write("    }\n");
-        writer.write("    var zoomInBtn = document.createElement('button');\n");
-        writer.write("    zoomInBtn.type = 'button';\n");
-        writer.write("    zoomInBtn.className = 'chart-tool-btn';\n");
-        writer.write("    zoomInBtn.textContent = '+';\n");
-        writer.write("    var zoomOutBtn = document.createElement('button');\n");
-        writer.write("    zoomOutBtn.type = 'button';\n");
-        writer.write("    zoomOutBtn.className = 'chart-tool-btn';\n");
-        writer.write("    zoomOutBtn.textContent = '-';\n");
-        writer.write("    var resetBtn = document.createElement('button');\n");
-        writer.write("    resetBtn.type = 'button';\n");
-        writer.write("    resetBtn.className = 'chart-tool-btn';\n");
-        writer.write("    resetBtn.textContent = 'Reset';\n");
-        writer.write("    var filterInput = document.createElement('input');\n");
-        writer.write("    filterInput.className = 'chart-filter-input';\n");
-        writer.write("    filterInput.type = 'text';\n");
-        writer.write("    filterInput.placeholder = 'Filter';\n");
-        writer.write("    toolbar.appendChild(zoomInBtn);\n");
-        writer.write("    toolbar.appendChild(zoomOutBtn);\n");
-        writer.write("    toolbar.appendChild(resetBtn);\n");
-        writer.write("    toolbar.appendChild(filterInput);\n");
-        writer.write("    var state = { scale: 1, tx: 0, ty: 0, dragging: false, startX: 0, startY: 0, originTx: 0, originTy: 0 };\n");
-        writer.write("    function applyTransform() {\n");
-        writer.write("      svg.style.transform = 'translate(' + state.tx + 'px,' + state.ty + 'px) scale(' + state.scale + ')';\n");
-        writer.write("    }\n");
-        writer.write("    function zoomTo(nextScale, anchorClientX, anchorClientY) {\n");
-        writer.write("      var clamped = Math.max(1, Math.min(4, nextScale));\n");
-        writer.write("      if (Math.abs(clamped - state.scale) < 0.0001) return;\n");
-        writer.write("      var rect = svg.getBoundingClientRect();\n");
-        writer.write("      var anchorX = rect.width / 2;\n");
-        writer.write("      var anchorY = rect.height / 2;\n");
-        writer.write("      if (typeof anchorClientX === 'number' && typeof anchorClientY === 'number') {\n");
-        writer.write("        anchorX = Math.max(0, Math.min(rect.width, anchorClientX - rect.left));\n");
-        writer.write("        anchorY = Math.max(0, Math.min(rect.height, anchorClientY - rect.top));\n");
-        writer.write("      }\n");
-        writer.write("      var contentX = (anchorX - state.tx) / state.scale;\n");
-        writer.write("      var contentY = (anchorY - state.ty) / state.scale;\n");
-        writer.write("      state.scale = clamped;\n");
-        writer.write("      state.tx = anchorX - contentX * state.scale;\n");
-        writer.write("      state.ty = anchorY - contentY * state.scale;\n");
-        writer.write("      if (state.scale <= 1) { state.tx = 0; state.ty = 0; }\n");
-        writer.write("      applyTransform();\n");
-        writer.write("    }\n");
-        writer.write("    zoomInBtn.addEventListener('click', function() { zoomTo(state.scale + 0.2); });\n");
-        writer.write("    zoomOutBtn.addEventListener('click', function() { zoomTo(state.scale - 0.2); });\n");
-        writer.write("    resetBtn.addEventListener('click', function() { state.scale = 1; state.tx = 0; state.ty = 0; applyTransform(); filterInput.value = ''; applyFilter(''); });\n");
-        writer.write("    svg.addEventListener('wheel', function(event) {\n");
-        writer.write("      if (!(event.ctrlKey || event.metaKey)) return;\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("      var zoomFactor = Math.exp(-event.deltaY * 0.0015);\n");
-        writer.write("      zoomTo(state.scale * zoomFactor, event.clientX, event.clientY);\n");
-        writer.write("    }, { passive: false });\n");
-        writer.write("    svg.addEventListener('mousedown', function(event) {\n");
-        writer.write("      if (event.button !== 0 || state.scale <= 1) return;\n");
-        writer.write("      state.dragging = true;\n");
-        writer.write("      state.startX = event.clientX;\n");
-        writer.write("      state.startY = event.clientY;\n");
-        writer.write("      state.originTx = state.tx;\n");
-        writer.write("      state.originTy = state.ty;\n");
-        writer.write("      svg.classList.add('is-panning');\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("    });\n");
-        writer.write("    window.addEventListener('mousemove', function(event) {\n");
-        writer.write("      if (!state.dragging) return;\n");
-        writer.write("      state.tx = state.originTx + (event.clientX - state.startX);\n");
-        writer.write("      state.ty = state.originTy + (event.clientY - state.startY);\n");
-        writer.write("      applyTransform();\n");
-        writer.write("    });\n");
-        writer.write("    window.addEventListener('mouseup', function() {\n");
-        writer.write("      state.dragging = false;\n");
-        writer.write("      svg.classList.remove('is-panning');\n");
-        writer.write("    });\n");
-        writer.write("    function applyFilter(term) {\n");
-        writer.write("      var normalized = String(term || '').trim().toLowerCase();\n");
-        writer.write("      var targets = svg.querySelectorAll('.chart-hover-target');\n");
-        writer.write("      targets.forEach(function(target) {\n");
-        writer.write("        var key = String(target.getAttribute('data-filter-key') || '').toLowerCase();\n");
-        writer.write("        var visible = !normalized || key.indexOf(normalized) >= 0;\n");
-        writer.write("        target.style.opacity = visible ? '' : '0.08';\n");
-        writer.write("        target.style.pointerEvents = visible ? '' : 'none';\n");
-        writer.write("      });\n");
-        writer.write("    }\n");
-        writer.write("    filterInput.addEventListener('input', function() { applyFilter(filterInput.value); });\n");
-        writer.write("  }\n");
-        writer.write("  document.querySelectorAll('.overview-chart, .allocation-panel, .hero-side').forEach(attachControls);\n");
-        writer.write("}\n");
-                writer.write("function formatSparklineRangeLabel(rangeKey) {\n");
-                writer.write("  var key = String(rangeKey || '').toUpperCase();\n");
-                writer.write("  if (key === '1M') return '1-month';\n");
-                writer.write("  if (key === '3M') return '3-month';\n");
-                writer.write("  if (key === '6M') return '6-month';\n");
-                writer.write("  if (key === '1Y') return '1-year';\n");
-                writer.write("  if (key === 'YTD') return 'year-to-date';\n");
-                writer.write("  if (key === '3Y') return '3-year';\n");
-                writer.write("  if (key === '5Y') return '5-year';\n");
-                writer.write("  if (key === 'YEAR') return 'year';\n");
-                writer.write("  return key || 'selected';\n");
-                writer.write("}\n");
-                writer.write("function updateSparklineReturnSummary(widget) {\n");
-                writer.write("  if (!widget) return;\n");
-                writer.write("  var summaryNode = widget.querySelector('.js-sparkline-return-summary');\n");
-                writer.write("  if (!summaryNode) return;\n");
-                writer.write("  var activePanel = widget.querySelector('.sparkline-panel.is-active');\n");
-                writer.write("  if (!activePanel) { summaryNode.textContent = ''; return; }\n");
-                writer.write("  var returnNok = Number(activePanel.getAttribute('data-return-nok') || 0);\n");
-                writer.write("  var returnPct = Number(activePanel.getAttribute('data-return-pct') || 0);\n");
-                writer.write("  var rangeLabel = formatSparklineRangeLabel(activePanel.getAttribute('data-range'));\n");
-                writer.write("  var targetCurrency = getActiveReportCurrency();\n");
-                writer.write("  var targetRate = REPORT_RATES_TO_NOK[targetCurrency] || REPORT_RATES_TO_NOK.NOK || 1;\n");
-                writer.write("  var converted = Number.isFinite(targetRate) && targetRate > 0 ? (returnNok / targetRate) : returnNok;\n");
-                writer.write("  var direction = returnNok > 0 ? 'gain' : (returnNok < 0 ? 'loss' : 'change');\n");
-                writer.write("  summaryNode.classList.remove('positive', 'negative');\n");
-                writer.write("  if (returnNok > 0) summaryNode.classList.add('positive');\n");
-                writer.write("  else if (returnNok < 0) summaryNode.classList.add('negative');\n");
-                writer.write("  summaryNode.textContent = formatMoneyValue(converted, targetCurrency, 2) + ' (' + formatPercentValue(returnPct, 2) + ') ' + rangeLabel + ' ' + direction;\n");
-                writer.write("}\n");
-                writer.write("function updateSparklineGrowthSummary(widget) {\n");
-                writer.write("  if (!widget) return;\n");
-                writer.write("  var summaryNode = widget.querySelector('.js-sparkline-growth-summary');\n");
-                writer.write("  if (!summaryNode) return;\n");
-                writer.write("  var activePanel = widget.querySelector('.sparkline-panel.is-active');\n");
-                writer.write("  if (!activePanel) { summaryNode.textContent = ''; return; }\n");
-                writer.write("  var growthNok = Number(activePanel.getAttribute('data-growth-nok') || 0);\n");
-                writer.write("  var growthPct = Number(activePanel.getAttribute('data-growth-pct') || 0);\n");
-                writer.write("  var rangeLabel = formatSparklineRangeLabel(activePanel.getAttribute('data-range'));\n");
-                writer.write("  var targetCurrency = getActiveReportCurrency();\n");
-                writer.write("  var targetRate = REPORT_RATES_TO_NOK[targetCurrency] || REPORT_RATES_TO_NOK.NOK || 1;\n");
-                writer.write("  var converted = Number.isFinite(targetRate) && targetRate > 0 ? (growthNok / targetRate) : growthNok;\n");
-                writer.write("  var direction = growthNok > 0 ? 'growth' : (growthNok < 0 ? 'decline' : 'change');\n");
-                writer.write("  summaryNode.classList.remove('positive', 'negative');\n");
-                writer.write("  if (growthNok > 0) summaryNode.classList.add('positive');\n");
-                writer.write("  else if (growthNok < 0) summaryNode.classList.add('negative');\n");
-                writer.write("  summaryNode.textContent = formatMoneyValue(converted, targetCurrency, 2) + ' (' + formatPercentValue(growthPct, 2) + ') ' + rangeLabel + ' ' + direction;\n");
-                writer.write("}\n");
-                writer.write("function refreshSparklineSummaries() {\n");
-                writer.write("  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n");
-                writer.write("    updateSparklineReturnSummary(widget);\n");
-                writer.write("    updateSparklineGrowthSummary(widget);\n");
-                writer.write("  });\n");
-                writer.write("}\n");
-                writer.write("function initSparklineRangeControls() {\n");
-                writer.write("  document.querySelectorAll('.sparkline-widget').forEach(function(widget) {\n");
-                writer.write("    var rangeButtons = widget.querySelectorAll('.sparkline-range-btn');\n");
-                writer.write("    var metricButtons = widget.querySelectorAll('.sparkline-metric-btn');\n");
-                writer.write("    var panels = widget.querySelectorAll('.sparkline-panel');\n");
-                writer.write("    if (!panels.length) return;\n");
-                writer.write("    var defaultRangeSource = widget.querySelector('.sparkline-range-btn.is-active') || rangeButtons[0] || panels[0];\n");
-                writer.write("    var activeRange = defaultRangeSource ? defaultRangeSource.getAttribute('data-range') : '';\n");
-                writer.write("    var metricSource = widget.querySelector('.sparkline-metric-btn.is-active') || metricButtons[0] || panels[0];\n");
-                writer.write("    var activeMetric = metricSource ? String(metricSource.getAttribute('data-metric') || '') : '';\n");
-                writer.write("    function refresh() {\n");
-                writer.write("      rangeButtons.forEach(function(btn) {\n");
-                writer.write("        btn.classList.toggle('is-active', btn.getAttribute('data-range') === activeRange);\n");
-                writer.write("      });\n");
-                writer.write("      metricButtons.forEach(function(btn) {\n");
-                writer.write("        btn.classList.toggle('is-active', btn.getAttribute('data-metric') === activeMetric);\n");
-                writer.write("      });\n");
-                writer.write("      panels.forEach(function(panel) {\n");
-                writer.write("        var matchRange = panel.getAttribute('data-range') === activeRange;\n");
-                writer.write("        var panelMetric = String(panel.getAttribute('data-metric') || '');\n");
-                writer.write("        var matchMetric = !activeMetric || panelMetric === activeMetric;\n");
-                writer.write("        panel.classList.toggle('is-active', matchRange && matchMetric);\n");
-                writer.write("      });\n");
-                writer.write("      updateSparklineReturnSummary(widget);\n");
-                writer.write("      updateSparklineGrowthSummary(widget);\n");
-                writer.write("    }\n");
-                writer.write("    rangeButtons.forEach(function(btn) {\n");
-                writer.write("      btn.addEventListener('click', function() {\n");
-                writer.write("        activeRange = btn.getAttribute('data-range');\n");
-                writer.write("        refresh();\n");
-                writer.write("      });\n");
-                writer.write("    });\n");
-                writer.write("    metricButtons.forEach(function(btn) {\n");
-                writer.write("      btn.addEventListener('click', function() {\n");
-                writer.write("        activeMetric = btn.getAttribute('data-metric');\n");
-                writer.write("        refresh();\n");
-                writer.write("      });\n");
-                writer.write("    });\n");
-                writer.write("    refresh();\n");
-                writer.write("  });\n");
-                writer.write("}\n");
-        writer.write("function initTimelineInfoPopup() {\n");
-        writer.write("  document.querySelectorAll('.timeline-info-btn').forEach(function(openBtn) {\n");
-        writer.write("    if (openBtn.dataset.timelineInfoBound === '1') return;\n");
-        writer.write("    openBtn.dataset.timelineInfoBound = '1';\n");
-        writer.write("    var host = openBtn.closest('.hero-side, .annual-graphs-section, .annual-kpi-deck');\n");
-        writer.write("    var overlay = host ? host.querySelector('.timeline-info-overlay') : null;\n");
-        writer.write("    if (!overlay) return;\n");
-        writer.write("    var closeBtn = overlay.querySelector('.timeline-info-close');\n");
-        writer.write("    function closeDialog() { overlay.hidden = true; }\n");
-        writer.write("    function openDialog() { overlay.hidden = false; }\n");
-        writer.write("    openBtn.addEventListener('click', openDialog);\n");
-        writer.write("    if (closeBtn) closeBtn.addEventListener('click', closeDialog);\n");
-        writer.write("    overlay.addEventListener('click', function(event) {\n");
-        writer.write("      if (event.target === overlay) closeDialog();\n");
-        writer.write("    });\n");
-        writer.write("    window.addEventListener('keydown', function(event) {\n");
-        writer.write("      if (!overlay.hidden && event.key === 'Escape') closeDialog();\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function initInlineCellDragHandles() {\n");
-        writer.write("  var active = null;\n");
-        writer.write("  var startX = 0;\n");
-        writer.write("  var startScrollLeft = 0;\n");
-        writer.write("  function stopDrag() {\n");
-        writer.write("    if (!active) return;\n");
-        writer.write("    active.classList.remove('is-dragging');\n");
-        writer.write("    document.body.classList.remove('inline-cell-dragging');\n");
-        writer.write("    active = null;\n");
-        writer.write("  }\n");
-        writer.write("  window.addEventListener('mousemove', function (event) {\n");
-        writer.write("    if (!active) return;\n");
-        writer.write("    var deltaX = event.clientX - startX;\n");
-        writer.write("    active.scrollLeft = startScrollLeft - deltaX;\n");
-        writer.write("  });\n");
-        writer.write("  window.addEventListener('mouseup', stopDrag);\n");
-        writer.write("  window.addEventListener('mouseleave', stopDrag);\n");
-        writer.write("  document.querySelectorAll('.security-scroll, .ticker-scroll').forEach(function (node) {\n");
-        writer.write("    if (node.dataset.dragHandleInit === '1') return;\n");
-        writer.write("    node.dataset.dragHandleInit = '1';\n");
-        writer.write("    node.addEventListener('mousedown', function (event) {\n");
-        writer.write("      if (event.button !== 0) return;\n");
-        writer.write("      active = node;\n");
-        writer.write("      startX = event.clientX;\n");
-        writer.write("      startScrollLeft = node.scrollLeft;\n");
-        writer.write("      node.classList.add('is-dragging');\n");
-        writer.write("      document.body.classList.add('inline-cell-dragging');\n");
-        writer.write("      event.preventDefault();\n");
-        writer.write("    });\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("function toDownloadSafeName(value) {\n");
-        writer.write("  return String(value || 'chart')\n");
-        writer.write("    .trim()\n");
-        writer.write("    .toLowerCase()\n");
-        writer.write("    .replace(/[^a-z0-9]+/g, '-')\n");
-        writer.write("    .replace(/^-+|-+$/g, '') || 'chart';\n");
-        writer.write("}\n");
-        writer.write("function resolveChartName(container, fallback) {\n");
-        writer.write("  if (!container) return fallback;\n");
-        writer.write("  var heading = container.querySelector('h3, h4, .hero-side-title');\n");
-        writer.write("  var text = heading ? String(heading.textContent || '').trim() : '';\n");
-        writer.write("  return text || fallback;\n");
-        writer.write("}\n");
-        writer.write("function downloadSvgImage(svgElement, fileName) {\n");
-        writer.write("  if (!svgElement) return;\n");
-        writer.write("  var cloned = svgElement.cloneNode(true);\n");
-        writer.write("  if (!cloned.getAttribute('xmlns')) cloned.setAttribute('xmlns', 'http://www.w3.org/2000/svg');\n");
-        writer.write("  if (!cloned.getAttribute('xmlns:xlink')) cloned.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');\n");
-        writer.write("  var serializer = new XMLSerializer();\n");
-        writer.write("  var source = serializer.serializeToString(cloned);\n");
-        writer.write("  var encoded = window.btoa(unescape(encodeURIComponent(source)));\n");
-        writer.write("  var dataUrl = 'data:image/svg+xml;base64,' + encoded;\n");
-        writer.write("  var img = new Image();\n");
-        writer.write("  img.onload = function() {\n");
-        writer.write("    var width = Number(svgElement.viewBox && svgElement.viewBox.baseVal && svgElement.viewBox.baseVal.width) || svgElement.clientWidth || 1200;\n");
-        writer.write("    var height = Number(svgElement.viewBox && svgElement.viewBox.baseVal && svgElement.viewBox.baseVal.height) || svgElement.clientHeight || 800;\n");
-        writer.write("    width = Math.max(1, Math.round(width));\n");
-        writer.write("    height = Math.max(1, Math.round(height));\n");
-        writer.write("    var canvas = document.createElement('canvas');\n");
-        writer.write("    canvas.width = width;\n");
-        writer.write("    canvas.height = height;\n");
-        writer.write("    var context = canvas.getContext('2d');\n");
-        writer.write("    if (!context) return;\n");
-        writer.write("    context.fillStyle = '#ffffff';\n");
-        writer.write("    context.fillRect(0, 0, width, height);\n");
-        writer.write("    context.drawImage(img, 0, 0, width, height);\n");
-        writer.write("    canvas.toBlob(function(blob) {\n");
-        writer.write("      if (!blob) return;\n");
-        writer.write("      var url = URL.createObjectURL(blob);\n");
-        writer.write("      var anchor = document.createElement('a');\n");
-        writer.write("      anchor.href = url;\n");
-        writer.write("      anchor.download = toDownloadSafeName(fileName) + '.png';\n");
-        writer.write("      document.body.appendChild(anchor);\n");
-        writer.write("      anchor.click();\n");
-        writer.write("      anchor.remove();\n");
-        writer.write("      URL.revokeObjectURL(url);\n");
-        writer.write("    }, 'image/png');\n");
-        writer.write("  };\n");
-        writer.write("  img.src = dataUrl;\n");
-        writer.write("}\n");
-        writer.write("function appendChartDownloadButton(container, findSvg, fallbackName) {\n");
-        writer.write("  if (!container || container.querySelector('.chart-download-btn')) return;\n");
-        writer.write("  var heading = container.querySelector(':scope > h3, :scope > h4, :scope > .hero-side-title');\n");
-        writer.write("  if (!heading) return;\n");
-        writer.write("  var row = document.createElement('div');\n");
-        writer.write("  row.className = 'chart-title-row';\n");
-        writer.write("  var button = document.createElement('button');\n");
-        writer.write("  button.type = 'button';\n");
-        writer.write("  button.className = 'chart-download-btn';\n");
-        writer.write("  button.setAttribute('title', 'Download PNG');\n");
-        writer.write("  button.setAttribute('aria-label', 'Download PNG');\n");
-        writer.write("  button.innerHTML = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v11\"></path><path d=\"M7.5 10.5L12 15l4.5-4.5\"></path><path d=\"M4 18h16\"></path></svg>';\n");
-        writer.write("  button.addEventListener('click', function() {\n");
-        writer.write("    var svg = typeof findSvg === 'function' ? findSvg() : null;\n");
-        writer.write("    if (!svg) return;\n");
-        writer.write("    var chartName = resolveChartName(container, fallbackName);\n");
-        writer.write("    downloadSvgImage(svg, chartName);\n");
-        writer.write("  });\n");
-        writer.write("  heading.parentNode.insertBefore(row, heading);\n");
-        writer.write("  row.appendChild(heading);\n");
-        writer.write("  row.appendChild(button);\n");
-        writer.write("}\n");
-        writer.write("function initChartDownloadButtons() {\n");
-        writer.write("  document.querySelectorAll('.overview-chart, .allocation-panel').forEach(function(container) {\n");
-        writer.write("    appendChartDownloadButton(container, function() {\n");
-        writer.write("      return container.querySelector('svg.chart-svg');\n");
-        writer.write("    }, 'chart');\n");
-        writer.write("  });\n");
-        writer.write("  document.querySelectorAll('.hero-side').forEach(function(side) {\n");
-        writer.write("    appendChartDownloadButton(side, function() {\n");
-        writer.write("      var widget = side.querySelector('.sparkline-widget');\n");
-        writer.write("      if (!widget) return null;\n");
-        writer.write("      var activePanel = widget.querySelector('.sparkline-panel.is-active');\n");
-        writer.write("      var fallbackPanel = widget.querySelector('.sparkline-panel');\n");
-        writer.write("      var panel = activePanel || fallbackPanel;\n");
-        writer.write("      return panel ? panel.querySelector('svg') : null;\n");
-        writer.write("    }, 'portfolio-value-timeline');\n");
-        writer.write("  });\n");
-        writer.write("}\n");
-        writer.write("(function initReportCurrencyInput() {\n");
-        writer.write("  var input = document.getElementById('portfolio-currency-input');\n");
-        writer.write("  if (!input) return;\n");
-        writer.write("  input.addEventListener('change', function () {\n");
-        writer.write("    var target = normalizeCurrencyCodeInput(input.value);\n");
+        writer.write(SCRIPT_PART_2);
+        writer.write(SCRIPT_PART_3);
         writer.write("    if (!target || !REPORT_RATES_TO_NOK[target]) { target = '" + ReportWriter.DEFAULT_TOTAL_CURRENCY + "'; input.value = target; }\n");
-        writer.write("    refreshReportTotalsCurrency(target);\n");
-        writer.write("    refreshReportChartsCurrency(target);\n");
-        writer.write("  });\n");
+        writer.write(SCRIPT_PART_4);
         writer.write("  refreshReportTotalsCurrency('" + ReportWriter.DEFAULT_TOTAL_CURRENCY + "');\n");
         writer.write("  refreshReportChartsCurrency('" + ReportWriter.DEFAULT_TOTAL_CURRENCY + "');\n");
-        writer.write("  initSparklineRangeControls();\n");
-        writer.write("  initTimelineInfoPopup();\n");
-        writer.write("  initInlineCellDragHandles();\n");
-        writer.write("  initSortableTables();\n");
-        writer.write("  initAssetSubtotalToggles();\n");
-        writer.write("  initOverviewModeSwitcher();\n");
-        writer.write("  initOverviewDayCharts();\n");
-        writer.write("  initChartDownloadButtons();\n");
-        writer.write("  initChartHoverEffects();\n");
-        writer.write("  initInteractiveChartControls();\n");
-        writer.write("  initAllocationDrilldown();\n");
-        writer.write("  initThemeToggle();\n");
-        writer.write("  initPriceRefreshButton();\n");
-        writer.write("  initManualCashHoldings();\n");
-        writer.write("})();\n");
+        writer.write(SCRIPT_PART_5);
     }
 }
