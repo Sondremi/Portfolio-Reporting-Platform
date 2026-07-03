@@ -1409,7 +1409,7 @@ final class ReportClientScript {
         writer.write("    var renameAccountButton = document.createElement('button');\n");
         writer.write("    renameAccountButton.type = 'button';\n");
         writer.write("    renameAccountButton.className = 'cash-manager-btn';\n");
-        writer.write("    renameAccountButton.textContent = '\\u270E';\n");
+        writer.write("    renameAccountButton.textContent = 'Edit';\n");
         writer.write("    renameAccountButton.setAttribute('aria-label', 'Rename account');\n");
         writer.write("    renameAccountButton.addEventListener('click', function() {\n");
         writer.write("      var editRow = document.createElement('div');\n");
@@ -1525,7 +1525,7 @@ final class ReportClientScript {
         writer.write("          saveBtn.type = 'button';\n");
         writer.write("          saveBtn.className = 'cash-manager-btn';\n");
         writer.write("          saveBtn.textContent = 'Save';\n");
-        writer.write("          saveBtn.addEventListener('click', function() {\n");
+        writer.write("          function saveTx() {\n");
         writer.write("            var newAmount = parseManualCashAmountInput(editAmount.value);\n");
         writer.write("            if (!Number.isFinite(newAmount)) { setManualCashManagerMessage(managerUi, 'Invalid amount.', true); return; }\n");
         writer.write("            var newCurrency = normalizeCurrencyCodeInput(editCurrency.value) || 'NOK';\n");
@@ -1537,7 +1537,11 @@ final class ReportClientScript {
         writer.write("              targetTx.amount = newAmount;\n");
         writer.write("              targetTx.currency = newCurrency;\n");
         writer.write("            }, 'Transaction updated.');\n");
-        writer.write("          });\n");
+        writer.write("          }\n");
+        writer.write("          saveBtn.addEventListener('click', saveTx);\n");
+        writer.write("          function saveTxOnEnter(event) { if (event.key === 'Enter') { event.preventDefault(); saveTx(); } }\n");
+        writer.write("          editAmount.addEventListener('keydown', saveTxOnEnter);\n");
+        writer.write("          editCurrency.addEventListener('keydown', saveTxOnEnter);\n");
         writer.write("          var cancelBtn = document.createElement('button');\n");
         writer.write("          cancelBtn.type = 'button';\n");
         writer.write("          cancelBtn.className = 'cash-manager-btn';\n");
