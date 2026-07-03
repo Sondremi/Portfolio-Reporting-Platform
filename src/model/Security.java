@@ -2208,15 +2208,28 @@ public class Security {
             // Prior session close from the series: with range=1mo meta.chartPreviousClose
             // is a month-old close, so it cannot drive day-change.
             double lastClose = lastNonNullClose(closes);
-            double priorClose = priorSessionClose(closes);
-            double resolvedLatestPrice = regularMarketPrice > EPSILON
-                    ? regularMarketPrice
-                    : (lastClose > EPSILON ? lastClose
-                        : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0));
+            double priorClose;
+            double resolvedLatestPrice;
+            if (regularMarketPrice > EPSILON) {
+                resolvedLatestPrice = regularMarketPrice;
+                // regularMarketPrice is the current session's price. Yahoo often leaves the
+                // current day's daily bar's close null after the rollover while still filling
+                // regularMarketPrice, so the last non-null close IS the prior session; only when
+                // that bar is finalized do we step back one more to the second-to-last close.
+                priorClose = lastDailyBarUnfinalized(closes) ? lastClose : priorSessionClose(closes);
+            } else {
+                // No live price: latest falls back to the last finalized close, prior is the one before it.
+                resolvedLatestPrice = lastClose > EPSILON ? lastClose
+                        : (chartPreviousClose > EPSILON ? chartPreviousClose : 0.0);
+                priorClose = priorSessionClose(closes);
+            }
             double resolvedPreviousClose = priorClose > EPSILON ? priorClose : 0.0;
 
-            double close7dRef = referenceCloseDaysAgo(timestamps, closes, 7, false);
-            double close1mRef = referenceCloseDaysAgo(timestamps, closes, 30, true);
+            // Anchor the 7d/1m references to the last bar in the series, not wall-clock now,
+            // so the window doesn't drift across weekends/holidays when the market is closed.
+            long refAnchor = lastTimestamp(timestamps);
+            double close7dRef = referenceCloseDaysAgo(timestamps, closes, refAnchor, 7, false);
+            double close1mRef = referenceCloseDaysAgo(timestamps, closes, refAnchor, 30, true);
 
             return new LatestQuote(resolvedLatestPrice, resolvedPreviousClose, close7dRef, close1mRef);
         } catch (Exception ignored) {
@@ -2235,6 +2248,28 @@ public class Security {
             }
         }
         return 0.0;
+    }
+
+    // True when the most recent daily bar has no finalized close yet (null/<=0). In that state
+    // regularMarketPrice carries the current session, so the last non-null close is the prior one.
+    private static boolean lastDailyBarUnfinalized(List<Object> closes) {
+        if (closes == null || closes.isEmpty()) {
+            return false;
+        }
+        return toClose(closes.get(closes.size() - 1)) <= EPSILON;
+    }
+
+    private static long lastTimestamp(List<Object> timestamps) {
+        if (timestamps == null || timestamps.isEmpty()) {
+            return Instant.now().getEpochSecond();
+        }
+        for (int i = timestamps.size() - 1; i >= 0; i--) {
+            Long ts = toEpoch(timestamps.get(i));
+            if (ts != null) {
+                return ts;
+            }
+        }
+        return Instant.now().getEpochSecond();
     }
 
     private static double priorSessionClose(List<Object> closes) {
@@ -2257,11 +2292,11 @@ public class Security {
     // Latest close at or before (now - daysBack). When the series doesn't reach that far
     // back, fall back to the earliest close only if it lands within ~5 days of the target.
     private static double referenceCloseDaysAgo(List<Object> timestamps, List<Object> closes,
-                                                int daysBack, boolean allowTolerance) {
+                                                long anchor, int daysBack, boolean allowTolerance) {
         if (timestamps == null || closes == null || timestamps.isEmpty()) {
             return 0.0;
         }
-        long now = Instant.now().getEpochSecond();
+        long now = anchor;
         long target = now - (long) daysBack * 86400L;
         int n = Math.min(timestamps.size(), closes.size());
         double bestClose = 0.0;
