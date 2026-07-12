@@ -880,6 +880,18 @@ final class ReportClientScript {
             + "  var status = document.getElementById('refresh-prices-status');\n"
             + "  if (!button) return;\n"
             + "  button.addEventListener('click', async function() {\n"
+            + "    var updateBridge = null;\n"
+            + "    try { updateBridge = window.parent && window.parent.__portfolioReportUpdateBridge; } catch (bridgeError) { updateBridge = null; }\n"
+            + "    if (updateBridge && typeof updateBridge.regenerate === 'function') {\n"
+            + "      button.disabled = true;\n"
+            + "      if (status) status.textContent = 'Updating report...';\n"
+            + "      try {\n"
+            + "        await updateBridge.regenerate();\n"
+            + "        return;\n" // shell replaces the whole iframe on success
+            + "      } catch (regenerateError) {\n"
+            + "        button.disabled = false;\n" // fall through to client-side price refresh
+            + "      }\n"
+            + "    }\n"
             + "    var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-overview-row=\"1\"]'));\n"
             + "    var tickers = Array.from(new Set(rows.map(function(row) {\n"
             + "      return String(row.getAttribute('data-ticker') || '').trim().toUpperCase();\n"
