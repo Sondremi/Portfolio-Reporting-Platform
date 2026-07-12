@@ -50,7 +50,7 @@ engine:
 - An in-report **Update** button refreshes live prices without re-reading transactions.
 - Uploaded files and generated reports are stored per user.
 
-Access is by request on mail. → **https://indsetsportfolioreport.web.app**
+Access is by request on mail.
 
 ## Example Data
 
